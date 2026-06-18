@@ -104,6 +104,10 @@ release version="patch":
    then [`examples/tools/serve.jd`](examples/tools/serve.jd) (`sidecar`) and
    [`examples/tools/report.jd`](examples/tools/report.jd) (`artifact`).
 
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=yesitsfebreeze/justdown&type=Date)](https://star-history.com/#yesitsfebreeze/justdown&Date)
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).

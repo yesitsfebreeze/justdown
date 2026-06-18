@@ -1,5 +1,8 @@
 # Justdown (.jd) Language Specification v0.1
 
+> justdown is not a scripting language. It is a retrieval-friendly wrapper
+> around existing scripts, where the docs, metadata, and executable recipe live together.
+
 A `.jd` file is a small Markdown file with optional executable or scaffolded
 blocks. It is **not a new language** — it composes Markdown, YAML frontmatter,
 [just](https://just.systems), and PSAIDO so one file can serve four readers

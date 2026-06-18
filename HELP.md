@@ -1,7 +1,5 @@
 # HELP — how to use justdown
 
-[![GitHub stars](https://img.shields.io/github/stars/yesitsfebreeze/justdown?style=social)](https://github.com/yesitsfebreeze/justdown/stargazers)
-
 justdown is one-file toolmaking: a `.jd` Markdown file that is **the tool, its
 docs, and its retrieval contract at once**. This page is the short "how do I
 actually use it" guide. For the full spec see [`justdown.md`](justdown.md).

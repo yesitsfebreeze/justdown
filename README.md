@@ -1,5 +1,7 @@
 # justdown
 
+[![GitHub stars](https://img.shields.io/github/stars/yesitsfebreeze/justdown?style=social)](https://github.com/yesitsfebreeze/justdown/stargazers) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![spec](https://img.shields.io/badge/spec-v0.1-blue.svg)](justdown.md)
+
 A `.jd` file is a small Markdown file with optional executable or scaffolded
 blocks. It composes four things you already know — Markdown, YAML frontmatter,
 [just](https://just.systems), and a scaffold dialect (PSAIDO) — so **one file

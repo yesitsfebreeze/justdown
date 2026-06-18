@@ -1,0 +1,44 @@
+---
+name: db
+description: Run database migrations and local DB tooling (migrate, rollback, seed, studio, reset). Use when the user asks to migrate, seed, or open the DB.
+kind: tool
+tags: [db, migrate, prisma, sql]
+run: migrate
+provides: [migrate, rollback, seed, studio, reset]
+---
+
+# DB
+
+A recipe family over a DB CLI (`prisma` — swap for `drizzle`, `sqlx`, etc. and
+the interface stays identical). `run: migrate` is the default; the rest are
+callable by name.
+
+```just
+# apply pending migrations (default)
+migrate:
+  npx prisma migrate deploy
+
+# roll back the last migration batch
+rollback:
+  npx prisma migrate resolve --rolled-back
+
+# seed with dev fixtures
+seed:
+  npx prisma db seed
+
+# open a local DB GUI
+studio:
+  npx prisma studio
+
+# wipe and re-create the dev DB (destructive — dev only)
+reset:
+  npx prisma migrate reset --force
+```
+
+## Invocation
+
+```
+runner args: []          →  migrate
+runner args: ["seed"]    →  seed
+runner args: ["studio"]  →  studio
+```

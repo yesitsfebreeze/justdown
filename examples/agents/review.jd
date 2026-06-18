@@ -1,0 +1,32 @@
+---
+name: review
+description: Open an agent review of the current PR. Use when the user asks to review, critique, or sanity-check a pull request.
+kind: agent
+tags: [review, pr, agent, github]
+run: review
+---
+
+# Review
+
+An agent shard: the prose below is the *brief* the agent reads after the
+frontmatter selects this file, and the `just` recipe is the thin entry point
+that hands the brief to a model CLI. The recipe body delegates to a real CLI
+(`gh` + `claude`); heavy logic would live in a script on disk, the recipe is
+just the named, parameterized glue.
+
+**Brief.** Summarize the diff, flag risks, and propose a verdict
+(approve / request changes / block). Be concise; prefer a short bulleted risk
+list over prose. Do not nitpick style — that is @tools/fmt#check's job.
+
+```just
+# fetch the PR diff and hand it to a reviewer model
+review pr := `gh pr view --json number,title,body -q .number`:
+  diff=`gh pr diff {{pr}}`
+  claude --print --prompt "Review this PR diff. $(diff)"
+```
+
+## Notes
+
+- `pr` defaults to the PR on the current branch via a shell backtick; pass a
+  number to review a different PR.
+- The runner shells the recipe; the model output goes to stdout, exit code out.

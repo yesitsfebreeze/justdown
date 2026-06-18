@@ -1,0 +1,46 @@
+---
+name: serve
+description: Start the dev server (Vite) and keep it running. Use when the user asks to run, start, or serve the app locally.
+kind: tool
+tags: [dev, server, vite, sidecar]
+run: serve
+invoke: sidecar
+provides: [serve, reload, status, stop]
+---
+
+# Serve
+
+`invoke: sidecar` — the recipe starts Vite and **stays alive**. The runner
+spawns it detached, watches stdout for `READY`, and treats that as started;
+logs stream after. No exit code is read (a healthy sidecar never exits), so
+`READY` / `ERROR` lines are the contract.
+
+One-shot commands live as **separate named recipes in the same shard**, called
+by name as normal `run`-style recipes.
+
+```just
+# long-running dev server; prints READY once Vite is listening
+serve port="3000":
+  @echo "READY http://localhost:{{port}}"
+  vite --port {{port}} --host
+
+# one-shot: nudge Vite to reload
+reload:
+  @touch vite.config.ts
+
+# one-shot: is the server up? non-zero exit if down
+status port="3000":
+  @curl -fsS http://localhost:{{port}}/health && echo " up" || (echo "down" && exit 1)
+
+# one-shot: stop by pidfile (the runner may also SIGTERM the process)
+stop:
+  @test -f .vite.pid && kill $$(cat .vite.pid) && rm .vite.pid || echo "not running"
+```
+
+## Invocation
+
+```
+runner args: []          →  serve      (sidecar: detached, watch for READY)
+runner args: ["status"]  →  status     (run-style one-shot)
+runner args: ["reload"]  →  reload     (run-style one-shot)
+```

@@ -1,0 +1,28 @@
+---
+name: release
+description: Cut and publish a release. Use when the user asks to ship a version (patch/minor/major).
+kind: tool
+tags: [release, publish, ci]
+run: release
+---
+
+# Release
+
+Builds, gates, tags, and publishes. Runs the gate first via @tools/gate and
+refuses on a red gate — a non-zero exit from `just gate` aborts the recipe before
+`npm version` ever runs. The gate lives in its own shard so release and any other
+tool can share one definition of "green".
+
+```just
+release version="patch":
+  just gate
+  npm version {{version}}
+  git push --follow-tags
+  npm publish
+```
+
+## Invocation
+
+```
+runner args: ["minor"]  →  release version="minor"
+```

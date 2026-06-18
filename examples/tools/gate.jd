@@ -1,0 +1,22 @@
+---
+name: gate
+description: Run the project's test/type/lint gate. Use before any release or merge to check the tree is green.
+kind: tool
+tags: [ci, gate, test, lint]
+run: gate
+---
+
+# Gate
+
+A single named entry point that runs the full local check and exits non-zero on
+any failure. The runner treats a non-zero exit as a failure, so downstream
+recipes that `just gate` inherit that contract. There is no structured output —
+stdout and exit code out, per the result contract.
+
+```just
+# full gate: typecheck, lint, tests
+gate:
+  npm run typecheck
+  npm run lint
+  npm test
+```

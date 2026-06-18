@@ -1,0 +1,44 @@
+---
+name: docker
+description: Build and run the project in Docker (build, up, down, logs, shell). Use when the user asks to containerize, run locally, or debug the container.
+kind: tool
+tags: [docker, container, dev]
+run: up
+provides: [build, up, down, logs, shell]
+---
+
+# Docker
+
+The local container lifecycle as a recipe family. `run: up` is the default; the
+rest are callable by name. Heavy logic stays in `compose.yaml` / `Dockerfile`
+on disk; the recipes are the thin entry points.
+
+```just
+# build images without starting anything
+build service="":
+  docker compose build {{service}}
+
+# bring the stack up in the background (default)
+up:
+  docker compose up -d
+
+# tear the stack down
+down:
+  docker compose down
+
+# tail logs, optionally for one service
+logs service="":
+  docker compose logs -f {{service}}
+
+# open a shell inside a running service
+shell service="app":
+  docker compose exec {{service}} sh
+```
+
+## Invocation
+
+```
+runner args: []                 →  up
+runner args: ["build", "api"]   →  build service="api"
+runner args: ["shell", "web"]   →  shell service="web"
+```

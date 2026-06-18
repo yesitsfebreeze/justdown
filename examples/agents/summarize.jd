@@ -1,0 +1,32 @@
+---
+name: summarize
+description: Summarize a file or diff for the user. Use when the user asks "what does this do", "summarize", or "explain this file".
+kind: agent
+tags: [summarize, explain, agent, docs]
+run: summarize
+---
+
+# Summarize
+
+An agent shard: the prose is the brief, the recipe hands a file to a model CLI
+and prints the summary.
+
+**Brief.** Read the file at `path` and produce a tight summary: one sentence on
+what it is, a short bulleted list of what it does, one line on the most likely
+reason a reader would open it. Skip boilerplate. If `path` is a directory,
+summarize its purpose and list notable files. Do not speculate beyond the file.
+
+```just
+summarize path:
+  text=`cat {{path}}`
+  claude --print --prompt "Summarize this file for a developer. $(text)"
+```
+
+## Invocation
+
+```
+runner args: ["src/api/handler.ts"]  →  summarize path="src/api/handler.ts"
+```
+
+`path` is required (no default); a missing arg is a just usage error, which
+exits non-zero — the shared result contract.

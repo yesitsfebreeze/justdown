@@ -1,0 +1,46 @@
+---
+name: report
+description: Generate a report file (changelog, dep audit, file tree). Use when the user asks for a written report or exported summary.
+kind: tool
+tags: [report, docs, artifact, export]
+run: changelog
+invoke: artifact
+provides: [changelog, deprecations, tree]
+---
+
+# Report
+
+`invoke: artifact` — each recipe writes its result to a file and prints
+`ARTIFACT <path>` as the last stdout line; stdout is logs, not the result. The
+runner returns the **path** to the agent, who reads the file by path. Exit code
+still governs trust. For a quick stdout summary instead, use @agents/summarize
+(`invoke: run`).
+
+```just
+# changelog from the last N commits
+changelog count="50" out="dist/CHANGELOG.md":
+  @mkdir -p dist
+  @echo "# Changelog" > {{out}}
+  @git log -n {{count}} --pretty=format:"- %s (%h)" >> {{out}}
+  @echo "ARTIFACT {{out}}"
+
+# deprecated symbols across the tree, as JSON
+deprecations out="dist/deprecations.json":
+  @mkdir -p dist
+  @grep -rn "@deprecated" src | python scripts/deprecations_to_json.py {{out}}
+  @echo "ARTIFACT {{out}}"
+
+# markdown tree of a directory
+tree root="src" out="dist/tree.md":
+  @mkdir -p dist
+  @find {{root}} -type f | sort | sed 's|^|- |' > {{out}}
+  @echo "ARTIFACT {{out}}"
+```
+
+## Invocation
+
+```
+runner args: []                    →  changelog count="50" out="dist/CHANGELOG.md"
+runner args: ["deprecations"]      →  deprecations out="dist/deprecations.json"
+runner args: ["tree", "src/api"]   →  tree root="src/api"
+```

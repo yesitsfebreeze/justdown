@@ -1,0 +1,32 @@
+---
+name: fmt
+description: Format source files, or check formatting without writing. Use when the user asks to pretty-print or verify style.
+kind: tool
+tags: [format, style, lint]
+run: fmt
+provides: [fmt, check]
+---
+
+# Fmt
+
+A family of related entry points in one shard. `run: fmt` picks the default, so
+the runner calls `fmt` when no recipe is named; `check` is callable by name for
+CI and pre-commit hooks. One file, several recipes, one stable invocation
+shape — `just --justfile - <recipe> -- <args>`.
+
+```just
+# write formatted files (default)
+fmt path=".":
+  npx prettier --write {{path}}
+
+# non-mutating check: exits non-zero if any file would change
+check path=".":
+  npx prettier --check {{path}}
+```
+
+## Invocation
+
+```
+runner args: []                  →  fmt path="."
+runner args: ["check", "src/"]   →  check path="src/"
+```

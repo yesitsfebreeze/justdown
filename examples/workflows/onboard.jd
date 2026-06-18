@@ -1,0 +1,36 @@
+---
+name: onboard
+description: Set up a fresh clone for development end to end. Use when the user says "set this up", "onboard", or "get me running".
+kind: workflow
+tags: [workflow, setup, onboard, dev]
+run: onboard
+---
+
+# Onboard
+
+Composes the steps a new contributor runs once: install, prepare env, migrate,
+seed. Depends on @tools/db via just recipe dependencies, so ordering and
+failure-propagation are free — if install fails, the DB steps never run.
+
+Deliberately does **not** run the gate — onboarding is about a working local
+environment, not a clean tree. For ongoing migrations use @tools/db directly.
+
+```just
+# install, configure env, then migrate + seed the DB
+onboard: install env
+  cp .env.example .env
+  just migrate
+  just seed
+
+install:
+  npm ci
+
+env:
+  @test -f .env.example
+```
+
+## Invocation
+
+```
+runner args: []  →  onboard
+```

@@ -1,0 +1,42 @@
+---
+name: list/pagination
+description: Slice a list into pages of fixed size. Pull when implementing pagination, cursor lists, or batched iteration.
+kind: knowledge
+tags: [pagination, list, cursor, batch]
+provides: [paginate, totalPages]
+---
+
+# Pagination
+
+Slice a list into fixed-size pages; `totalPages` rounds up so a trailing
+partial page counts as one.
+
+```psaido
+!fn totalPages > number
+- total: number
+- pageSize: number
+  if pageSize <= 0 then
+    < 0
+< (total + pageSize - 1) / pageSize
+
+!fn paginate > [any]
+- items: [any]
+- page: number
+- pageSize: number
+  if pageSize <= 0 then
+    < []
+  start = (page - 1) * pageSize
+  end = start + pageSize
+  if start >= items.length then
+    < []
+  if end > items.length then
+    end = items.length
+< items[start:end]
+```
+
+## Notes for the translator
+
+- `[any]` is a generic list — keep the element type parameterized
+  (`List<T>`, `Vec<T>`, `T[]`).
+- `items[start:end]` is a half-open slice; use the host's slice idiom.
+- Out-of-range returns `[]`, not an error — "no more results", not a failure.

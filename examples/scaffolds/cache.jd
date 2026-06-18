@@ -1,0 +1,54 @@
+---
+name: cache/invalidate
+description: Cache read-through with TTL expiry. Pull when implementing a cache, memoization, or stale-while-revalidate.
+kind: knowledge
+tags: [cache, ttl, memoize, performance]
+provides: [CacheEntry, get, set, invalidate]
+---
+
+# Cache invalidate
+
+A small TTL cache: `get` returns the value if fresh, else signals a miss; `set`
+stamps an entry with its expiry; `invalidate` forces a miss. Pair with
+@scaffolds/result so a miss is an `Err`, not a sentinel `null`.
+
+```psaido
+!im @scaffolds/result as r
+
+!sc CacheEntry
+- value: any
+- expiresAt: number
+
+!fn get > r.Result
+- store: any
+- key: string
+  entry = store[key]
+  if entry == null then
+    < r.Err("miss")
+  if now() > entry.expiresAt then
+    < r.Err("expired")
+< r.Ok(entry.value)
+
+!fn set > any
+- store: any
+- key: string
+- value: any
+- ttl: number
+  entry = CacheEntry{ value: value, expiresAt: now() + ttl }
+  store[key] = entry
+< store
+
+!fn invalidate > any
+- store: any
+- key: string
+  store[key] = null
+< store
+```
+
+## Notes for the translator
+
+- `store` is the host's map/dict, passed in and returned so `set`/`invalidate`
+  stay pure; in a real implementation you will likely hold it in a field.
+- `now()` is a runtime clock — inject it for tests.
+- If the host distinguishes absent-from-present (`Option`, `getOr`), prefer that
+  over a `null` sentinel.

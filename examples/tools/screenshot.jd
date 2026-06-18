@@ -1,0 +1,37 @@
+---
+name: screenshot
+description: Capture a URL to a PNG or PDF file. Use when the user asks to screenshot, capture, or render a page to an image.
+kind: tool
+tags: [screenshot, browser, image, artifact, binary]
+run: shot
+invoke: artifact
+provides: [shot, pdf]
+---
+
+# Screenshot
+
+`invoke: artifact` for **binary** output — a PNG cannot go on stdout without
+corrupting it. The recipe writes the file and prints `ARTIFACT <path>`; the
+runner returns the path, the agent reads the file. Delegates to `playwright`;
+swap for `chromium --headless`, `puppeteer`, etc. and the contract is unchanged.
+
+```just
+# capture a URL to a PNG
+shot url out="dist/shot.png":
+  @mkdir -p dist
+  npx playwright screenshot --wait-for-timeout 1000 {{url}} {{out}}
+  @echo "ARTIFACT {{out}}"
+
+# capture a URL to a PDF (callable by name)
+pdf url out="dist/shot.pdf":
+  @mkdir -p dist
+  npx playwright pdf {{url}} {{out}}
+  @echo "ARTIFACT {{out}}"
+```
+
+## Invocation
+
+```
+runner args: ["https://example.com"]                       →  shot url="https://example.com"
+runner args: ["pdf", "https://example.com", "dist/a.pdf"]  →  pdf url="https://example.com" out="dist/a.pdf"
+```

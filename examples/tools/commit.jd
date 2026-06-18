@@ -1,0 +1,27 @@
+---
+name: commit
+description: Stage a scope and write a conventional commit. Use when the user asks to commit changes with a message.
+kind: tool
+tags: [git, commit, vcs]
+run: commit
+---
+
+# Commit
+
+Stages a scope and commits with a [conventional commit](https://www.conventionalcommits.org)
+message. On success prints the new short SHA; git's non-zero exit propagates on
+failure.
+
+```just
+commit type="feat" scope="." message="update":
+  git add {{scope}}
+  git commit -m "{{type}}({{scope}}): {{message}}"
+  git rev-parse --short HEAD
+```
+
+## Invocation
+
+```
+runner args: ["fix", "src/api", "handle 404"]  →  commit type="fix" scope="src/api" message="handle 404"
+runner args: []                                →  commit type="feat" scope="." message="update"
+```

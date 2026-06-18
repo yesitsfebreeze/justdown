@@ -1,0 +1,16 @@
+# local secrets — assembly secrets store, never commit
+.assembly.env
+.assembly.env:Zone.Identifier
+
+# pi agent runtime (auth/settings are local-only)
+.pi/
+
+# OS metadata
+*:Zone.Identifier
+.DS_Store
+Thumbs.db
+
+# common build/output dirs referenced by example recipes
+dist/
+node_modules/
+.vite.pid

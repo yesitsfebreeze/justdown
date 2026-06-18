@@ -1,0 +1,56 @@
+---
+name: auth/session
+description: Session and login flow sketch — credentials in, session out. Pull when implementing auth, login, or token refresh.
+kind: knowledge
+tags: [auth, session, login, security]
+provides: [Credentials, Session, login, refresh]
+---
+
+# Auth session
+
+A scaffold for the login flow. It imports the user store once with `!im ...
+as`, then uses the short alias below — the two valid ways to reference another
+file's provided names. The translator (the model reading this) turns each
+`@`/aliased link into the target language's normal import or call; this block
+is **never** extracted or run.
+
+```psaido
+!im @db/users as udb
+
+!sc Credentials
+- email: string
+- password: string
+
+!sc Session
+- user: udb.User
+- token: string
+- expiresAt: number
+
+!fn login > Session
+- input: Credentials
+  record = udb.findByEmail(input.email)
+  if record == null then
+    < null
+  // verifyPassword and issueToken live in @auth/crypto; inline link:
+  ok = @auth/crypto#verifyPassword(input.password, record.passwordHash)
+  if ok == false then
+    < null
+  token = @auth/crypto#issueToken(record.id)
+< Session{ user: record, token: token, expiresAt: now() + 3600 }
+
+!fn refresh > Session
+- session: Session
+  if now() > session.expiresAt then
+    < null
+  token = @auth/crypto#issueToken(session.user.id)
+< Session{ user: session.user, token: token, expiresAt: now() + 3600 }
+```
+
+## Notes for the translator
+
+- `now()` is a runtime primitive the host language provides; do not translate it
+  to a stored field.
+- `null` returns are the failure path — translate to the host's idiom
+  (exception, `Option::None`, `nil`, etc.).
+- Nesting (`Session.user: udb.User`) and arrays work as in the grammar; no extra
+  keyword needed.

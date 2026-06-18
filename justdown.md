@@ -370,6 +370,32 @@ and a literal `@` must never reach the shell. In a scaffold, translate each link
 into the target language's normal import or call (see [Scaffold
 blocks](#scaffold-blocks-psaido) for the inline and aliased forms).
 
+## Plugins
+
+A **plugin** is just a folder or a repository containing one or more `.jd`
+files. There is no plugin manifest, no build step, no install hook — if a path
+holds `.jd` files, it is a plugin.
+
+Install a plugin by **linking** it: point the system at the folder path or git
+URL and the `.jd` files inside become available to the index and runner like
+any locally authored shard. A plugin is nothing more than the `.jd` files it
+contains, linked in.
+
+Plugins are **persisted on disk as plain files** — Markdown, frontmatter, and
+fenced blocks, nothing else. That makes a plugin **gitable**: it lives in a repo,
+versioned, diffed, branched, and reviewed like any other source. Clone the repo
+(or add it as a submodule) and link it; the files are the plugin.
+
+Because the unit is ordinary files in a repo:
+
+- sharing a capability = sharing a folder of `.jd` files
+- versioning a capability = git history of that folder
+- pinning a capability = a commit, tag, or branch
+- composing capabilities = linking several plugins at once
+
+No registry, no packaging format, no separate distribution channel. The link
+is the install; the repo is the package; the `.jd` files are the plugin.
+
 
 ## Example: a complete tool file
 

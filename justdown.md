@@ -402,6 +402,12 @@ the `.jd` files, no `.jd` wrapper required. This lets a plugin ship ordinary
 just recipes for users who only want the runner, while `.jd` files add the
 retrieval contract and prose for agents.
 
+Because a plugin is just `.jd` files on disk, **the same plugin is consumable by
+any system that reads `.jd`** — there is no per-host packaging. A plugin authored
+for one runner (e.g. an agent harness's tool corpus) links into any other runner
+that resolves `.jd` the same way (e.g. swirl's tool surface). One plugin, many
+hosts; the format is the contract, not the host.
+
 
 ## Example: a complete tool file
 

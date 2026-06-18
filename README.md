@@ -38,10 +38,23 @@ stay thin; the entire execution glue is one parser extension that lifts
 ## Contents
 
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
-- [`examples/`](examples/) — twenty `.jd` shards exercising every `kind`
+- [`HELP.md`](HELP.md) — how to author and run a `.jd` tool.
+- [`INSTALL.md`](INSTALL.md) — wire this repo into your agent as an MCP server.
+- [`library/`](library/) — twenty `.jd` shards exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting; see
-  [`examples/README.md`](examples/README.md) for the index.
+  [`library/README.md`](library/README.md) for the index.
+- [`mcp.mjs`](mcp.mjs) — a single zero-dependency MCP server that serves the
+  library as a flat, queryable graph; also builds [`graph.json`](graph.json).
+
+## Use it as an MCP
+
+The repo *is* the package — MCP server, tool library, docs, and plugin in one,
+distributed as plain files in git. Hand your agent the repo URL (or a local
+path) and it registers [`mcp.mjs`](mcp.mjs), then queries the library as a flat
+graph: each shard is a node with its retrieval contract and a sparse quantized
+term-vector, edges are the `@`links, and the keys read back as named categories.
+No clone, no `npm install`, no model — see [`INSTALL.md`](INSTALL.md).
 
 ## Why
 
@@ -99,10 +112,10 @@ release version="patch":
 
 1. This README.
 2. [`justdown.md`](justdown.md) — the spec, end to end.
-3. [`examples/`](examples/) — see it on disk. Start with
-   [`examples/tools/gate.jd`](examples/tools/gate.jd) (a plain `run` tool),
-   then [`examples/tools/serve.jd`](examples/tools/serve.jd) (`sidecar`) and
-   [`examples/tools/report.jd`](examples/tools/report.jd) (`artifact`).
+3. [`library/`](library/) — see it on disk. Start with
+   [`library/tools/gate.jd`](library/tools/gate.jd) (a plain `run` tool),
+   then [`library/tools/serve.jd`](library/tools/serve.jd) (`sidecar`) and
+   [`library/tools/report.jd`](library/tools/report.jd) (`artifact`).
 
 ## Star history
 

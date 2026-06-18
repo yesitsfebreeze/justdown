@@ -77,9 +77,9 @@ Set it once in frontmatter:
 invoke: sidecar
 ```
 
-Examples: [`examples/tools/gate.jd`](examples/tools/gate.jd) (`run`),
-[`examples/tools/serve.jd`](examples/tools/serve.jd) (`sidecar`),
-[`examples/tools/report.jd`](examples/tools/report.jd) (`artifact`).
+Examples: [`library/tools/gate.jd`](library/tools/gate.jd) (`run`),
+[`library/tools/serve.jd`](library/tools/serve.jd) (`sidecar`),
+[`library/tools/report.jd`](library/tools/report.jd) (`artifact`).
 
 ## 4. Link files with `@`
 

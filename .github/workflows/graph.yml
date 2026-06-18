@@ -1,0 +1,34 @@
+name: graph
+
+# Keep the committed graph.json in sync with the library/ shards.
+# Rebuilds with mcp.mjs and fails if the result differs from what's checked in.
+
+on:
+  push:
+    paths: ["library/**", "mcp.mjs", ".github/workflows/graph.yml"]
+  pull_request:
+    paths: ["library/**", "mcp.mjs", ".github/workflows/graph.yml"]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax-check the server
+        run: node --check mcp.mjs
+
+      - name: Rebuild graph.json
+        run: node mcp.mjs --build
+
+      - name: Fail if graph.json is stale
+        run: |
+          if ! git diff --exit-code -- graph.json; then
+            echo "::error::graph.json is out of date. Run 'node mcp.mjs --build' and commit the result."
+            exit 1
+          fi
+          echo "graph.json is in sync."

@@ -1,9 +1,13 @@
-# justdown examples
+# justdown library
 
 Each `.jd` file here is a small, single-purpose shard. Together they exercise
 every `kind` and the main features of the format. They are intentionally minimal
 and self-documenting; read the frontmatter for the retrieval contract, the prose
 for the *why*, and the fenced blocks for the *how*.
+
+This folder is also the corpus behind [`../graph.json`](../graph.json) — the flat,
+queryable graph served by [`../mcp.mjs`](../mcp.mjs). See
+[`../INSTALL.md`](../INSTALL.md) to wire it into your agent.
 
 | File | kind | Demonstrates |
 |------|------|--------------|
@@ -37,7 +41,7 @@ spawns a recipe and reads its result back (`invoke` in the spec):
   file announced by `ARTIFACT <path>`; stdout is logs. Covers large/structured
   and binary outputs that cannot go on stdout.
 
-Conventions used across these examples:
+Conventions used across these shards:
 
 - Frontmatter is the **only** thing an index ingests — keep it honest and short.
 - `@` links in prose and `psaido` are resolved before the agent sees the file;

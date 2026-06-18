@@ -396,6 +396,12 @@ Because the unit is ordinary files in a repo:
 No registry, no packaging format, no separate distribution channel. The link
 is the install; the repo is the package; the `.jd` files are the plugin.
 
+A plain `justfile` (or any `*.just` file) at the root of a plugin may also be
+indexed and used directly — it is treated as another runnable surface alongside
+the `.jd` files, no `.jd` wrapper required. This lets a plugin ship ordinary
+just recipes for users who only want the runner, while `.jd` files add the
+retrieval contract and prose for agents.
+
 
 ## Example: a complete tool file
 

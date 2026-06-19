@@ -1,0 +1,38 @@
+---
+name: vim_remote
+description: Control a running vim/nvim instance from outside — start a server, send keystrokes, evaluate expressions, open files in it. Use to drive a live editor programmatically.
+kind: tool
+tags: [vim, remote, server, clientserver, control]
+use_when: [control a running vim, send keys to nvim, nvim remote, drive a live editor, open file in running instance]
+danger: low
+side_effects: [process]
+requires: [nvim]
+run: send
+provides: [serve, send, expr, open]
+---
+
+# Remote control
+
+The clientserver surface: a headless server (`serve`) listens on a socket, then
+`send` pushes keystrokes, `expr` evaluates a `:h expression`, and `open` loads
+files into it. Keys are literal vim input — see @vim/motions and @vim/modes for
+what to send. nvim addresses are a socket path or `host:port`; stock Vim uses
+`--servername NAME` with the same `--remote*` verbs.
+
+```just
+# start a headless server listening on an address (default socket)
+serve addr="/tmp/jd-nvim.sock":
+  nvim --headless --listen {{quote(addr)}}
+
+# send keystrokes to a running server (default)
+send addr keys:
+  nvim --server {{quote(addr)}} --remote-send {{quote(keys)}}
+
+# evaluate an expression in a running server and print the result
+expr addr expression:
+  nvim --server {{quote(addr)}} --remote-expr {{quote(expression)}}
+
+# open files in a running server
+open addr +files:
+  nvim --server {{quote(addr)}} --remote {{files}}
+```

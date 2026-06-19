@@ -1,0 +1,56 @@
+---
+name: vim_config
+description: Configuring vim/nvim — options with :set, key mappings, leader keys, variables, and autocommands. How to change editor behavior from a vimrc or at runtime.
+kind: knowledge
+tags: [vim, config, options, mappings, autocmd]
+use_when: [vim set option, vim key mapping, vim autocmd, vimrc, change vim behavior, vim leader key]
+---
+
+# Configuration
+
+Behavior is set by options, mappings, variables, and autocommands — typed at `:`
+to change the running editor, or written to a vimrc (`~/.vimrc`,
+`~/.config/nvim/init.vim`/`init.lua`). A config script runs headlessly via
+@vim/script; one-off settings ride along in `-c`/`--cmd` (@vim/cli).
+
+## Options — `:set`
+
+| Form | Does |
+|------|------|
+| `:set {opt}` | enable a boolean (`:set number`) |
+| `:set no{opt}` | disable it (`:set nowrap`) |
+| `:set {opt}!` | toggle it |
+| `:set {opt}={val}` | set a value (`:set shiftwidth=2`) |
+| `:set {opt}?` | query the current value |
+| `:setlocal …` | this buffer/window only |
+
+Common: `number relativenumber`, `expandtab shiftwidth=2 tabstop=2`,
+`ignorecase smartcase`, `incsearch hlsearch`, `wrap/nowrap`, `clipboard=unnamedplus`.
+
+## Mappings
+
+`:{mode}map {lhs} {rhs}` — `n`/`i`/`v`/`x`/`c` pick the mode; add `nore` for a
+non-recursive map (almost always what you want); `un` removes one.
+
+| Form | Does |
+|------|------|
+| `:nnoremap {lhs} {rhs}` | normal-mode map, non-recursive |
+| `:inoremap jk <Esc>` | insert-mode map |
+| `:vnoremap {lhs} {rhs}` | visual-mode map |
+| `<leader>` | the `mapleader` prefix (`let mapleader=" "`) |
+| `:map` / `:nunmap` | list maps / remove one |
+
+Special keys in an `{rhs}`: `<CR> <Esc> <Tab> <C-x> <A-x> <Space> <silent>`.
+
+## Variables & autocommands
+
+| Form | Does |
+|------|------|
+| `:let g:name = val` | set a global (`b:` buffer, `w:` window, `&opt` an option) |
+| `:let @a = '…'` | set register `a` (@vim/registers) |
+| `:autocmd {event} {pat} {cmd}` | run `{cmd}` on an event for matching files |
+
+E.g. `:autocmd BufWritePre *.go silent! %!gofmt` formats Go files on save —
+group related ones with `:augroup`. Neovim can do all of this in Lua
+(`vim.opt`, `vim.keymap.set`, `vim.api.nvim_create_autocmd`), runnable via
+`nvim -l` (@vim/script).

@@ -1,0 +1,58 @@
+---
+name: vim_windows
+description: Vim buffers, windows, tabs, and sessions — loading files, splitting the view, moving between viewports, and saving a layout to restore later.
+kind: knowledge
+tags: [vim, windows, buffers, tabs, splits]
+use_when: [vim buffers, vim splits, vim windows, vim tabs, switch buffer, save a vim session]
+---
+
+# Buffers, windows, tabs
+
+Three layers: a **buffer** is a loaded file, a **window** is a viewport onto a
+buffer, a **tab** is a layout of windows. Opening (@vim/open) sets the initial
+layout; these manage it once inside.
+
+## Buffers
+
+| Cmd | Does |
+|-----|------|
+| `:e {file}` | edit a file in a new buffer |
+| `:ls` (`:buffers`) | list buffers |
+| `:b {n/name}` | switch to a buffer |
+| `:bn` / `:bp` | next / previous buffer |
+| `:bd` | delete (unload) a buffer |
+| `Ctrl-^` | toggle to the alternate buffer |
+
+## Windows (splits)
+
+| Key | Does |
+|-----|------|
+| `Ctrl-w s` / `:split` | split horizontally |
+| `Ctrl-w v` / `:vsplit` | split vertically |
+| `Ctrl-w w` | cycle windows · `Ctrl-w h/j/k/l` move by direction |
+| `Ctrl-w q` / `:q` | close the window |
+| `Ctrl-w o` | close all others |
+| `Ctrl-w = / _ / |` | equalize / maximize height / maximize width |
+| `Ctrl-w r` / `Ctrl-w x` | rotate / swap windows |
+
+In diff mode (@vim/diff) the splits are the two files; `]c`/`[c` jump hunks.
+
+## Tabs
+
+| Cmd | Does |
+|-----|------|
+| `:tabnew {file}` | open a file in a new tab |
+| `gt` / `gT` | next / previous tab |
+| `{n}gt` | go to tab n |
+| `:tabclose` / `:tabonly` | close this / all other tabs |
+| `:tabs` | list tabs |
+
+## Sessions
+
+| Cmd | Does |
+|-----|------|
+| `:mksession[!] {file}` | save buffers, windows, tabs, layout to a script |
+| `:source {file}` or `nvim -S {file}` | restore it (@vim/open `session`) |
+
+A session is a vimscript, so it can be sourced headlessly like any other
+(@vim/script).

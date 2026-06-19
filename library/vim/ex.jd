@@ -1,0 +1,69 @@
+---
+name: vim_ex
+description: Ex / command-line commands — ranges, :global, :substitute, :normal, :argdo/:bufdo, sort, move/copy, read/write. The scriptable command layer vim automation is built from.
+kind: knowledge
+tags: [vim, ex, command-line, global, substitute]
+use_when: [vim ex commands, vim global command, vim normal command, argdo bufdo, vim ranges, scriptable vim]
+---
+
+# Ex commands
+
+Typed after `:`, or passed to `-c`/`-S` for headless runs (@vim/edit, @vim/cli).
+This is what makes vim programmable: a range, a command, optionally repeated over
+every line that matches a pattern.
+
+## Ranges
+
+A command may be prefixed by a line range.
+
+| Range | Means |
+|-------|-------|
+| `.` / `$` | current line / last line |
+| `%` | the whole file (= `1,$`) |
+| `5,20` | lines 5 through 20 |
+| `.,+3` | current line and the next three |
+| `'a,'b` | from mark a to mark b (@vim/registers) |
+| `/pat/,/pat2/` | from one match to the next |
+
+## Substitute
+
+`:[range]s/pat/rep/[flags]` — pattern is vim regex (@vim/search).
+
+| Form | Does |
+|------|------|
+| `:%s/old/new/g` | replace every `old` in the file |
+| `:%s/old/new/gc` | …with confirm on each |
+| `:s/old/new/` | first match on the current line |
+| `:%s//new/g` | reuse the last search pattern |
+| `&` / `:&&` | repeat last substitute (with flags) |
+
+## Global — act on matching lines
+
+| Form | Does |
+|------|------|
+| `:g/pat/d` | delete every line matching `pat` |
+| `:g/pat/m$` | move every match to end of file |
+| `:g/pat/normal {keys}` | run normal-mode keys on each match |
+| `:v/pat/d` (`:g!`) | delete every line *not* matching |
+
+## Run keystrokes / repeat over files
+
+| Form | Does |
+|------|------|
+| `:[range]normal {keys}` | run normal-mode keys on each line in range |
+| `:argdo {cmd}` | run `{cmd}` in every arglist file |
+| `:bufdo {cmd}` | …every buffer · `:windo` every window · `:tabdo` every tab |
+| `:cdo {cmd}` | …every quickfix entry |
+
+`:argdo %s/old/new/ge | update` is the in-editor twin of the @vim/batch tool.
+
+## Move, copy, sort, shell
+
+| Form | Does |
+|------|------|
+| `:[range]m {addr}` | move lines after `{addr}` (`m0` = to top) |
+| `:[range]t {addr}` (`:co`) | copy lines after `{addr}` |
+| `:[range]sort[!] [u][n]` | sort range — `!` reverse, `u` unique, `n` numeric |
+| `:[range]!cmd` | filter range through a shell command |
+| `:r {file}` / `:r !cmd` | read a file / command output into the buffer |
+| `:[range]w {file}` | write range to a file |

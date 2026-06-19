@@ -1,0 +1,56 @@
+---
+name: vim_registers
+description: Vim registers, marks, and macros — where yanked/deleted text goes, named positions, and recording keystroke sequences to replay.
+kind: knowledge
+tags: [vim, registers, marks, macros, reference]
+use_when: [vim registers, vim macros, record a macro, vim marks, named clipboard, replay keystrokes]
+---
+
+# Registers, marks & macros
+
+The state vim carries between edits: clipboards (registers), saved positions
+(marks), and recorded keystroke sequences (macros). Operators (@vim/operators)
+read and write registers; motions (@vim/motions) jump to marks.
+
+## Registers
+
+Prefix any yank/delete/paste with `"{reg}` to target a register.
+
+| Register | Holds |
+|----------|-------|
+| `"` | unnamed — last yank or delete (default) |
+| `0` | last *yank* only (survives deletes) |
+| `1`–`9` | delete ring — `1` newest, shifting down |
+| `a`–`z` | named; `A`–`Z` *append* to the same register |
+| `+` / `*` | system clipboard / primary selection |
+| `%` `#` `.` `:` `/` | filename / alt file / last insert / last cmd / last search |
+| `_` | black hole — discard without touching other registers |
+
+`"ayy` yanks the line into `a`; `"ap` pastes it; `:reg` lists them. In insert or
+the command line, `Ctrl-r {reg}` inserts a register's contents.
+
+## Marks
+
+| Key | Does |
+|-----|------|
+| `m{a-z}` | set a buffer-local mark |
+| `m{A-Z}` | set a global mark (across files) |
+| `` `{m} `` / `'{m}` | jump to mark exactly / to its line |
+| `` `. `` | last change · `` `^ `` last insert · `` `` `` before last jump |
+| `:marks` | list marks |
+
+Marks double as range endpoints in ex: `:'a,'bs/…/…/` (@vim/ex).
+
+## Macros
+
+A macro is just keystrokes stored in a register, so it follows register rules.
+
+| Key | Does |
+|-----|------|
+| `q{reg}` … `q` | record keystrokes into `{reg}` until `q` |
+| `@{reg}` | replay the macro |
+| `@@` | replay the last macro |
+| `{count}@{reg}` | replay it `{count}` times |
+| `:%normal @a` | run macro `a` on every line (@vim/ex) |
+
+Because a macro is text in a register, `"ap` edits it and `"ay$` yanks it back.

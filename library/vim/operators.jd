@@ -1,0 +1,52 @@
+---
+name: vim_operators
+description: Vim operators and text objects — the operator + motion/text-object grammar (delete, change, yank, indent…) and dot-repeat that make editing composable.
+kind: knowledge
+tags: [vim, operators, text-objects, editing, reference]
+use_when: [vim operators, delete change yank, vim text objects, diw ci", vim editing grammar, dot repeat]
+---
+
+# Operators & text objects
+
+The core grammar: `{count}{operator}{motion-or-text-object}`. An operator waits
+for a motion (@vim/motions) or a text object and acts on that range. Doubling the
+operator (`dd`, `yy`) acts on whole lines.
+
+## Operators
+
+| Op | Does |
+|----|------|
+| `d` / `c` / `y` | delete / change (delete + insert) / yank |
+| `>` / `<` | indent / dedent |
+| `=` | auto-indent |
+| `gu` / `gU` / `g~` | lowercase / uppercase / toggle case |
+| `gq` / `gw` | reflow (format) text |
+| `!` | filter range through an external command |
+
+So `d$` deletes to line end, `c3w` changes three words, `>i{` indents inside the
+braces, `guu` lowercases the line.
+
+## Text objects (`i`=inner, `a`=around)
+
+| Object | Is |
+|--------|----|
+| `iw` / `aw` | word / word + trailing space |
+| `iW` / `aW` | WORD |
+| `is` / `as` | sentence |
+| `ip` / `ap` | paragraph |
+| `i"` `i'` `` i` `` | inside quotes (`a` includes them) |
+| `i(` `i[` `i{` `i<` | inside the bracket pair (`a` includes brackets) |
+| `it` / `at` | inside / around an XML/HTML tag |
+
+`ci"` changes inside quotes from anywhere on the line; `dap` deletes a paragraph;
+`yi(` yanks inside parentheses.
+
+## Repeat & undo
+
+| Key | Does |
+|-----|------|
+| `.` | repeat the last change — the multiplier on every edit |
+| `u` / `Ctrl-r` | undo / redo |
+| `{count}.` | repeat the change `{count}` times |
+
+Yanked/deleted text lands in registers — see @vim/registers.

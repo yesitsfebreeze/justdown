@@ -1,0 +1,28 @@
+---
+name: vim_script
+description: Run a vimscript or a Lua script through nvim headlessly. Use to execute editor automation that lives in a .vim or .lua file.
+kind: tool
+tags: [vim, script, lua, vimscript, headless]
+use_when: [run a vimscript, run nvim lua, execute editor automation, nvim -l, source a vim script headless]
+danger: low
+requires: [nvim]
+run: run
+provides: [run, lua]
+---
+
+# Run a script
+
+`run` sources a vimscript with no UI and quits; `lua` runs a file through nvim's
+own Lua interpreter (`nvim -l`), forwarding any args to the script. For one-off
+ex commands against a file instead of a whole script, use @vim/edit. Vimscript
+options and mappings the script may set are documented in @vim/config.
+
+```just
+# source a vimscript headlessly, then quit (default)
+run script:
+  nvim --headless -S {{quote(script)}} -c 'qa!'
+
+# run a Lua script through nvim's interpreter, forwarding args
+lua script *args:
+  nvim -l {{quote(script)}} {{args}}
+```

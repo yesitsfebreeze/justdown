@@ -1,0 +1,67 @@
+---
+name: vim_motions
+description: Vim motions — every way to move the cursor or define a range, from character steps to searches, marks, and jumps. The vocabulary operators act on.
+kind: knowledge
+tags: [vim, motions, navigation, cursor, reference]
+use_when: [vim motions, move the cursor in vim, vim navigation, jump in vim, word and line motions]
+---
+
+# Motions
+
+A motion moves the cursor; prefixed by an operator (@vim/operators) it defines
+the range that operator acts on. Most take a count: `3w`, `5j`.
+
+## Character & line
+
+| Motion | To |
+|--------|----|
+| `h j k l` | left, down, up, right |
+| `0` / `^` / `$` | line start / first non-blank / line end |
+| `g_` | last non-blank |
+| `gj` / `gk` | down/up a *display* line (wrapped) |
+
+## Words & WORDS
+
+| Motion | To |
+|--------|----|
+| `w` / `b` | next / previous word start |
+| `e` / `ge` | next / previous word end |
+| `W B E` | same, but WORD = whitespace-delimited |
+
+## Within a line
+
+| Motion | To |
+|--------|----|
+| `f{c}` / `F{c}` | next / previous `{c}` |
+| `t{c}` / `T{c}` | just before next / after previous `{c}` |
+| `;` / `,` | repeat last `f/t` forward / backward |
+
+## Text structure
+
+| Motion | To |
+|--------|----|
+| `{` / `}` | previous / next blank-line paragraph |
+| `(` / `)` | previous / next sentence |
+| `%` | matching `() [] {}` |
+| `[[` / `]]` | previous / next section |
+
+## File & screen
+
+| Motion | To |
+|--------|----|
+| `gg` / `G` | first line / last line (`{n}G` = line n) |
+| `H M L` | top / middle / bottom of screen |
+| `Ctrl-d` / `Ctrl-u` | half page down / up |
+| `Ctrl-f` / `Ctrl-b` | page forward / back |
+| `zz` / `zt` / `zb` | scroll current line to center / top / bottom |
+
+## Search, marks, jumps
+
+| Motion | To |
+|--------|----|
+| `/pat` `?pat` | search forward / back (regex: @vim/search) |
+| `n` / `N` | next / previous match |
+| `*` / `#` | search word under cursor forward / back |
+| `` `{m} `` / `'{m}` | to mark `{m}` exactly / to its line (@vim/registers) |
+| `` `` `` / `''` | back to position before the last jump |
+| `Ctrl-o` / `Ctrl-i` | older / newer position in the jump list |

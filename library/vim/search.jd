@@ -1,0 +1,58 @@
+---
+name: vim_search
+description: Vim search and regex — the pattern syntax, magic levels, anchors, classes, and replacement specials used by /search, :substitute, and :global.
+kind: knowledge
+tags: [vim, search, regex, pattern, substitute]
+use_when: [vim regex, vim search pattern, vim substitute pattern, magic mode, very magic, replacement specials]
+---
+
+# Search & regex
+
+The pattern language behind `/`, `?`, `:s`, and `:g` (@vim/ex). Vim's default
+"magic" makes some metacharacters require a backslash; `\v` ("very magic") makes
+the syntax close to PCRE.
+
+## Search
+
+| Key | Does |
+|-----|------|
+| `/pat` / `?pat` | search forward / backward |
+| `n` / `N` | repeat same / opposite direction |
+| `*` / `#` | search whole word under cursor fwd / back |
+| `/pat/e` | leave cursor at the match end |
+| `:noh` | clear search highlight |
+
+Set `:set ignorecase smartcase` so lowercase matches any case but a capital is
+exact; `incsearch` and `hlsearch` show matches as you type.
+
+## Pattern atoms (with `\v` very magic)
+
+| Atom | Matches |
+|------|---------|
+| `.` | any character · `\.` a literal dot |
+| `*` `+` `?` | 0+, 1+, 0-or-1 of the previous |
+| `{n,m}` | n to m repeats |
+| `^` `$` | start / end of line |
+| `<` `>` | start / end of word boundary |
+| `[abc]` `[^abc]` | class / negated class |
+| `\d \w \s` | digit / word char / whitespace (`\D \W \S` negate) |
+| `(…)` | capture group · `%(…)` non-capturing |
+| `a|b` | alternation |
+| `&` | concat — all branches must match at the same spot |
+
+Without `\v`, escape `+ ? ( ) { } | < >` with a backslash (or use `\m`/`\M` for
+fewer/no magic chars).
+
+## Replacement specials (in `:s/…/HERE/`)
+
+| Token | Inserts |
+|-------|---------|
+| `\0` / `&` | the whole match |
+| `\1`…`\9` | capture group n |
+| `\u` / `\l` | uppercase / lowercase next char (`\U` / `\L` until `\E`) |
+| `\r` / `\n` / `\t` | newline / null / tab |
+| `~` | the previous replacement string |
+| `\=expr` | the value of a vimscript expression |
+
+`:%s/\v(\w+)\s+(\w+)/\2 \1/` swaps two columns; `:%s/.*/\U&/` uppercases lines.
+Patterns flow straight into the @vim/edit and @vim/batch tools.

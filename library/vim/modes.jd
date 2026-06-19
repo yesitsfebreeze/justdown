@@ -1,0 +1,54 @@
+---
+name: vim_modes
+description: Vim modes — normal, insert, visual, command-line, replace, and terminal — how to enter and leave each, and the keys that only live inside them.
+kind: knowledge
+tags: [vim, modes, insert, visual, reference]
+use_when: [vim modes, enter insert mode, visual mode, vim terminal, command-line mode, leave insert mode]
+---
+
+# Modes
+
+Vim is modal: the same key means different things per mode. Normal is home base;
+everything returns there with `Esc` (or `Ctrl-[`).
+
+## Entering insert
+
+| Key | Inserts at |
+|-----|-----------|
+| `i` / `a` | before / after the cursor |
+| `I` / `A` | first non-blank / end of line |
+| `o` / `O` | new line below / above |
+| `gi` | where insert last stopped |
+| `c{motion}` | after deleting the range (@vim/operators) |
+
+In insert mode: `Ctrl-w` delete word, `Ctrl-u` delete to line start, `Ctrl-r {reg}`
+paste a register (@vim/registers), `Ctrl-o {cmd}` run one normal command then
+return, `Ctrl-n`/`Ctrl-p` keyword completion.
+
+## Visual — select, then operate
+
+| Key | Selects |
+|-----|---------|
+| `v` / `V` | characterwise / linewise |
+| `Ctrl-v` | blockwise (columns) |
+| `gv` | reselect the last selection |
+| `o` | jump to the other end of the selection |
+
+With a selection, an operator acts on it (`d`, `y`, `>`, `gu`…), and text objects
+work too (`vi(`). Blockwise `Ctrl-v` + `I`/`A` + `Esc` inserts on every selected
+line.
+
+## Command-line
+
+`:` ex commands (@vim/ex), `/` `?` search (@vim/search), `!` filter. History with
+the arrow keys or `Ctrl-p`/`Ctrl-n`; `Ctrl-r` inserts a register; `q:` opens the
+command-line *window* to edit history as a buffer.
+
+## Replace & terminal
+
+| Key | Does |
+|-----|------|
+| `R` | replace mode — overtype until `Esc` |
+| `r{c}` | replace one character (no mode change) |
+| `:terminal` | open a terminal buffer (nvim/Vim 8+) |
+| `Ctrl-\ Ctrl-n` | leave terminal-insert back to normal mode |

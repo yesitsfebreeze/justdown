@@ -1,0 +1,37 @@
+---
+name: vim_diff
+description: Open files side by side in vim diff mode (vimdiff), including a three-way merge or a file against its last commit. Use to review or resolve differences in vim.
+kind: tool
+tags: [vim, diff, vimdiff, merge, review]
+use_when: [diff two files in vim, vimdiff, three-way merge, review changes in vim, compare files]
+danger: low
+requires: [nvim]
+run: diff
+provides: [diff, three, git]
+---
+
+# Diff mode
+
+`nvim -d` aligned side by side, scrollbound, with `]c`/`[c` to jump hunks and
+`do`/`dp` to obtain/put a change (see @vim/windows for moving between the
+windows). `diff` compares two files; `three` is a 3-way merge; `git` compares a
+working-tree file to its committed version.
+
+```just
+# open two files in diff mode (default)
+diff a b:
+  nvim -d -- {{quote(a)}} {{quote(b)}}
+
+# three-way diff (base + two sides)
+three base a b:
+  nvim -d -- {{quote(base)}} {{quote(a)}} {{quote(b)}}
+
+# diff a working-tree file against its last committed version
+git file:
+  #!/usr/bin/env sh
+  set -eu
+  f={{quote(file)}}
+  tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
+  git show "HEAD:./$f" > "$tmp" 2>/dev/null || true
+  nvim -d -- "$tmp" "$f"
+```

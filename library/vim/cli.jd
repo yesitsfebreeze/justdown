@@ -1,0 +1,63 @@
+---
+name: vim_cli
+description: The vim/nvim command-line surface — the binary family and every flag that matters for opening, scripting, diffing, and remote-controlling the editor.
+kind: knowledge
+tags: [vim, cli, flags, nvim, reference]
+use_when: [vim command line flags, nvim cli options, how to launch vim, headless vim, vim batch mode]
+---
+
+# CLI reference
+
+The executable layer the @vim/open, @vim/edit, @vim/script, @vim/diff, and
+@vim/remote tools wrap. `nvim` and `vim` share most of this; differences noted.
+
+## Binary family
+
+| Binary | Is |
+|--------|----|
+| `vim` | the editor |
+| `nvim` | Neovim — same model, Lua + built-in remote/headless |
+| `view` | `vim -R` — read-only |
+| `ex` | `vim -e` — line (Ex) editor |
+| `vimdiff` | `vim -d` — diff mode |
+| `rvim` / `rview` | restricted (no shell escape) |
+| `gvim` / `evim` | GUI / easy mode |
+
+## Flags that matter
+
+| Flag | Effect |
+|------|--------|
+| `+N` | put cursor on line N (`+` = last line) |
+| `+/pat` | jump to first match of `pat` |
+| `-c {cmd}` | run an ex command after loading (repeatable) |
+| `--cmd {cmd}` | run an ex command *before* loading config |
+| `-S {file}` | source a script after loading (session/macro) |
+| `-u {vimrc}` | use this vimrc; `-u NONE` loads none |
+| `-p` / `-o` / `-O` | open files in tabs / h-splits / v-splits |
+| `-d` | diff mode |
+| `-R` | read-only; `-M` also disallows edits |
+| `-r {file}` | recover from a swap file |
+| `-` | read the buffer from stdin |
+| `--` | end of options — everything after is a filename |
+
+## Scripting & headless
+
+| Form | Use |
+|------|-----|
+| `nvim --headless -c '…' -c 'wq' file` | edit with no UI, save, exit — see @vim/edit |
+| `vim -es -c '…' -c 'wq' file` | stock-Vim equivalent (Ex silent/batch mode) |
+| `nvim -l script.lua [args]` | run Lua through nvim's interpreter |
+| `nvim --headless -S script.vim -c 'qa!'` | source a vimscript and quit |
+| `--clean` (nvim) / `-u NONE -N` (vim) | stock defaults, no config or plugins |
+
+## Remote (clientserver)
+
+| Form | Use |
+|------|-----|
+| `nvim --headless --listen {addr}` | start a server (socket path or host:port) |
+| `nvim --server {addr} --remote {file}` | open a file in it |
+| `nvim --server {addr} --remote-send '{keys}'` | type keys into it |
+| `nvim --server {addr} --remote-expr '{expr}'` | evaluate and print |
+
+Stock Vim: `--servername NAME` to name/start, `--remote`, `--remote-send`,
+`--remote-expr` with the same meanings. Driven by @vim/remote.

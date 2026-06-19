@@ -1,0 +1,27 @@
+---
+name: vim_batch
+description: Apply the same headless vim edit across every file matching a glob, in place. Use for a project-wide substitute, deletion, or ex script with no UI.
+kind: workflow
+tags: [vim, batch, edit, automation, headless]
+use_when: [edit many files at once, project-wide substitute, run ex over a tree, bulk vim edit]
+danger: medium
+side_effects: [file-write]
+requires: [nvim]
+run: batch
+---
+
+# Batch edit
+
+Fans one set of ex commands across every matching file, in place — each file
+edited the way @vim/edit edits one. The glob is matched under the current tree;
+the commands are ordinary ex (see @vim/ex) over vim-regex patterns (@vim/search).
+
+```just
+# apply ex commands to every file matching a glob, in place
+batch glob cmds:
+  #!/usr/bin/env sh
+  set -eu
+  cmds={{quote(cmds)}}
+  find . -type f -name {{quote(glob)}} -print0 \
+    | xargs -0 -I{} nvim --headless -c "$cmds" -c 'wq' -- {}
+```

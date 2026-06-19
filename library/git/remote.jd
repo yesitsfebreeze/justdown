@@ -1,0 +1,52 @@
+---
+name: git_remote
+description: Sync with remotes — fetch, pull, push, and manage remote URLs. The network surface of git: move commits between your repo and origin. Use to push your branch, pull updates, fetch without merging, or wire up a new remote.
+kind: tool
+tags: [git, remote, push, pull, fetch, origin, vcs]
+use_when: [push my branch, pull the latest changes, fetch without merging, add a remote, set the upstream, push a new branch, update from origin]
+danger: medium
+side_effects: [git-write, network]
+requires: [git]
+run: push
+provides: [push, pull, fetch, list]
+---
+
+# git remote
+
+The network layer: move commits between your repo and a remote. `fetch` updates
+remote-tracking refs without touching your branch; `pull` is fetch + integrate;
+`push` sends your commits up; `list` shows configured remotes. Refspecs and
+upstream tracking follow @git/refs and @git/branch (`track` sets the upstream so
+push/pull need no argument).
+
+| Recipe | Does |
+|--------|------|
+| `push` | send the current branch to its remote (sets upstream on first push) |
+| `pull` | fetch and integrate the upstream into the current branch |
+| `fetch` | update remote-tracking refs only, integrate nothing |
+| `list` | show remotes and their URLs |
+
+`fetch` is the safe one — it never changes your working tree, so it is the right
+first move when you want to *see* what is upstream before merging (`git log
+HEAD..@{u}`). `pull --rebase` replays your local commits on top instead of
+making a merge commit — cleaner history, the usual preference. The `push` recipe
+uses `-u` so the first push of a new branch also sets its upstream. To overwrite
+a rewritten branch use `--force-with-lease` (safer than `--force`).
+
+```just
+# push the current branch, setting upstream on first push (default)
+push remote="origin":
+  git push -u {{quote(remote)}} HEAD
+
+# fetch and integrate upstream into the current branch (rebase form)
+pull remote="origin":
+  git pull --rebase {{quote(remote)}}
+
+# update remote-tracking refs only, integrating nothing (safe)
+fetch remote="origin":
+  git fetch {{quote(remote)}} --prune
+
+# show configured remotes and their URLs
+list:
+  git remote -v
+```

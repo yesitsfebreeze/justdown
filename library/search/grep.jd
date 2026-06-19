@@ -1,0 +1,50 @@
+---
+name: search_grep
+description: Search text with POSIX grep — match lines, recurse a tree, list matching files, count, invert, and use extended regex. The portable fallback everywhere ripgrep is not installed. Use to grep on a minimal system, filter a pipeline, or when rg is unavailable.
+kind: tool
+tags: [search, grep, regex, match, posix, portable]
+use_when: [search text in files, grep a pipeline, find lines matching a pattern, recurse a directory for a string, list files containing a match, count matches, grep without ripgrep]
+danger: none
+requires: [grep]
+run: match
+provides: [match, recurse, files, count]
+---
+
+# grep
+
+The universal line matcher — on every POSIX system, so it is the fallback where
+@search/rg is not installed (slower, not `.gitignore`-aware, but everywhere).
+`match` filters a stream or file; `recurse` walks a tree; `files` lists only the
+names that match; `count` tallies. Use rg when available — this is the everywhere
+tool, the grep half of the find/grep pair (@search/find).
+
+| Recipe | Flags | Does |
+|--------|-------|------|
+| `match` | `-E` | lines matching an extended-regex pattern |
+| `recurse` | `-rnE` | recurse a dir, with file:line prefixes |
+| `files` | `-rlE` | list only the files that contain a match |
+| `count` | `-cE` | count matching lines |
+
+`-E` selects extended regex (`+`, `?`, `|`, `()` without backslashes) — worth
+defaulting to. Other staples: `-i` case-insensitive, `-v` invert (non-matching
+lines), `-w` whole word, `-A/-B/-C N` context lines, `-o` print only the match.
+`-r` recurses; add `-n` for line numbers and `-I` to skip binary files. Quote
+the pattern so the shell does not expand it.
+
+```just
+# lines matching an extended-regex pattern, in a file or stdin (default)
+match pattern file="-":
+  grep -E -- {{quote(pattern)}} {{quote(file)}}
+
+# recurse a directory, printing file:line:match
+recurse pattern dir=".":
+  grep -rnE -- {{quote(pattern)}} {{quote(dir)}}
+
+# list only the files that contain a match
+files pattern dir=".":
+  grep -rlE -- {{quote(pattern)}} {{quote(dir)}}
+
+# count matching lines
+count pattern file="-":
+  grep -cE -- {{quote(pattern)}} {{quote(file)}}
+```

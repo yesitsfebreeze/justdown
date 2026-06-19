@@ -1,0 +1,81 @@
+---
+name: shell_bash
+description: Bash scripting idioms — parameter expansion, test/[[, arrays, loops, functions, redirection, and the safety preamble. The POSIX-superset every script defaults to. Use to write or debug a bash script, expand variables safely, or remember [[ vs [ rules.
+kind: knowledge
+tags: [shell, bash, posix, scripting, parameter-expansion, redirection]
+use_when: [bash parameter expansion, default value for variable, bash array syntax, double bracket test, bash for loop, redirect stderr, set -euo pipefail, bash string manipulation]
+---
+
+# Bash
+
+The default scripting shell: a POSIX superset with arrays, `[[ ]]`, process
+substitution, and rich parameter expansion. Start non-trivial scripts with the
+strict preamble; reach for @shell/zsh only for interactive glob/completion
+power, and see @shell/rosetta to translate an idiom into another shell.
+
+## Safety preamble
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail          # exit on error, unset var, and failed pipe stage
+IFS=$'\n\t'                # split only on newline/tab, not spaces
+```
+
+`-e` aborts on any non-zero; `-u` makes unset vars an error; `-o pipefail`
+propagates a failure from any stage of a pipe. Guard intentional failures with
+`cmd || true`.
+
+## Parameter expansion — the killer feature
+
+| Form | Yields |
+|------|--------|
+| `${x:-default}` | `x`, or `default` if unset/empty |
+| `${x:=default}` | same, and *assigns* default to `x` |
+| `${x:?msg}` | error with `msg` if `x` is unset |
+| `${x#prefix}` / `${x##prefix}` | strip shortest/longest leading match |
+| `${x%suffix}` / `${x%%suffix}` | strip shortest/longest trailing match |
+| `${x/old/new}` / `${x//old/new}` | replace first / all |
+| `${x:offset:len}` | substring |
+| `${#x}` | length |
+| `${x^^}` / `${x,,}` | upper / lower case |
+
+```bash
+f=/tmp/report.tar.gz
+echo "${f##*/}"   # report.tar.gz  (basename)
+echo "${f%.gz}"   # /tmp/report.tar (strip ext)
+```
+
+## Tests — use `[[ ]]`
+
+`[[` is a keyword (no word-splitting, supports `&&`, `=~`, `<`); `[` is a slow
+command. Always prefer `[[`.
+
+| Test | True when |
+|------|-----------|
+| `[[ -f p ]]` / `-d p` / `-e p` | file / dir / exists |
+| `[[ -z s ]]` / `-n s` | string empty / non-empty |
+| `[[ a == pat* ]]` | glob match (unquoted RHS) |
+| `[[ s =~ ^re$ ]]` | regex match; groups in `${BASH_REMATCH[@]}` |
+| `(( a > b ))` | arithmetic comparison |
+
+## Arrays, loops, functions
+
+| Form | Means |
+|------|-------|
+| `arr=(a b c)` / `${arr[@]}` | array literal / all elements |
+| `"${arr[@]}"` | each element a separate quoted word (the safe form) |
+| `${#arr[@]}` | element count |
+| `for x in "${arr[@]}"; do ...; done` | iterate safely |
+| `while IFS= read -r line; do ...; done < f` | read a file line by line |
+| `f() { local x="$1"; ...; }` | function with a local |
+
+## Redirection
+
+| Form | Does |
+|------|------|
+| `> f` / `>> f` | truncate / append stdout to `f` |
+| `2> f` / `2>&1` | stderr to file / merge stderr into stdout |
+| `&> f` | both streams to `f` (bash) |
+| `< f` | stdin from `f` |
+| `<<< "str"` | here-string |
+| `<(cmd)` | process substitution — a pipe that looks like a file |

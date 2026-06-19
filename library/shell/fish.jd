@@ -1,0 +1,80 @@
+---
+name: shell_fish
+description: Fish — the friendly shell with sane defaults, no word-splitting, list-valued variables, and function-based config. Syntax diverges from POSIX, so translate idioms here. Use to write fish functions, set universal variables, or convert a bash snippet to fish.
+kind: knowledge
+tags: [shell, fish, friendly, lists, universal-variables, functions]
+use_when: [fish shell syntax, fish set variable, fish function, fish universal variable, convert bash to fish, fish command substitution, fish if test]
+---
+
+# Fish
+
+A non-POSIX shell that trades compatibility for consistency: variables are
+always lists, there is no word-splitting, and `$(...)`/backticks become `()`.
+Bash snippets do *not* run as-is — translate via @shell/rosetta. Config lives in
+functions and `set -U`, not in a sourced rc soup.
+
+## Variables are lists; set is the verb
+
+There is no `x=1`. Everything goes through `set`, and every variable is a list.
+
+| Form | Means |
+|------|-------|
+| `set x value` | local-ish (function or global) assignment |
+| `set -l x v` | function-local |
+| `set -g x v` | global (session) |
+| `set -U x v` | *universal* — persists across sessions, no rc edit |
+| `set -x PATH $PATH /opt/bin` | export, and append (PATH is a real list) |
+| `set -e x` | erase |
+| `$x[1]` / `$x[2..-1]` | index / slice (1-based) |
+| `count $x` | length |
+
+## Substitution, conditionals, loops
+
+Command substitution is `()`, never backticks or `$()`. Tests go through the
+`test` command or `string`.
+
+```fish
+set files (ls *.txt)              # capture into a list
+if test -f config.toml
+    echo found
+else if string match -q 'v*' $tag
+    echo version tag
+end
+
+for f in $files
+    echo $f
+end
+
+functions are blocks too:
+function greet -a name            # -a names positional args
+    echo "hi $name"
+end
+```
+
+| POSIX | Fish |
+|-------|------|
+| `$(cmd)` | `(cmd)` |
+| `cmd1 && cmd2` | `cmd1; and cmd2` |
+| `cmd1 \|\| cmd2` | `cmd1; or cmd2` |
+| `export X=1` | `set -x X 1` |
+| `if [ ... ]; then` | `if test ...` |
+| `for x in ...; do` | `for x in ...` … `end` |
+
+## String handling — the `string` builtin
+
+Fish has no `sed`/`cut` reflex; it ships `string` for the common cases (the
+streaming heavy lifting still belongs to @text/sed).
+
+| Command | Does |
+|---------|------|
+| `string split , $csv` | split into a list |
+| `string match -r '(\d+)' $s` | regex match, capture groups |
+| `string replace old new $s` | substitute |
+| `string trim $s` | strip surrounding whitespace |
+| `string join , $list` | join a list |
+
+## Why no word-splitting matters
+
+`set files (ls)` then `for f in $files` is always correct even with spaces in
+names — fish never re-splits a variable. This removes the single largest class
+of bash quoting bugs, at the cost of POSIX portability.

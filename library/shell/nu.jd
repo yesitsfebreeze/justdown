@@ -1,0 +1,74 @@
+---
+name: shell_nu
+description: Nushell — the structured-data shell. Pipelines carry typed tables and records, not raw text, so you filter/sort/select with where/get/sort-by instead of awk/grep/cut. Use to query command output as data, parse files into tables, or write nu scripts.
+kind: knowledge
+tags: [shell, nushell, nu, structured-data, pipeline, table]
+use_when: [how do I filter in nushell, nu where vs grep, parse output into a table, nushell variables, nu records and lists, convert json in nu, nushell script syntax]
+---
+
+# Nushell
+
+The shell where a pipeline is a stream of *values*, not bytes. `ls` yields a
+table; `ps`, `sys`, `open file.json` all yield records or tables you query with
+the same verbs. Where @shell/bash reaches for `grep`/`awk`/`cut`, nu reaches for
+`where`/`get`/`select` — the columns already exist. Cross-shell equivalents are
+in @shell/rosetta.
+
+## Data verbs — the core surface
+
+Everything is `input | verb | verb`. Verbs are closures over the rows.
+
+| Verb | Does |
+|------|------|
+| `where cond` | keep rows matching (`where size > 1mb`) |
+| `get col` / `$row.col` | pull one column or cell |
+| `select a b` | project columns |
+| `sort-by col` | sort rows (`-r` reverse) |
+| `first n` / `last n` / `skip n` | slice rows |
+| `each { |r| ... }` | map a closure over rows |
+| `length` | count rows |
+| `group-by col` / `uniq` | aggregate |
+| `to json` / `from json` | convert between formats |
+
+```nu
+ls | where type == dir | sort-by modified | last 5
+ps | where cpu > 10 | select pid name cpu
+open Cargo.toml | get package.version
+```
+
+## Variables, records, lists
+
+`let` binds immutably; `mut` makes a reassignable binding; `$env.X` is the
+environment. Records are `{k: v}`, lists are `[a b c]`, accessed by `.field` or
+`| get field`.
+
+| Form | Means |
+|------|-------|
+| `let x = 5` | immutable binding |
+| `mut x = 5; $x = 6` | mutable binding |
+| `$env.PATH` | the PATH list (real list, not a `:`-string) |
+| `{name: a, n: 1}` | a record |
+| `[1 2 3]` | a list |
+| `$in` | the piped-in value inside a block/closure |
+
+## Strings and externals
+
+External commands still work; wrap output through parsers to get structure
+back. `^cmd` forces the external over a built-in of the same name.
+
+| Form | Means |
+|------|-------|
+| `^git status` | run external `git`, bypass any builtin |
+| `(ls).name` | parenthesize a pipeline, then index |
+| `"a,b" | split row ","` | text → list |
+| `$"hello ($name)"` | string interpolation |
+| `cmd \| complete` | capture `{stdout, stderr, exit_code}` |
+
+## Gotchas vs POSIX shells
+
+- No word-splitting: `$x` is one value, never re-split — so quoting bugs vanish.
+- `&&`/`||` are `and`/`or` between commands via `;` and explicit `if`, but `&&`
+  and `||` are now supported as command separators too.
+- `export-env` / `$env` mutations in a script don't leak to the parent unless
+  sourced; use `--env` on `def`.
+- Comparisons are typed: `where size > 1mb` works because `size` is a filesize.

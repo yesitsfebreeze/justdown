@@ -1,0 +1,51 @@
+---
+name: http_wget
+description: Download files over HTTP/FTP with wget — fetch a URL to disk, resume a partial download, follow links to mirror a site, and retry flaky connections. Use to grab a release artifact, resume an interrupted download, or pull a whole directory.
+kind: tool
+tags: [http, wget, download, fetch, mirror, resume]
+use_when: [download a file from a url, save a url to disk, resume an interrupted download, mirror a website, retry a flaky download, fetch a release artifact recursively]
+danger: low
+side_effects: [network, file-write]
+requires: [wget]
+run: get
+provides: [get, resume, mirror, output]
+---
+
+# wget
+
+The non-interactive downloader — built to save URLs to *disk* (where @http/curl
+defaults to stdout). `get` fetches a file; `resume` continues a partial one;
+`mirror` recursively pulls a site or directory; `output` names the saved file.
+Reach for curl when you are scripting an API; reach for wget for "download this
+file", especially big or flaky ones.
+
+| Recipe | Flags | Does |
+|--------|-------|------|
+| `get` | — | download a URL to the current directory |
+| `resume` | `-c` | continue a partially downloaded file |
+| `mirror` | `-m` | recursively mirror (links, timestamps, depth) |
+| `output` | `-O` | save under a chosen filename |
+
+`-c` (continue) is the one to remember — it resumes a half-finished download
+instead of restarting, invaluable on a dropped connection. wget retries on its
+own (`--tries`, `--timeout` tune it). `mirror` (`-m` = `-r -N -l inf`) plus
+`-np` (no-parent) and `-k` (convert links) pulls a browsable offline copy. Use
+`-O -` to send to stdout and pipe like curl. `-q` silences progress for scripts.
+
+```just
+# download a URL to the current directory (default)
+get url:
+  wget {{quote(url)}}
+
+# continue a partially downloaded file
+resume url:
+  wget -c {{quote(url)}}
+
+# recursively mirror a site or directory (no parent, convert links)
+mirror url:
+  wget -m -np -k {{quote(url)}}
+
+# save under a chosen filename
+output name url:
+  wget -O {{quote(name)}} {{quote(url)}}
+```

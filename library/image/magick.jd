@@ -1,0 +1,51 @@
+---
+name: image_magick
+description: Convert and edit images with ImageMagick — change format, resize, crop, and read dimensions from the command line. Use to convert an image's format, make a thumbnail, crop a region, or batch-process images.
+kind: tool
+tags: [image, imagemagick, convert, resize, crop, magick]
+use_when: [convert an image format, resize an image, make a thumbnail, crop an image, png to jpg, get image dimensions, batch resize images]
+danger: low
+side_effects: [file-write]
+requires: [imagemagick]
+run: convert
+provides: [convert, resize, crop, identify]
+---
+
+# magick
+
+The command-line image editor. `convert` changes format by output extension;
+`resize` scales; `crop` cuts a region; `identify` reads dimensions and format
+without opening anything. Modern ImageMagick is the `magick` command (the old
+`convert` binary still works as an alias). Pairs with @media/ffmpeg, which does
+the same job for audio/video.
+
+| Recipe | Does |
+|--------|------|
+| `convert` | re-encode to the output extension's format |
+| `resize` | scale to a geometry (e.g. `800x600`, `50%`) |
+| `crop` | cut a `WxH+X+Y` region |
+| `identify` | print format, dimensions, and depth |
+
+Geometry is the key grammar: `800x600` fits *within* that box keeping aspect
+ratio; `800x600!` forces exact (ignores ratio); `50%` scales by fraction;
+`800x` sets width only. `crop WxH+X+Y` takes a rectangle at offset X,Y. For a
+batch, loop with @search/find or use `mogrify -resize 800x *.jpg` which edits
+files **in place** (destructive — copy first). `-quality 85` tunes JPEG size.
+
+```just
+# re-encode to the output file's format (default)
+convert input output:
+  magick {{quote(input)}} {{quote(output)}}
+
+# scale to a geometry (e.g. "800x600", "50%", "800x600!")
+resize geometry input output:
+  magick {{quote(input)}} -resize {{quote(geometry)}} {{quote(output)}}
+
+# crop a WxH+X+Y region
+crop region input output:
+  magick {{quote(input)}} -crop {{quote(region)}} {{quote(output)}}
+
+# print format, dimensions, and depth
+identify input:
+  magick identify {{quote(input)}}
+```

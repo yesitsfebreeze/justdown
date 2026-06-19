@@ -111,3 +111,4 @@ create a symbolic link to a file	file_link
 copy a directory preserving permissions	file_copy
 how do I build and test this rust or go project	build_rosetta
 cut a column from a csv without breaking on quoted commas	data_csv
+run a makefile target in parallel	build_make

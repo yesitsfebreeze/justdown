@@ -1,0 +1,54 @@
+---
+name: build_make
+description: Drive a Makefile with make — run a target, build in parallel, preview commands without running them, and override variables. Use to build a C/C++ or general project, run a named target, or speed a build with parallel jobs.
+kind: tool
+tags: [build, make, makefile, target, parallel, compile]
+use_when: [run a makefile target, build with make, make in parallel, dry run a makefile, override a make variable, what targets does this makefile have, speed up a build]
+danger: medium
+side_effects: [file-write]
+requires: [make]
+run: target
+provides: [target, parallel, dryrun, vars]
+---
+
+# make
+
+Run the recipes in a `Makefile`. `target` builds a named target (or the first
+one by default); `parallel` runs independent targets at once; `dryrun` prints
+what *would* run without doing it; `vars` overrides a variable on the command
+line. make rebuilds a target only when its prerequisites are newer — the
+timestamp-based incremental model. For language-native builds see
+@build/rosetta; `just` is the modern command-runner cousin.
+
+| Recipe | Flag | Does |
+|--------|------|------|
+| `target` | — | build a target (default: the first in the file) |
+| `parallel` | `-j N` | run up to N independent recipes concurrently |
+| `dryrun` | `-n` | print the commands without executing (preview) |
+| `vars` | `VAR=value` | override a variable for this run |
+
+`-j` (jobs) is the easy speedup — `make -j$(nproc)` uses every core, since make
+parallelizes targets with no dependency between them. `-n` (dry-run) is the safe
+way to see what a target will do before committing. Variables passed on the
+command line (`make CC=clang`) override those in the file. `make -p` dumps the
+database including all targets; some projects add a `help` target that lists
+them. A leading tab (not spaces) is required before each recipe line — the
+classic Makefile syntax error.
+
+```just
+# build a target (default: the first target in the Makefile)
+target name="":
+  make {{name}}
+
+# run up to N targets in parallel (default: one per core)
+parallel n=`nproc` name="":
+  make -j {{quote(n)}} {{name}}
+
+# print the commands a target would run, without executing them
+dryrun name="":
+  make -n {{name}}
+
+# build with variable overrides (e.g. vars="CC=clang DEBUG=1")
+vars +overrides:
+  make {{overrides}}
+```

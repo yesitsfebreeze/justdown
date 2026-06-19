@@ -113,3 +113,4 @@ how do I build and test this rust or go project	build_rosetta
 cut a column from a csv without breaking on quoted commas	data_csv
 run a makefile target in parallel	build_make
 merge stderr into stdout when redirecting	shell_redirect
+tag a release and push the tag	git_tag

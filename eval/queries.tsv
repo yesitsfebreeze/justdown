@@ -82,3 +82,4 @@ verify the signature on a downloaded release	crypto_gpg
 show example usage for a command	help_tldr
 colorize output in a shell script portably	term_tput
 watch a log file grow in real time	text_tail
+unstage a file without losing my edits	git_stage

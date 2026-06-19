@@ -1,51 +1,41 @@
 # Justdown (.jd) Language Specification v0.1
 
 > justdown is not a scripting language. It is a retrieval-friendly wrapper
-> around existing scripts, where the docs, metadata, and executable recipe live together.
+> around existing scripts, where the docs, metadata, and recipe live together
+> in one file.
 
 A `.jd` file is a small Markdown file with optional executable or scaffolded
 blocks. It is **not a new language** — it composes Markdown, YAML frontmatter,
-[just](https://just.systems), and PSAIDO so one file can serve four readers
-without copies:
+[just](https://just.systems) recipes, and PSAIDO scaffolds so one file can serve
+several readers without copies:
 
-- **humans** read rendered Markdown
+- **humans** read the rendered Markdown
 - **indexers** index only the YAML frontmatter
 - **agents** read the Markdown body after retrieval
-- **runners** extract and execute fenced ```` ```just ```` blocks
+- **fenced blocks** carry the payload: a ```` ```just ```` recipe or a
+  ```` ```psaido ```` scaffold
+
+This document specifies the **format** — the regions of a `.jd` file and their
+syntax. It says nothing about how a host runs, indexes, or distributes the files;
+those are the consuming tool's concern, not the language's.
 
 ## Intention
 
-justdown is a **task runner and a tool maker in one file**. Authoring a `.jd`
-tool-file *is* making the executable thing — there is no separate tool
-implementation, no MCP server per capability, no hand-written tool function to
-keep in sync with its docs. The `just` recipe in the fenced block *is* the tool;
-the prose around it is the *why* and *when*; the frontmatter is the retrieval
-contract that decides when it gets pulled.
+Authoring a `.jd` tool-file *is* making the thing — there is no separate tool
+implementation and no hand-written function to keep in sync with its docs. The
+recipe in the fenced block *is* the tool; the prose around it is the *why* and
+*when*; the frontmatter is the retrieval contract that decides when it gets
+pulled.
 
-The contract is deliberately flexible: a recipe is ordinary shell, so its
-backend can be anything reachable from a process — a script on disk, a CLI
-(`gh`, `claude`, `codex`), an HTTP call, a language runtime, or another recipe
-via `just` dependencies. Heavy logic lives in real scripts on disk; the recipe
-is the thin, named, parameterized entry point that delegates to them. This
-keeps the runner's interface stable and identical across every tool:
+The contract is deliberately flexible: a recipe is ordinary shell, so its backend
+can be anything reachable from a process — a script on disk, a CLI (`gh`,
+`claude`, `codex`), an HTTP call, a language runtime, or another recipe via `just`
+dependencies. Heavy logic lives in real scripts on disk; the recipe is the thin,
+named, parameterized entry point that delegates to them.
 
-```text
-just --justfile - <recipe> <args...>
-```
-
-Arguments are positional — `just` maps them to the recipe's parameters in order;
-there is no `--` separator (`just` would read `--` as another recipe name).
-
-A file may hold several recipes; `run:` names the default, the rest are
-callable by name. So one file can expose a family of related entry points
-without becoming several tools.
-
-The result contract is correspondingly thin: arguments in, **exit code out**;
-a non-zero exit is a failure. **How** the result is delivered — on stdout, via
-a live sidecar, or as a written path — is the recipe's *invocation mode*,
-declared once in frontmatter. See [Invocation modes](#invocation-modes).
-Anything richer is a convention recipes opt into within a mode, not something
-the format imposes.
+A file may hold several recipes; `run` names the default, and the rest are
+callable by name. So one file can expose a family of related entry points without
+becoming several tools.
 
 ## The model
 
@@ -56,8 +46,9 @@ different reader:
    ingests only this; it decides *when* the file is pulled.
 2. **Markdown body — the instruction manual.** Intent, context, usage notes —
    *why* and *when*. Read by the agent once a query selects the file.
-3. **fenced blocks — the payloads.** ```` ```just ```` recipes a runner executes,
-   or ```` ```psaido ```` scaffolds a model translates. The *how*.
+3. **fenced blocks — the payloads.** ```` ```just ```` recipes are the executable
+   payload; ```` ```psaido ```` scaffolds are read and translated, never run. The
+   *how*.
 
 ## Frontmatter (the retrieval contract)
 
@@ -66,12 +57,11 @@ It is the match surface that decides *when* the file is pulled.
 
 | Field | Required | Meaning |
 |-------|----------|---------|
-| `name` | yes | File identity; also the just module name when relevant. |
+| `name` | yes | File identity. |
 | `description` | yes | One or two lines: what it is and when to use it. **This is the contract** — the agent retrieves on it. |
-| `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow` \| `hook`. A `hook` file subscribes to engine events — see [Hooks](#hooks-dynamic-edges). |
+| `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow`. |
 | `tags` | no | Free-form labels for grouping and retrieval. |
-| `run` | tool only | Default recipe entry point, e.g. `release`. The runner invokes it as `just --justfile - release <args...>`. |
-| `invoke` | tool only | Invocation mode: `run` (default) \| `sidecar` \| `artifact`. Declares how the runner spawns the recipe and reads its result. See [Invocation modes](#invocation-modes). |
+| `run` | tool only | Names the default recipe, e.g. `release`. |
 | `provides` | no | Names other files link to via `#Name` (schemas, functions, recipes). |
 
 Everything else (the body, the blocks) stays on disk and is read by path only
@@ -85,12 +75,9 @@ Keep a file small and single-purpose.
 
 ## The just blocks (recipes)
 
-> run `just --help` for what we can do.
-
-
 A ```` ```just ```` block is a normal [justfile](https://just.systems) fragment —
 recipes, variables, dependencies, parameters. A tool file's `run` frontmatter
-names the default recipe.
+names the default recipe; a file may hold several, the rest callable by name.
 
 ````markdown
 ```just
@@ -102,136 +89,21 @@ release version="patch":
 ```
 ````
 
-Arguments follow just's own conventions and are passed through the runner:
-
-```
-runner args: ["minor"]  →  release version="minor"
-```
-
-A file may hold several recipes; `run` picks the default, and others are
-callable by name.
-
 ### Why just, not bash
 
 `.jd` needs named, addressable units of work, not one opaque script. just gives
 each recipe a name, declared parameters, defaults, and dependencies while keeping
-the recipe body as ordinary shell. That gives the runner one stable interface:
-
-```text
-just --justfile - <recipe> <args...>
-```
-
-Heavy logic should still live in real scripts on disk; a just recipe is the thin,
-named entry point that delegates to them. just is cross-platform and the
-invocation stays identical across Linux, macOS, and Windows — but recipe bodies
-are still shell commands, so portable recipes should delegate to cross-platform
-scripts or tools.
-
-### Running
-
-A `.jd` file is **not** a native justfile — Markdown prose lines would be just
-syntax errors. The runner does one cheap step: it lifts every ```` ```just ````
-fence out, concatenates them, and runs the requested recipe.
-
-```
-extract ```just fences  →  feed to `just --justfile - <recipe> <args>`
-```
-
-That extractor — one small parser extension — is the entire execution glue.
-```` ```psaido ```` blocks are never extracted or run.
-
-## Invocation modes
-
-`invoke` (default `run`) tells the runner **how to spawn and read back**. The
-recipe is always ordinary shell under `just --justfile - <recipe> <args...>`;
-the mode changes only the process contract around it.
-
-| Mode | Process | Result | Use when |
-|------|---------|--------|----------|
-| `run` | run to completion | stdout + exit code | the answer fits on stdout and the recipe finishes. Default. |
-| `sidecar` | start and stay alive | status via a control channel, read on demand | the value is the running process (server, watcher, proxy). |
-| `artifact` | run to completion | a path the recipe writes; stdout is logs | the result can't go on stdout (binary, large, multi-file, structured). |
-
-### `run` (default)
-
-Result is **stdout + exit code**; non-zero is failure. The runner captures
-stdout and returns it.
-
-```just
-release version="patch":
-  just gate
-  npm version {{version}}
-  git push --follow-tags
-```
-
-### `sidecar`
-
-The recipe **does not exit** while useful. The runner spawns it detached and
-reads status through a channel, not an exit code (a healthy sidecar never
-produces one).
-
-- **Health** — print `READY <endpoint>` on stdout once up; `ERROR ...` is the
-  failure path. The runner treats the first `READY` (or a probe of the
-  endpoint) as started.
-- **Lifecycle** — the runner sends `SIGTERM`; the recipe traps it and shuts down
-  cleanly. Alternatively watch a control file/socket/env var the runner toggles.
-- **Output** — logs stream to stdout/stderr; the *result* is "running at this
-  address", not a payload.
-
-One long-lived recipe (`run:` names it). One-shot commands (reload, status,
-stop) go as **separate named recipes in the same file**, called by name as
-normal `run`-style recipes.
-
-```just
-# long-running dev server (invoke: sidecar)
-serve port="3000":
-  @echo "READY http://localhost:{{port}}"
-  vite --port {{port}} --host
-
-# one-shot, run-style, callable by name
-reload:
-  @touch vite.config.ts
-
-status port="3000":
-  @curl -fsS http://localhost:{{port}}/health && echo " up" || (echo "down" && exit 1)
-```
-
-### `artifact`
-
-Runs to completion, but the **result is a path it writes** — not stdout. Use
-when the result is binary, large, multi-file, or structured. The recipe prints
-the path as the **last** stdout line:
-
-```
-ARTIFACT <path>
-```
-
-The runner returns the *path* (not contents) to the agent, who reads the file
-by path. Exit code still governs trust — non-zero means no artifact is safe,
-even if the line was printed.
-
-```just
-chart out="dist/chart.png":
-  @mkdir -p dist
-  python scripts/render_chart.py --out {{out}}
-  @echo "ARTIFACT {{out}}"
-```
-
-### Choosing a mode
-
-- Answer on stdout, recipe finishes → **`run`**.
-- Stays alive → **`sidecar`**.
-- If the result is a file the agent reads by path → **`artifact`**.
-
-All three share one spawn shape — `just --justfile - <recipe> <args...>` —
-so the runner's interface stays stable; only the read-back differs.
+the recipe body as ordinary shell. Heavy logic should still live in real scripts
+on disk; a just recipe is the thin, named entry point that delegates to them.
+just is cross-platform, but recipe bodies are shell commands, so portable recipes
+should delegate to cross-platform scripts or tools.
 
 ## Scaffold blocks (`psaido`)
 
 Where a file sketches logic for an agent instead of running code, it uses a
 ```` ```psaido ```` block — the PSAIDO scaffold dialect. It is **read, not
-compiled**: a model translates it into the project's real language. It never
-reaches the runner; it is context, the same as prose.
+compiled**: a model translates it into the project's real language. It is context,
+the same as prose.
 
 A scaffold describes *what* should happen and how the pieces connect, never *how*
 a given language implements it. Rough is fine — leave detail to the translator's
@@ -363,116 +235,15 @@ another.
 @auth/user#User           → just the `User` schema in that file
 ```
 
-Paths are relative to the project root. **`@` links are resolved before file
-content reaches the agent.** A pre-send filter scans for the `@` pattern,
-hydrates each linked file into context, and hands the agent already-linked
-content. This is the canonical execution model — the system is deterministic, not
-dependent on the model chasing files at read time, and the runner never resolves
-`@`.
+Paths are relative to the project root. How a host resolves a link — when it
+hydrates the target and how much it pulls in — is outside this spec; within the
+format, `@` is purely the link syntax.
 
 `@` references are valid in Markdown prose and `psaido` scaffolds. **Do not use
-them inside executable `just` recipe bodies** — the runner never resolves `@`,
-and a literal `@` must never reach the shell. In a scaffold, translate each link
-into the target language's normal import or call (see [Scaffold
-blocks](#scaffold-blocks-psaido) for the inline and aliased forms).
-
-## Hooks (dynamic edges)
-
-`@` links one file's content into another *before* the agent reads it — a
-**static** edge resolved at retrieval. A **hook** is the runtime counterpart: a
-named point the host engine fires while it runs, that `.jd` files subscribe to.
-`@` wires *context*; a hook wires *control*. Both are edges in the same graph —
-one resolved at read time, one at run time.
-
-The direction matters: **the host's own source is the source of truth.** The
-engine fires real hooks; a scanner reads those call sites and *generates* a
-readable catalog; files subscribe against that catalog. justdown owns the
-subscription side, not the firing side.
-
-### The shape
-
-```text
-host source ──fires──▶ [generated catalog .jd] ◀──@EVENT subscribe── file .jd
-  swirl_emit!(name)        (scanned, readable)         in a ```just fence
-```
-
-1. **The engine fires.** A real call in the host's source emits a hook at
-   runtime — not an inert comment. The primitive is the host's own; swirl uses a
-   macro, `swirl_emit!(name, payload)` (and `swirl_emit!(name => Ret, payload)`
-   for an answer hook). The call site is the truth about what hooks exist.
-
-2. **The catalog is generated.** A scanner greps the source for fire sites and
-   writes *one* readable `.jd` listing every hook — name, kind (observe / answer),
-   payload, and where it fires. It is regenerated, never hand-authored; `provides`
-   lists the names so files resolve them. (swirl: `hooks/scan.mjs` →
-   `hooks/catalog.jd`.)
-
-3. **A file subscribes** with an `@EVENT` block inside a ```` ```just ```` fence.
-   The file is `kind: hook` — subscribers are found **by type in the index, not
-   by folder**. The host indexes every `.jd`'s frontmatter, buckets paths by
-   `kind`, and registers the `hook` bucket; it diffs the index on startup / add /
-   delete and re-registers only what changed. When the hook fires, the engine
-   runs each subscribed block — payload delivered as JSON on an environment
-   variable (swirl: `$SWIRL_EVENT`). This rides the ordinary just-fence runner
-   ([The just blocks](#the-just-blocks-recipes)); a subscriber is just a plugin
-   file, locatable anywhere the index reaches.
-
-```just
-@paste_proposed
-echo "$SWIRL_EVENT" >> /tmp/pastes.log         # observe — output ignored
-
-@gate_decision
-case "$(echo "$SWIRL_EVENT" | jq -r .bytes)" in
-  *"rm -rf /"*) echo '{"approved":false,"reason":"blocked"}' ;;  # answer — JSON steers
-esac                                            # print nothing → defer to default
-```
-
-- **observe** hooks run subscribers for side effects; their output is ignored.
-- **answer** hooks let a subscriber print JSON matching the hook's return type to
-  steer the engine — the first valid answer wins; printing nothing defers.
-
-No build step, no generated *code* on the subscription side (justdown has
-neither — see [Plugins](#plugins)). The host fires; the catalog is a generated
-index; files bind to names with the same just fences they already use.
-
-## Plugins
-
-A **plugin** is just a folder or a repository containing one or more `.jd`
-files. There is no plugin manifest, no build step, no install hook — if a path
-holds `.jd` files, it is a plugin.
-
-Install a plugin by **linking** it: point the system at the folder path or git
-URL and the `.jd` files inside become available to the index and runner like
-any locally authored file. A plugin is nothing more than the `.jd` files it
-contains, linked in.
-
-Plugins are **persisted on disk as plain files** — Markdown, frontmatter, and
-fenced blocks, nothing else. That makes a plugin **gitable**: it lives in a repo,
-versioned, diffed, branched, and reviewed like any other source. Clone the repo
-(or add it as a submodule) and link it; the files are the plugin.
-
-Because the unit is ordinary files in a repo:
-
-- sharing a capability = sharing a folder of `.jd` files
-- versioning a capability = git history of that folder
-- pinning a capability = a commit, tag, or branch
-- composing capabilities = linking several plugins at once
-
-No registry, no packaging format, no separate distribution channel. The link
-is the install; the repo is the package; the `.jd` files are the plugin.
-
-A plain `justfile` (or any `*.just` file) at the root of a plugin may also be
-indexed and used directly — it is treated as another runnable surface alongside
-the `.jd` files, no `.jd` wrapper required. This lets a plugin ship ordinary
-just recipes for users who only want the runner, while `.jd` files add the
-retrieval contract and prose for agents.
-
-Because a plugin is just `.jd` files on disk, **the same plugin is consumable by
-any system that reads `.jd`** — there is no per-host packaging. A plugin authored
-for one runner (e.g. an agent harness's tool corpus) links into any other runner
-that resolves `.jd` the same way (e.g. swirl's tool surface). One plugin, many
-hosts; the format is the contract, not the host.
-
+them inside executable `just` recipe bodies** — a literal `@` must never reach the
+shell. In a scaffold, translate each link into the target language's normal import
+or call (see [Scaffold blocks](#scaffold-blocks-psaido) for the inline and aliased
+forms).
 
 ## Example: a complete tool file
 
@@ -500,8 +271,7 @@ release version="patch":
 
 - An index ingests the frontmatter, keyed by the file's path.
 - The agent, on a "ship it" query, pulls the file and reads the body.
-- The runner shells `just --justfile - release <version>` from the extracted
-  block.
+- The `release` recipe in the fenced block is the executable payload.
 
 ## Example: a knowledge file with a scaffold
 

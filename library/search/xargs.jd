@@ -1,0 +1,50 @@
+---
+name: search_xargs
+description: Build and run commands from a list on stdin with xargs — one invocation for many args, one-per-line, placeholder substitution, and parallel fan-out. The glue between a finder and an action. Use to batch a command over found paths, safely handle spaces, or parallelize.
+kind: tool
+tags: [search, xargs, batch, pipeline, parallel, stdin]
+use_when: [run command on each line of output, batch process found files, xargs parallel, handle filenames with spaces, pipe find into a command, one command per input, placeholder substitution]
+danger: medium
+side_effects: [file-write]
+requires: [xargs]
+run: run
+provides: [run, each, null, parallel]
+---
+
+# xargs
+
+Turns a stream of lines into command arguments — the standard glue between a
+finder (@search/find, @search/rg `-l`) and the action you want per result. The
+safe idiom pairs `-0` here with a null-separated producer so spaces and newlines
+in names never split an argument. `run` is the default (append args once);
+`each` runs once per input; `parallel` fans out.
+
+| Recipe | Flags | Behavior |
+|--------|-------|----------|
+| `run` | — | collect all lines, append as args to one command |
+| `each` | `-I{}` | one invocation per line, `{}` is the line |
+| `null` | `-0` | split on NUL, not whitespace (the safe form) |
+| `parallel` | `-P -0` | up to N invocations at once, null-safe |
+
+Whitespace in filenames is the classic footgun: a plain `find ... | xargs rm`
+breaks on `my file.txt`. Always produce NUL-separated output (`find -print0`,
+`rg -0`, `fd -0`) and consume it with `-0`. `-r` (`--no-run-if-empty`) skips
+running on empty input.
+
+```just
+# collect all stdin lines and append them as args to a command (default)
+run +command:
+  xargs -r {{command}}
+
+# run the command once per input line; {} is the line
+each +command:
+  xargs -r -I{} {{command}}
+
+# NUL-separated input (pair with find -print0 / rg -0 / fd -0) — handles spaces
+null +command:
+  xargs -0 -r {{command}}
+
+# run up to `jobs` commands in parallel, NUL-separated and safe
+parallel jobs +command:
+  xargs -0 -r -P {{quote(jobs)}} {{command}}
+```

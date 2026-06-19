@@ -1,0 +1,55 @@
+---
+name: search_find
+description: Find files with POSIX find — match by name, type, age, or size, and run a command per result. The portable fallback everywhere fd is not installed. Use to locate paths on a minimal system, prune directories, or batch-act on matches.
+kind: tool
+tags: [search, find, files, paths, posix, portable]
+use_when: [find files by name, find by modification time, find by size, run command per file, find on a system without fd, prune a directory, delete matching files]
+danger: medium
+side_effects: [file-write]
+requires: [find]
+run: name
+provides: [name, type, mtime, size, exec]
+---
+
+# find
+
+The portable file finder: present on every POSIX system, so it is the fallback
+wherever @search/fd is not installed. Slower to type and not `.gitignore`-aware,
+but universal. `name` is the default; the rest filter by type, age, or size, or
+fan a command out per match. Use @search/fd when it is available — this is the
+everywhere tool.
+
+| Recipe | Test | Selects |
+|--------|------|---------|
+| `name` | `-name` | paths whose basename matches a glob |
+| `type` | `-type f`/`d` | files only / directories only |
+| `mtime` | `-mtime` | modified within / beyond N days |
+| `size` | `-size` | larger / smaller than a size |
+| `exec` | `-exec` | run a command per match |
+
+Globs in `-name` are matched by find, so **quote them** (`'*.log'`) to stop the
+shell expanding first. `-mtime -7` is "within 7 days", `+7` is "older than 7";
+`-size +10M` is "over 10 MB". Combine tests with `-a` (and, implicit) / `-o`
+(or); negate with `!`.
+
+```just
+# find paths by name glob under a root (default) — quote the pattern
+name pattern root=".":
+  find {{quote(root)}} -name {{quote(pattern)}}
+
+# files only (f) or directories only (d)
+type kind root=".":
+  find {{quote(root)}} -type {{quote(kind)}}
+
+# modified within N days (use +N for older-than); pass e.g. "-7" or "+30"
+mtime days root=".":
+  find {{quote(root)}} -mtime {{quote(days)}}
+
+# by size; pass e.g. "+10M" (over 10MB) or "-1k" (under 1KB)
+size spec root=".":
+  find {{quote(root)}} -size {{quote(spec)}}
+
+# run a command per match; {} is each path, terminated safely with +
+exec pattern root +command:
+  find {{quote(root)}} -name {{quote(pattern)}} -exec {{command}} {} +
+```

@@ -1,0 +1,55 @@
+---
+name: term_stty
+description: Inspect and change terminal line settings with stty — read a password without echoing it, query the terminal size, save and restore the mode, and fix a terminal garbled by raw binary output. Use to take hidden input in a script, get rows/columns, or recover a broken terminal.
+kind: tool
+tags: [term, stty, terminal, echo, password, raw]
+use_when: [read a password without echo, hide input in a shell script, get terminal rows and columns, fix a broken or garbled terminal, turn off echo, reset terminal settings]
+danger: medium
+side_effects: [shell-state]
+requires: [coreutils]
+run: size
+provides: [size, noecho, restore, sane]
+---
+
+# stty
+
+Control the terminal line discipline — echo, canonical mode, size. `size`
+reports rows/columns; `noecho`/`restore` toggle echo so a script can read a
+secret silently; `sane` resets a terminal mangled by stray binary output.
+Complements @term/tput (which sets colors/cursor); stty governs *input*
+behavior, tput governs output.
+
+| Recipe | Does |
+|--------|------|
+| `size` | terminal rows and columns |
+| `noecho` | turn off echo (typed input is not shown) |
+| `restore` | turn echo back on |
+| `sane` | reset the terminal to working defaults |
+
+The classic use is reading a password: save the mode, `stty -echo`, `read` the
+secret, then restore — so keystrokes do not appear. `sane` is the rescue command
+when `cat`-ing a binary leaves the terminal printing garbage and not echoing;
+type it blind (`stty sane` then Enter) and it usually recovers, or `reset` for a
+fuller clear. `stty -a` dumps every setting.
+
+```just
+# terminal rows and columns (default)
+size:
+  stty size
+
+# turn off echo so typed input is not displayed
+noecho:
+  stty -echo
+
+# turn echo back on
+restore:
+  stty echo
+
+# reset the terminal to sane working defaults (fix a garbled terminal)
+sane:
+  stty sane
+```
+
+To read a secret in a script: `old=$(stty -g); stty -echo; read secret; stty
+"$old"` — `-g` captures the full mode so the restore is exact even if echo was
+already off.

@@ -1,0 +1,51 @@
+---
+name: sys_user
+description: Find out who you are and who else is on the system — the current username, your user/group IDs and memberships, who is logged in now, and recent login history. Use to check your identity and groups, see active sessions, or review who logged in.
+kind: tool
+tags: [sys, user, whoami, id, groups, login]
+use_when: [who am I, what groups am I in, my user and group id, who is logged in, active sessions, recent login history, am I in the docker or sudo group]
+danger: none
+requires: [coreutils]
+run: whoami
+provides: [whoami, id, who, last]
+---
+
+# user
+
+Identity and sessions. `whoami` is the effective username; `id` shows the
+numeric uid/gid and every group you belong to (the answer to "am I in the
+`docker`/`sudo` group?"); `who` lists active logins; `last` reads the login
+history. Group membership decides what @file/perms lets you touch and whether
+`sudo` works.
+
+| Recipe | Tool | Shows |
+|--------|------|-------|
+| `whoami` | `whoami` | the current effective username |
+| `id` | `id` | uid, gid, and all group memberships |
+| `who` | `who` | users currently logged in and their terminals |
+| `last` | `last` | recent login history (newest first) |
+
+`id` is the one to remember — `id -nG` prints just the group *names*, so
+`id -nG | grep -q docker` scripts "can I run docker without sudo". After being
+added to a group, you must **log out and back in** (or `newgrp`) for it to take
+effect — a current shell keeps its old group set. `whoami` reflects the
+*effective* user, so under `sudo` it prints `root`. `w` (like `who`) also shows
+what each session is running.
+
+```just
+# the current effective username (default)
+whoami:
+  whoami
+
+# uid, gid, and all group memberships (id -nG for just group names)
+id:
+  id
+
+# users currently logged in
+who:
+  who
+
+# recent login history, newest first
+last n="10":
+  last -n {{quote(n)}}
+```

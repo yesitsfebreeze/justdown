@@ -1,4 +1,4 @@
-# Justdown (.jd) Language Specification v0.1
+# Justdown (.jd) Language Specification v0.2
 
 > justdown is not a scripting language. It is a retrieval-friendly wrapper
 > around existing scripts, where the docs, metadata, and recipe live together
@@ -61,8 +61,22 @@ It is the match surface that decides *when* the file is pulled.
 | `description` | yes | One or two lines: what it is and when to use it. **This is the contract** — the agent retrieves on it. |
 | `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow`. |
 | `tags` | no | Free-form labels for grouping and retrieval. |
+| `use_when` | no | Trigger phrases (positive signals). Scored above prose, so a hit here outranks a stray match in the description. |
+| `not_when` | no | Anti-triggers. A query term that hits one **vetoes** the file from results — the cheapest way to cut false positives. |
+| `danger` | no | `none` \| `low` \| `medium` \| `high` — how destructive running it is. |
+| `side_effects` | no | What it changes outside the process, e.g. `[network, git-push, publish]`. |
+| `requires` | no | Host capabilities/binaries needed, e.g. `[npm, git]`. |
 | `run` | tool only | Names the default recipe, e.g. `release`. |
 | `provides` | no | Names other files link to via `#Name` (schemas, functions, recipes). |
+
+`use_when`/`not_when` are YAML arrays of short phrases, e.g.
+`use_when: [cut a release, publish a version]`. They tune *retrieval*, not
+behavior: an index that ignores them still resolves the file correctly by
+`name`/`description`/`tags` — they only sharpen ranking.
+
+`danger`/`side_effects`/`requires` are **safety metadata**, carried on every
+search result so a policy layer (or an unattended agent) can gate a destructive
+call *before* running it — without reading the prose. They never affect ranking.
 
 Everything else (the body, the blocks) stays on disk and is read by path only
 once a query selects the file.
@@ -97,6 +111,47 @@ the recipe body as ordinary shell. Heavy logic should still live in real scripts
 on disk; a just recipe is the thin, named entry point that delegates to them.
 just is cross-platform, but recipe bodies are shell commands, so portable recipes
 should delegate to cross-platform scripts or tools.
+
+### Platform-guarded variants (a justdown extension)
+
+This is the **one** place `.jd` extends just's grammar. A recipe whose command
+differs by operating system is written once per platform, each variant preceded by
+a platform attribute on its own line:
+
+````markdown
+```just
+[unix]
+open target:
+  xdg-open {{target}}
+
+[macos]
+open target:
+  open {{target}}
+
+[windows]
+open target:
+  cmd /c start "" {{target}}
+
+[wsl]
+open target:
+  wslview {{target}}
+```
+````
+
+The tags are `unix`, `macos`, `windows`, and `wsl`; `darwin` is an accepted alias
+for `macos`. A tag may be a comma list — `[unix, wsl]` guards one body for both.
+An attribute guards the recipe header that follows it and that recipe's indented
+body; untagged lines (variables, settings, plain recipes) always apply. Variants of
+the same recipe name must be mutually exclusive for any one platform, so exactly one
+definition survives selection.
+
+`just` itself has no `[wsl]` attribute and would reject one — so platform selection
+is **resolved by the runner, not by just**. When the runner extracts a file's
+recipes it detects the host (`uname -s`, refined to `wsl` via `/proc/version`),
+keeps only the matching variant, and **strips the attribute lines**. What reaches
+`just --justfile -` is therefore an ordinary justfile with a single, plain
+definition per recipe — vanilla just never sees the extension. The divergence from a
+real justfile is exactly these attribute lines, and the binary normalizes them away.
 
 ## Scaffold blocks (`psaido`)
 
@@ -244,6 +299,48 @@ them inside executable `just` recipe bodies** — a literal `@` must never reach
 shell. In a scaffold, translate each link into the target language's normal import
 or call (see [Scaffold blocks](#scaffold-blocks-psaido) for the inline and aliased
 forms).
+
+## Context injection (`<<var>>`)
+
+`<<name>>` is a host-injected variable. Before a file is consumed, the host
+replaces each escape with a value it supplies — the wrapping shell, the working
+directory, the last command, the current selection, and so on. It is the inbound
+counterpart to `@`: where `@` pulls in *another file*, `<<var>>` pulls in *live
+host state*, and both resolve **before** the content reaches the agent or the
+shell.
+
+```
+You are wrapping the user's `<<shell>>` shell.
+cwd: <<cwd>>   last command: <<last_command>>
+```
+
+As with `@`, the format fixes only the **syntax**. The variable namespace and the
+moment of substitution are the host's concern, not the language's.
+
+Rules:
+
+- **Name grammar.** `<<` + `[A-Za-z0-9_]+` + `>>`. Anything else — `<< x >>`,
+  `<<a b>>`, `<<>>`, an unclosed `<<` — is not an escape and passes through
+  verbatim.
+- **Unknown names pass through.** A name the host does not supply is left exactly
+  as written — never an error, never silently emptied. Bad input degrades to a
+  no-op.
+- **Single-pass, non-recursive.** Substitution runs once over the authored text;
+  injected values are spliced verbatim and **never re-scanned**. A value that
+  itself contains `<<…>>` (e.g. captured terminal output) does not trigger a
+  second substitution. This is the safety property that lets *untrusted* host
+  state be injected without it smuggling in further escapes.
+- **Literal `<<`.** Write `<<<<` to emit a single literal `<<`.
+
+### Injection vs. just interpolation
+
+`<<var>>` and just's own `{{var}}` never collide: different delimiters, different
+times. `<<var>>` is resolved by the host *before* the recipe is handed to just;
+`{{var}}` is resolved by just *while it runs*. A host may apply `<<var>>` inside a
+`just` recipe body, but a spliced value lands as raw shell text — so inject only
+trusted values there, or quote them. For ordinary recipe *inputs*, prefer just
+parameters and `{{ }}`; reserve `<<var>>` for host state just cannot know (the
+wrapping shell, the caller's cwd, a live selection).
 
 ## Example: a complete tool file
 

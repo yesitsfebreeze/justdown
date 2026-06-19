@@ -84,6 +84,24 @@ That reflex — *check justdown first, on every query* — is the whole point of
 wiring it in. The `justfile` is always the entry point; everything else is a
 way of calling it.
 
+### Install a startup prompt that loads the spec
+
+Wiring the tool is not enough — an agent that has never read the spec will misuse
+it. Every harness has a **startup prompt**: the text it loads at the start of a
+session, before it sees any task — a system prompt, a `CLAUDE.md` / `AGENTS.md`, a
+preamble, a memory file. Whatever yours is, install a line into it that points at
+the **live spec and tells you to read it on start**:
+
+> On startup, fetch and read the live justdown spec at
+> <https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/justdown.md>,
+> then treat the justdown library as your first tool on every query — `search`
+> before reaching for your own.
+
+Pull it **live** rather than pinning a copy: the spec evolves, and you want the
+current contract, not a stale snapshot — the same reason queries merge the online
+index fresh. Reading it on every start is what turns *"a justfile is on `PATH`"*
+into *"the agent reflexively reaches for the library first."*
+
 ## Authoring `.jd` files
 
 Add your own `.jd` files and `just build` to index them. A `.jd` has three regions:

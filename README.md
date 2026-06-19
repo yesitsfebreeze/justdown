@@ -47,7 +47,9 @@ stay thin; the entire execution glue is one parser extension that lifts
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting.
 - [`graph.tsv`](graph.tsv) — the flat, tab-separated index the CLI queries
-  (key, name, kind, purpose, tags, path, links). Built by `just build`; CI keeps
+  (key, name, kind, purpose, tags, path, links, use_when, not_when, danger,
+  side_effects, requires, category — category inferred from the parent folder).
+  Built by `just build`; CI keeps
   it fresh on every push. No node anywhere.
 
 ## Use it as a CLI
@@ -101,6 +103,13 @@ A `.jd` file has three regions, each a different surface for a different reader:
 `@` links in prose and scaffolds resolve to other files **before** content
 reaches the agent, so references are hydrated deterministically — the runner
 never resolves `@`, and `@` never appears inside a `just` recipe body.
+
+`<<var>>` escapes are the inbound counterpart: the host splices in live state —
+the wrapping shell, cwd, the last command — **before** the text reaches the agent
+or shell. One pass, no re-scanning, so an injected value can't smuggle in more
+escapes; unknown names pass through untouched and `<<<<` is a literal `<<`. It
+won't collide with just's `{{var}}` — different delimiters, resolved at different
+times.
 
 ## A complete tool file
 

@@ -1,6 +1,6 @@
 # justdown
 
-[![GitHub stars](https://img.shields.io/github/stars/yesitsfebreeze/justdown?style=social)](https://github.com/yesitsfebreeze/justdown/stargazers) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![spec](https://img.shields.io/badge/spec-v0.1-blue.svg)](justdown.md)
+[![GitHub stars](https://img.shields.io/github/stars/yesitsfebreeze/justdown?style=social)](https://github.com/yesitsfebreeze/justdown/stargazers) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![release](https://img.shields.io/github/v/release/yesitsfebreeze/justdown?color=blue&label=jd)](https://github.com/yesitsfebreeze/justdown/releases/latest) [![spec](https://img.shields.io/badge/spec-v0.1-blue.svg)](justdown.md)
 
 A `.jd` file is a small Markdown file with optional executable or scaffolded
 blocks. It composes four things you already know — Markdown, YAML frontmatter,
@@ -70,6 +70,10 @@ jd search "cut a release"   # find a tool
 jd get release              # read it as sections
 jd get release tools        # just the runnable steps
 ```
+
+Prebuilt binaries cover Linux and macOS (x86_64 + arm64) and Windows (x86_64),
+each checksummed in the release's `SHA256SUMS`. The installer verifies the
+checksum before installing.
 
 `jd` finds tools; [`just`](https://just.systems) runs them (a tool's recipe is
 just-syntax, executed as `just --justfile - <recipe>`). `jd` **does not define how

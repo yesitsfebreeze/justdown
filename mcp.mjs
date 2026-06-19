@@ -17,7 +17,14 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "
 import { join, dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+// When run from disk, HERE is the file's dir (enables the local-clone fast path).
+// When fetched and imported over HTTP (import.meta.url is a data:/https: URL),
+// fileURLToPath throws — fall back to cwd so every disk lookup simply misses and
+// the server reads graph.json + bodies from the raw git links. URL-only, no clone.
+const HERE = (() => {
+  try { return dirname(fileURLToPath(import.meta.url)); }
+  catch { return process.cwd(); }
+})();
 
 // ── config (env-overridable; defaults target this repo) ──────────────────────
 const REPO     = process.env.JUSTDOWN_REPO     || "yesitsfebreeze/justdown";

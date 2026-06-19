@@ -3,6 +3,10 @@ name: workflows_ship
 description: End-to-end ship workflow — gate, release, and announce. Use when the user says "ship it" and the tree should go out end to end.
 kind: workflow
 tags: [workflow, release, ci, ship]
+use_when: [ship it, release and announce, gate then release, full release end to end]
+danger: high
+side_effects: [network, git-push, publish]
+requires: [npm, git]
 run: ship
 ---
 

@@ -3,6 +3,7 @@ name: tools_screenshot
 description: Capture a URL to a PNG or PDF file. Use when the user asks to screenshot, capture, or render a page to an image.
 kind: tool
 tags: [screenshot, browser, image, artifact, binary]
+use_when: [screenshot a page, capture a web page, render url to image, snapshot a site, page to pdf]
 run: shot
 invoke: artifact
 provides: [shot, pdf]

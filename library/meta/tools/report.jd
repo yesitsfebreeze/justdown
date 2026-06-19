@@ -3,6 +3,7 @@ name: tools_report
 description: Generate a report file (changelog, dep audit, file tree). Use when the user asks for a written report or exported summary.
 kind: tool
 tags: [report, docs, artifact, export]
+use_when: [generate a changelog, audit dependencies, export a summary, file tree report]
 run: changelog
 invoke: artifact
 provides: [changelog, deprecations, tree]

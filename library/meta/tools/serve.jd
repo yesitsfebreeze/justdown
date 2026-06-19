@@ -3,6 +3,10 @@ name: tools_serve
 description: Start the dev server (Vite) and keep it running. Use when the user asks to run, start, or serve the app locally.
 kind: tool
 tags: [dev, server, vite, sidecar]
+use_when: [run the app, launch locally, dev server, serve locally, start the frontend]
+not_when: [production, deploy, build for release]
+side_effects: [network]
+requires: [node]
 run: serve
 invoke: sidecar
 provides: [serve, reload, status, stop]

@@ -3,6 +3,10 @@ name: tools_release
 description: Cut and publish a release. Use when the user asks to ship a version (patch/minor/major).
 kind: tool
 tags: [release, publish, ci]
+use_when: [publish a version, cut a release, tag and publish, bump the version]
+danger: high
+side_effects: [network, git-push, publish]
+requires: [npm, git]
 run: release
 ---
 

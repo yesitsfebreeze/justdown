@@ -3,6 +3,7 @@ name: tools_new-tool
 description: Scaffold a new .jd tool file from a template. Use when the user asks to create, add, or bootstrap a new justdown tool.
 kind: tool
 tags: [scaffold, meta, tooling, bootstrap]
+use_when: [create a new tool, scaffold a tool, bootstrap a recipe]
 run: new
 provides: [new]
 ---

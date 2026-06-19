@@ -3,6 +3,7 @@ name: workflows_onboard
 description: Set up a fresh clone for development end to end. Use when the user says "set this up", "onboard", or "get me running".
 kind: workflow
 tags: [workflow, setup, onboard, dev]
+use_when: [onboard a clone, get me running, set up the project, bootstrap a checkout]
 run: onboard
 ---
 

@@ -3,6 +3,10 @@ name: tools_docker
 description: Build and run the project in Docker (build, up, down, logs, shell). Use when the user asks to containerize, run locally, or debug the container.
 kind: tool
 tags: [docker, container, dev]
+use_when: [containerize the app, run in a container, build an image, dockerize]
+danger: low
+side_effects: [network]
+requires: [docker]
 run: up
 provides: [build, up, down, logs, shell]
 ---

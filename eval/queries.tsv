@@ -119,3 +119,4 @@ what changed between two branches	git_diff
 test whether a remote port is open	net_nc
 undo the last commit but keep my changes	git_reset
 shallow clone a big repo to save time	git_clone
+stop a variable from expanding inside quotes	shell_quoting

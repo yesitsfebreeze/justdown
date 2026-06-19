@@ -1,0 +1,54 @@
+---
+name: shell_quoting
+description: Quote and escape correctly across bash, zsh, fish, and nu — single vs double quotes, what each shell expands inside them, embedding quotes, and passing a literal string safely. The single largest source of shell bugs. Use to stop a variable or glob from expanding, include a quote in a string, or pass an argument with spaces.
+kind: knowledge
+tags: [shell, quoting, escape, expansion, single-quote, double-quote]
+use_when: [single vs double quotes, stop a variable from expanding, escape a special character, pass an argument with spaces, include a quote inside a string, why is my variable not expanding, literal string]
+---
+
+# Quoting
+
+Which characters a shell interprets, and how to turn that off — the cause of most
+shell bugs (word-splitting, glob surprises, broken paths). The rules are mostly
+shared across bash/zsh, with fish and nu simpler; see @shell/bash for expansion
+detail and @shell/rosetta for the cross-shell map.
+
+## Single vs double — the core rule
+
+| Quote | bash / zsh / fish | Expands inside? |
+|-------|-------------------|-----------------|
+| `'single'` | literal — every char as-is | **nothing** (not even `$`) |
+| `"double"` | partial | `$var`, `$(cmd)`, `` `cmd` ``, `\` (not globs) |
+| (unquoted) | full | vars, globs, **and word-splits on spaces** |
+
+The reflex: **single-quote to mean it literally**, double-quote when you want
+variable expansion but not word-splitting, and *always* double-quote a variable
+in a command (`cp "$src" "$dst"`) so a space in the value does not split it into
+two arguments — the #1 bash bug.
+
+## Embedding a quote
+
+| Goal | bash / zsh |
+|------|-----------|
+| a literal `'` inside single quotes | `'can'\''t'` (close, escaped quote, reopen) |
+| a literal `"` inside double quotes | `"say \"hi\""` |
+| a tab/newline literal | `$'\t'` / `$'\n'` (ANSI-C quoting) |
+| stop one character expanding | backslash: `\$` `\*` `\ ` |
+
+You cannot escape a `'` *inside* single quotes — you must leave them, add an
+escaped quote, and re-enter: `'can'\''t'` reads as `can` + `'` + `t`.
+
+## fish and nu
+
+- **fish**: `'single'` and `"double"` follow the same literal/partial split, but
+  fish has **no word-splitting** — `$var` is never re-split, so quoting a
+  variable is about literalness, not safety. `\n` works in double quotes.
+- **nu**: `'single'` and `"double"` are literal/escape strings; `$"..."` does
+  interpolation with `($expr)`. Bare words and `r#'...'#` raw strings exist too.
+  Like fish, nu never word-splits — a string is one value (@shell/nu).
+
+## The one rule to keep
+
+In bash/zsh, an **unquoted** `$var` is split on whitespace and glob-expanded.
+Quote it (`"$var"`) unless you specifically want that. fish and nu remove this
+hazard entirely — the strongest reason their quoting is less error-prone.

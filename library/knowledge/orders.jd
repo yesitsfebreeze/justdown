@@ -9,9 +9,7 @@ provides: [OrderItem, Order, calculateOrderTotal, processOrder]
 # Order total
 
 Sums each line (`price × quantity`) and writes it back onto the order. An empty
-order is a no-op. Product shape comes from @knowledge/product#Product, linked here
-inline rather than redefined — the pre-send filter hydrates it before the agent
-sees this file, so the translator gets the real `Product` type in context.
+order is a no-op. Product shape comes from @knowledge/product#Product.
 
 ```psaido
 !sc OrderItem

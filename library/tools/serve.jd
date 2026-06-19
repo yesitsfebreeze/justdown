@@ -10,13 +10,8 @@ provides: [serve, reload, status, stop]
 
 # Serve
 
-`invoke: sidecar` — the recipe starts Vite and **stays alive**. The runner
-spawns it detached, watches stdout for `READY`, and treats that as started;
-logs stream after. No exit code is read (a healthy sidecar never exits), so
-`READY` / `ERROR` lines are the contract.
-
-One-shot commands live as **separate named recipes in the same file**, called
-by name as normal `run`-style recipes.
+Long-running sidecar: prints `READY <url>` once Vite is listening, then stays
+alive. One-shot recipes in the same file: `reload`, `status`, `stop`.
 
 ```just
 # long-running dev server; prints READY once Vite is listening
@@ -35,12 +30,4 @@ status port="3000":
 # one-shot: stop by pidfile (the runner may also SIGTERM the process)
 stop:
   @test -f .vite.pid && kill $$(cat .vite.pid) && rm .vite.pid || echo "not running"
-```
-
-## Invocation
-
-```
-runner args: []          →  serve      (sidecar: detached, watch for READY)
-runner args: ["status"]  →  status     (run-style one-shot)
-runner args: ["reload"]  →  reload     (run-style one-shot)
 ```

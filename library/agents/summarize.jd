@@ -8,9 +8,6 @@ run: summarize
 
 # Summarize
 
-An agent file: the prose is the brief, the recipe hands a file to a model CLI
-and prints the summary.
-
 **Brief.** Read the file at `path` and produce a tight summary: one sentence on
 what it is, a short bulleted list of what it does, one line on the most likely
 reason a reader would open it. Skip boilerplate. If `path` is a directory,
@@ -22,11 +19,4 @@ summarize path:
   claude --print --prompt "Summarize this file for a developer. $(text)"
 ```
 
-## Invocation
-
-```
-runner args: ["src/api/handler.ts"]  →  summarize path="src/api/handler.ts"
-```
-
-`path` is required (no default); a missing arg is a just usage error, which
-exits non-zero — the shared result contract.
+`path` is required (no default).

@@ -8,9 +8,8 @@ provides: [Result, Ok, Err, map, recover]
 
 # Result
 
-Success-or-error in one shape. `Ok`/`Err` construct the cases; `map`
-transforms the success value; `recover` turns an error into a fallback. The
-convention to reach for at any retry or mapping boundary.
+`Ok`/`Err` construct the cases; `map` transforms the success value; `recover`
+turns an error into a fallback.
 
 ```psaido
 !sc Result
@@ -42,10 +41,8 @@ convention to reach for at any retry or mapping boundary.
 < Ok(fallback)
 ```
 
-## Notes for the translator
+## Notes
 
-- `transform` / `fallback` are functions passed as values — translate to the
-  host's first-class function / closure type.
-- Never read `value` or `error` before checking `ok`. If the host has a built-in
-  `Result`/`Either`/`Outcome`, prefer it — the convention matters more than the
-  shape.
+- `transform` / `fallback` are functions passed as values — translate to the host's first-class function / closure type.
+- Never read `value` or `error` before checking `ok`.
+- If the host has a built-in `Result`/`Either`/`Outcome`, prefer it — the convention matters more than the shape.

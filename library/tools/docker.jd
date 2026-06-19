@@ -9,9 +9,9 @@ provides: [build, up, down, logs, shell]
 
 # Docker
 
-The local container lifecycle as a recipe family. `run: up` is the default; the
-rest are callable by name. Heavy logic stays in `compose.yaml` / `Dockerfile`
-on disk; the recipes are the thin entry points.
+Local container lifecycle. `up` is the default; `build`/`down`/`logs`/`shell`
+are callable by name. Real config lives in `compose.yaml` / `Dockerfile` on
+disk; these recipes are thin entry points.
 
 ```just
 # build images without starting anything
@@ -33,12 +33,4 @@ logs service="":
 # open a shell inside a running service
 shell service="app":
   docker compose exec {{service}} sh
-```
-
-## Invocation
-
-```
-runner args: []                 →  up
-runner args: ["build", "api"]   →  build service="api"
-runner args: ["shell", "web"]   →  shell service="web"
 ```

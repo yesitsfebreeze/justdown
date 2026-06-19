@@ -9,9 +9,8 @@ provides: [migrate, rollback, seed, studio, reset]
 
 # DB
 
-A recipe family over a DB CLI (`prisma` — swap for `drizzle`, `sqlx`, etc. and
-the interface stays identical). `run: migrate` is the default; the rest are
-callable by name.
+Recipe family over a DB CLI (`prisma` — swap for `drizzle`, `sqlx`, etc.; interface stays identical).
+Default is `migrate`; call others by name: `rollback`, `seed`, `studio`, `reset`. `reset` is destructive (dev only).
 
 ```just
 # apply pending migrations (default)
@@ -33,12 +32,4 @@ studio:
 # wipe and re-create the dev DB (destructive — dev only)
 reset:
   npx prisma migrate reset --force
-```
-
-## Invocation
-
-```
-runner args: []          →  migrate
-runner args: ["seed"]    →  seed
-runner args: ["studio"]  →  studio
 ```

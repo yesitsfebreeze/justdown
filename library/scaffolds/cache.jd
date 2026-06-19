@@ -8,9 +8,7 @@ provides: [CacheEntry, get, set, invalidate]
 
 # Cache invalidate
 
-A small TTL cache: `get` returns the value if fresh, else signals a miss; `set`
-stamps an entry with its expiry; `invalidate` forces a miss. Pair with
-@scaffolds/result so a miss is an `Err`, not a sentinel `null`.
+Pair with @scaffolds/result so a miss is an `Err`, not a sentinel `null`.
 
 ```psaido
 !im @scaffolds/result as r
@@ -45,10 +43,8 @@ stamps an entry with its expiry; `invalidate` forces a miss. Pair with
 < store
 ```
 
-## Notes for the translator
+## Notes
 
-- `store` is the host's map/dict, passed in and returned so `set`/`invalidate`
-  stay pure; in a real implementation you will likely hold it in a field.
+- `store` is passed in and returned so `set`/`invalidate` stay pure; in practice hold it in a field.
 - `now()` is a runtime clock — inject it for tests.
-- If the host distinguishes absent-from-present (`Option`, `getOr`), prefer that
-  over a `null` sentinel.
+- If the host distinguishes absent-from-present (`Option`, `getOr`), prefer that over a `null` sentinel.

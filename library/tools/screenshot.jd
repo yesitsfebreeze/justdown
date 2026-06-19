@@ -10,10 +10,9 @@ provides: [shot, pdf]
 
 # Screenshot
 
-`invoke: artifact` for **binary** output — a PNG cannot go on stdout without
-corrupting it. The recipe writes the file and prints `ARTIFACT <path>`; the
-runner returns the path, the agent reads the file. Delegates to `playwright`;
-swap for `chromium --headless`, `puppeteer`, etc. and the contract is unchanged.
+Binary output: the recipe writes the file and prints `ARTIFACT <path>`; read the
+file at that path. Delegates to `playwright`; swap for `chromium --headless`,
+`puppeteer`, etc.
 
 ```just
 # capture a URL to a PNG
@@ -27,11 +26,4 @@ pdf url out="dist/shot.pdf":
   @mkdir -p dist
   npx playwright pdf {{url}} {{out}}
   @echo "ARTIFACT {{out}}"
-```
-
-## Invocation
-
-```
-runner args: ["https://example.com"]                       →  shot url="https://example.com"
-runner args: ["pdf", "https://example.com", "dist/a.pdf"]  →  pdf url="https://example.com" out="dist/a.pdf"
 ```

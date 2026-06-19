@@ -10,11 +10,9 @@ provides: [changelog, deprecations, tree]
 
 # Report
 
-`invoke: artifact` — each recipe writes its result to a file and prints
-`ARTIFACT <path>` as the last stdout line; stdout is logs, not the result. The
-runner returns the **path** to the agent, who reads the file by path. Exit code
-still governs trust. For a quick stdout summary instead, use @agents/summarize
-(`invoke: run`).
+Each recipe writes its result to a file and prints `ARTIFACT <path>` as the last
+stdout line; read the file at that path. For a quick stdout summary instead, use
+@agents/summarize.
 
 ```just
 # changelog from the last N commits
@@ -35,12 +33,4 @@ tree root="src" out="dist/tree.md":
   @mkdir -p dist
   @find {{root}} -type f | sort | sed 's|^|- |' > {{out}}
   @echo "ARTIFACT {{out}}"
-```
-
-## Invocation
-
-```
-runner args: []                    →  changelog count="50" out="dist/CHANGELOG.md"
-runner args: ["deprecations"]      →  deprecations out="dist/deprecations.json"
-runner args: ["tree", "src/api"]   →  tree root="src/api"
 ```

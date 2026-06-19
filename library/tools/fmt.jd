@@ -9,10 +9,9 @@ provides: [fmt, check]
 
 # Fmt
 
-A family of related entry points in one file. `run: fmt` picks the default, so
-the runner calls `fmt` when no recipe is named; `check` is callable by name for
-CI and pre-commit hooks. One file, several recipes, one stable invocation
-shape — `just --justfile - <recipe> <args>`.
+`fmt` is the default and writes formatted files; `check` is the non-mutating
+variant (exits non-zero if any file would change) for CI and pre-commit hooks.
+Both take an optional `path` (default `.`).
 
 ```just
 # write formatted files (default)
@@ -22,11 +21,4 @@ fmt path=".":
 # non-mutating check: exits non-zero if any file would change
 check path=".":
   npx prettier --check {{path}}
-```
-
-## Invocation
-
-```
-runner args: []                  →  fmt path="."
-runner args: ["check", "src/"]   →  check path="src/"
 ```

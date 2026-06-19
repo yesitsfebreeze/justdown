@@ -8,8 +8,7 @@ provides: [paginate, totalPages]
 
 # Pagination
 
-Slice a list into fixed-size pages; `totalPages` rounds up so a trailing
-partial page counts as one.
+`totalPages` rounds up so a trailing partial page counts as one.
 
 ```psaido
 !fn totalPages > number
@@ -34,9 +33,9 @@ partial page counts as one.
 < items[start:end]
 ```
 
-## Notes for the translator
+## Notes
 
-- `[any]` is a generic list — keep the element type parameterized
-  (`List<T>`, `Vec<T>`, `T[]`).
+- `[any]` is a generic list — keep the element type parameterized (`List<T>`, `Vec<T>`, `T[]`).
 - `items[start:end]` is a half-open slice; use the host's slice idiom.
 - Out-of-range returns `[]`, not an error — "no more results", not a failure.
+- `pageSize <= 0` returns `0` / `[]`. `page` is 1-based.

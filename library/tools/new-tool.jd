@@ -9,9 +9,8 @@ provides: [new]
 
 # New tool
 
-A tool whose job is to create more tools — authoring the file *is* making the
-executable thing. Writes a minimal `.jd` file with honest frontmatter and a
-stub recipe, immediately runnable and indexable.
+Writes `tools/<name>.jd` with frontmatter and a stub recipe. Args: `name`
+(required) and `tool` (the default recipe name, default `default`).
 
 ```just
 # scaffold a new .jd tool file at tools/<name>.jd
@@ -42,13 +41,6 @@ new name tool="default":
   \`\`\`
   EOF
   echo "created tools/{{name}}.jd with default recipe '{{tool}}'"
-```
-
-## Invocation
-
-```
-runner args: ["deploy"]          →  new name="deploy"
-runner args: ["cache", "warm"]   →  new name="cache" tool="warm"
 ```
 
 ## Notes

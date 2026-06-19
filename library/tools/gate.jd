@@ -8,10 +8,8 @@ run: gate
 
 # Gate
 
-A single named entry point that runs the full local check and exits non-zero on
-any failure. The runner treats a non-zero exit as a failure, so downstream
-recipes that depend on `gate` inherit that contract. There is no structured
-output — stdout and exit code out, per the result contract.
+Runs typecheck, lint, and tests; exits non-zero on any failure. Other tools
+(e.g. `@tools/release`) depend on `gate`, so a red gate aborts them.
 
 ```just
 # full gate: typecheck, lint, tests

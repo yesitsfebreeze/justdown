@@ -1,3 +1,4 @@
+agents/distill	agents_distill	agent	Tighten a .jd body to a minimal, useful brief. Use when a .jd reads wordy, restates its frontmatter, or explains the runner instead of the tool.	distill,lint,authoring,agent	library/agents/distill.jd	
 agents/review	agents_review	agent	Open an agent review of the current PR. Use when the user asks to review, critique, or sanity-check a pull request.	review,pr,agent,github	library/agents/review.jd	@tools/fmt
 agents/summarize	agents_summarize	agent	Summarize a file or diff for the user. Use when the user asks "what does this do", "summarize", or "explain this file".	summarize,explain,agent,docs	library/agents/summarize.jd	
 knowledge/orders	knowledge_orders	knowledge	How an order total is computed and applied. Pull when implementing checkout, cart, or pricing.	orders,pricing,checkout	library/knowledge/orders.jd	@knowledge/product
@@ -10,7 +11,7 @@ tools/commit	tools_commit	tool	Stage a scope and write a conventional commit. Us
 tools/db	tools_db	tool	Run database migrations and local DB tooling (migrate, rollback, seed, studio, reset). Use when the user asks to migrate, seed, or open the DB.	db,migrate,prisma,sql	library/tools/db.jd	
 tools/docker	tools_docker	tool	Build and run the project in Docker (build, up, down, logs, shell). Use when the user asks to containerize, run locally, or debug the container.	docker,container,dev	library/tools/docker.jd	
 tools/fmt	tools_fmt	tool	Format source files, or check formatting without writing. Use when the user asks to pretty-print or verify style.	format,style,lint	library/tools/fmt.jd	
-tools/gate	tools_gate	tool	Run the project's test/type/lint gate. Use before any release or merge to check the tree is green.	ci,gate,test,lint	library/tools/gate.jd	
+tools/gate	tools_gate	tool	Run the project's test/type/lint gate. Use before any release or merge to check the tree is green.	ci,gate,test,lint	library/tools/gate.jd	@tools/release
 tools/new-tool	tools_new-tool	tool	Scaffold a new .jd tool file from a template. Use when the user asks to create, add, or bootstrap a new justdown tool.	scaffold,meta,tooling,bootstrap	library/tools/new-tool.jd	
 tools/release	tools_release	tool	Cut and publish a release. Use when the user asks to ship a version (patch/minor/major).	release,publish,ci	library/tools/release.jd	@tools/gate
 tools/report	tools_report	tool	Generate a report file (changelog, dep audit, file tree). Use when the user asks for a written report or exported summary.	report,docs,artifact,export	library/tools/report.jd	@agents/summarize

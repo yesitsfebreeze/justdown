@@ -8,20 +8,12 @@ run: commit
 
 # Commit
 
-Stages a scope and commits with a [conventional commit](https://www.conventionalcommits.org)
-message. On success prints the new short SHA; git's non-zero exit propagates on
-failure.
+[Conventional commit](https://www.conventionalcommits.org) message; prints the new short SHA.
+Defaults: `type=feat scope=. message=update`. Args map positionally: `type scope message`.
 
 ```just
 commit type="feat" scope="." message="update":
   git add {{scope}}
   git commit -m "{{type}}({{scope}}): {{message}}"
   git rev-parse --short HEAD
-```
-
-## Invocation
-
-```
-runner args: ["fix", "src/api", "handle 404"]  →  commit type="fix" scope="src/api" message="handle 404"
-runner args: []                                →  commit type="feat" scope="." message="update"
 ```

@@ -8,21 +8,12 @@ run: release
 
 # Release
 
-Builds, gates, tags, and publishes. `gate` runs first as a **just dependency**
-(`@tools/gate`) and refuses on a red gate — a non-zero exit from the gate aborts
-before `npm version` ever runs. The gate lives in its own file so release and any
-other tool share one definition of "green"; the runner folds the linked file's
-recipe into the justfile, so the dependency resolves without a nested `just`.
+Gates, tags, and publishes. `version` defaults to `patch`. `@tools/gate` runs
+first as a dependency — a red gate aborts before `npm version` runs.
 
 ```just
 release version="patch": gate
   npm version {{version}}
   git push --follow-tags
   npm publish
-```
-
-## Invocation
-
-```
-runner args: ["minor"]  →  release version="minor"
 ```

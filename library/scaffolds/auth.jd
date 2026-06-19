@@ -8,11 +8,9 @@ provides: [Credentials, Session, login, refresh]
 
 # Auth session
 
-A scaffold for the login flow. It imports the user store once with `!im ...
-as`, then uses the short alias below — the two valid ways to reference another
-file's provided names. The translator (the model reading this) turns each
-`@`/aliased link into the target language's normal import or call; this block
-is **never** extracted or run.
+A scaffold for the login flow. Imports the user store via `!im @db/users as udb`
+and references it through the `udb` alias; password verification and tokens come
+from @auth/crypto.
 
 ```psaido
 !im @db/users as udb
@@ -52,5 +50,3 @@ is **never** extracted or run.
   to a stored field.
 - `null` returns are the failure path — translate to the host's idiom
   (exception, `Option::None`, `nil`, etc.).
-- Nesting (`Session.user: udb.User`) and arrays work as in the grammar; no extra
-  keyword needed.

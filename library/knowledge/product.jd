@@ -8,10 +8,8 @@ provides: [Product]
 
 # Product
 
-The shared product schema. Other files link to it via `@knowledge/product#Product`
-rather than redefining it, so there is one source of truth for what a product
-looks like. See @knowledge/orders for a consumer that nests `Product` inside an
-order line.
+The shared product schema; one source of truth, linked via `@knowledge/product#Product`.
+See @knowledge/orders for a consumer that nests `Product` inside an order line.
 
 ```psaido
 !sc Product

@@ -104,3 +104,4 @@ unmount a filesystem that says target is busy	disk_mount
 read a password in a script without echoing it	term_stty
 extract the audio track from a video	media_ffmpeg
 make a thumbnail by resizing an image	image_magick
+align ragged output into neat columns	text_format

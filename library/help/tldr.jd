@@ -1,0 +1,49 @@
+---
+name: help_tldr
+description: Look up concise, example-first command help with tldr — community cheat-sheet pages showing the common invocations of a command, instead of a full man page. Use to recall a command's typical usage fast, see real examples, or update the local page cache.
+kind: tool
+tags: [help, tldr, cheatsheet, examples, man, usage]
+use_when: [how do I use this command, show examples for a command, quick usage reminder, simplified man page, common flags for a tool, cheat sheet for a command]
+danger: none
+requires: [tldr]
+run: show
+provides: [show, update, platform, random]
+---
+
+# tldr
+
+Example-first command help: a tldr page is a handful of real invocations for a
+command, not the exhaustive prose of `man`. `show` is the lookup; `update`
+refreshes the local cache; `platform` forces an OS-specific page. Reach for
+`man` when you need the complete flag reference — tldr is for "remind me the
+three ways people actually use `tar`."
+
+| Recipe | Does |
+|--------|------|
+| `show` | the cheat-sheet page for a command |
+| `update` | refresh the local page cache |
+| `platform` | force a platform's page (linux/osx/windows) |
+| `random` | a random page (discovery) |
+
+Pages are community-maintained and offline once cached. When a command has
+OS-specific behavior (`sed`, `date`, `ls`), `platform` pins the right variant —
+handy for the GNU/BSD splits noted in @text/sed and @date/date. For interactive
+fuzzy lookup, the cht.sh service fills the same niche with a search box.
+
+```just
+# the example-first cheat-sheet page for a command (default)
+show command:
+  tldr {{quote(command)}}
+
+# refresh the local page cache
+update:
+  tldr --update
+
+# force a platform's page: linux | osx | windows | sunos
+platform os command:
+  tldr --platform {{quote(os)}} {{quote(command)}}
+
+# a random page, for discovery
+random:
+  tldr --random
+```

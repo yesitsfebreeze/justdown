@@ -1,0 +1,49 @@
+---
+name: pkg_rosetta
+description: Cross-package-manager translation — install, remove, search, update, and "what owns this file" written for apt, dnf, pacman, apk, and brew side by side. The wizard's lookup when you know the operation but land on an unfamiliar distro.
+kind: knowledge
+tags: [pkg, package-manager, apt, dnf, pacman, brew, apk, rosetta]
+use_when: [install a package on this distro, apt equivalent in dnf or pacman, search for a package, what package owns a file, update all packages, remove a package, package manager for this OS]
+---
+
+# Pkg Rosetta
+
+One operation, five package managers. Land on an unfamiliar box, find your
+distro's column, read across. Mirrors the cross-shell @shell/rosetta idea for
+system packages. `apt` is Debian/Ubuntu, `dnf` Fedora/RHEL, `pacman` Arch,
+`apk` Alpine, `brew` macOS/Linuxbrew.
+
+## Core operations
+
+| Operation | apt | dnf | pacman | apk | brew |
+|-----------|-----|-----|--------|-----|------|
+| refresh index | `apt update` | (auto) | `pacman -Sy` | `apk update` | `brew update` |
+| install | `apt install P` | `dnf install P` | `pacman -S P` | `apk add P` | `brew install P` |
+| remove | `apt remove P` | `dnf remove P` | `pacman -R P` | `apk del P` | `brew uninstall P` |
+| remove + deps | `apt autoremove P` | `dnf autoremove P` | `pacman -Rs P` | `apk del P` | `brew rmtree`* |
+| upgrade all | `apt upgrade` | `dnf upgrade` | `pacman -Su` | `apk upgrade` | `brew upgrade` |
+| search | `apt search Q` | `dnf search Q` | `pacman -Ss Q` | `apk search Q` | `brew search Q` |
+| show info | `apt show P` | `dnf info P` | `pacman -Si P` | `apk info P` | `brew info P` |
+
+`*` brew needs the `rmtree` tap for dep removal; it normally leaves deps.
+
+## Query the installed set
+
+| Operation | apt | dnf | pacman | apk | brew |
+|-----------|-----|-----|--------|-----|------|
+| list installed | `apt list --installed` | `dnf list installed` | `pacman -Q` | `apk info` | `brew list` |
+| is P installed? | `dpkg -l P` | `rpm -q P` | `pacman -Q P` | `apk info -e P` | `brew list P` |
+| files of a pkg | `dpkg -L P` | `rpm -ql P` | `pacman -Ql P` | `apk info -L P` | `brew list P` |
+| **what owns FILE** | `dpkg -S FILE` | `rpm -qf FILE` | `pacman -Qo FILE` | `apk info --who-owns FILE` | `brew which-formula` |
+
+"What package owns this file" is the high-value query when a binary appears and
+you want its origin — the bottom row.
+
+## Gotchas
+
+- **apt** splits refresh (`update`) from upgrade (`upgrade`) — `update` does NOT
+  install anything, it only refreshes the index. The single most common mix-up.
+- **pacman** `-Sy` without `-u` (partial upgrade) can break Arch; prefer `-Syu`.
+- **dnf** refreshes metadata automatically, so there is no separate update step.
+- **brew** runs as your user, never `sudo`; the others need root for install.
+- The Debian/Fedora rows imply `sudo`; brew and per-user installs do not.

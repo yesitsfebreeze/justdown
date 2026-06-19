@@ -1,16 +1,16 @@
 name: graph
 
-# Keep the committed graph.json in sync with the library/ files. The graph is
-# CREATED BY CI: on push it is rebuilt with graph.mjs and committed back, so nobody
-# needs node locally to contribute a .jd file. On pull requests (where pushing to
-# the source branch may not be possible) it only verifies and fails if stale.
+# Keep the committed index (graph.tsv) in sync with the library/ files. The index
+# is CREATED BY THE JUSTFILE — the same `just build` you run locally — so there is
+# no node anywhere. On push it is rebuilt and committed back; on pull requests
+# (where pushing to the source branch may not be possible) it only verifies.
 
 on:
   push:
     branches: [main]
-    paths: ["library/**", "graph.mjs", ".github/workflows/graph.yml"]
+    paths: ["library/**", ".jd/justfile", ".github/workflows/graph.yml"]
   pull_request:
-    paths: ["library/**", "graph.mjs", ".github/workflows/graph.yml"]
+    paths: ["library/**", ".jd/justfile", ".github/workflows/graph.yml"]
 
 jobs:
   build:
@@ -20,36 +20,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - uses: extractions/setup-just@v2
 
-      - name: Syntax-check the builder
-        run: node --check graph.mjs
-
-      - name: Rebuild graph.json
-        run: node graph.mjs --build
+      - name: Rebuild the index
+        run: just --justfile .jd/justfile build
 
       # On a PR we cannot reliably push; just fail if the author forgot to rebuild.
-      - name: Verify graph.json is in sync (pull requests)
+      - name: Verify graph.tsv is in sync (pull requests)
         if: github.event_name == 'pull_request'
         run: |
-          if ! git diff --exit-code -- graph.json; then
-            echo "::error::graph.json is out of date. Run 'node graph.mjs --build' and commit, or push to main to let CI rebuild it."
+          if ! git diff --exit-code -- graph.tsv; then
+            echo "::error::graph.tsv is out of date. Run 'just --justfile .jd/justfile build' and commit, or push to main to let CI rebuild it."
             exit 1
           fi
-          echo "graph.json is in sync."
+          echo "graph.tsv is in sync."
 
-      # On push to main, commit the freshly built graph back to the branch.
-      - name: Commit refreshed graph.json (push to main)
+      # On push to main, commit the freshly built index back to the branch.
+      - name: Commit refreshed graph.tsv (push to main)
         if: github.event_name == 'push'
         run: |
-          if git diff --quiet -- graph.json; then
-            echo "graph.json already in sync."
+          if git diff --quiet -- graph.tsv; then
+            echo "graph.tsv already in sync."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add graph.json
-          git commit -m "ci: rebuild graph.json"
+          git add graph.tsv
+          git commit -m "ci: rebuild graph.tsv"
           git push

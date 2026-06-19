@@ -5,9 +5,9 @@ every `kind` and the main features of the format. They are intentionally minimal
 and self-documenting; read the frontmatter for the retrieval contract, the prose
 for the *why*, and the fenced blocks for the *how*.
 
-This folder is also the corpus behind [`../graph.json`](../graph.json) — the flat,
-queryable graph the CLI reads, built from these files by [`../graph.mjs`](../graph.mjs).
-See [`../install.jd`](../install.jd) to download the CLI and wire it into your agent.
+This folder is also the corpus behind [`../graph.tsv`](../graph.tsv) — the flat,
+tab-separated index the CLI queries, built from these files by `just build`. See
+[`../install.jd`](../install.jd) to download the CLI and wire it into your agent.
 
 | File | kind | Demonstrates |
 |------|------|--------------|

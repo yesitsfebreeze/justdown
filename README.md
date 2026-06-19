@@ -47,17 +47,18 @@ stay thin; the entire execution glue is one parser extension that lifts
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting; see
   [`library/README.md`](library/README.md) for the index.
-- [`graph.mjs`](graph.mjs) — build-time only: regenerates [`graph.json`](graph.json)
-  from the library. Run by CI on every push; nobody needs it at runtime.
+- [`graph.tsv`](graph.tsv) — the flat, tab-separated index the CLI queries
+  (key, name, kind, purpose, tags, path, links). Built by `just build`; CI keeps
+  it fresh on every push. No node anywhere.
 
 ## Use it as a CLI
 
 The repo *is* the package — a CLI, a tool library, and docs, distributed as plain
 files in git. Download one file, [`.jd/justfile`](.jd/justfile), and `just`
-becomes your tool runner over the library: it queries [`graph.json`](graph.json)
-— each file a node with its retrieval contract, edges the `@`links, keys reading
-back as named categories — in pure shell, scraping local then online. No clone, no
-`npm install`, no node at runtime, no model.
+becomes your tool runner over the library. The same justfile **builds** a flat
+index ([`graph.tsv`](graph.tsv)) from `.jd` files and **queries** it in pure shell,
+**merging your local index over the online one** (local trumps by key). No clone,
+no `npm install`, no node, no model.
 
 ```sh
 # install: one file

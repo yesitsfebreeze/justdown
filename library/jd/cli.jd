@@ -1,0 +1,71 @@
+---
+name: jd_cli
+description: Drive the justdown CLI itself — search the library by need, get a file as ordered sections, list categories, trace a file's @links, lint the graph, and rebuild the index. The self-referential tool: a .jd that operates the .jd library it lives in. Use to find and pull tools before doing a task by hand.
+kind: tool
+tags: [jd, justdown, cli, search, retrieval, self-referential, meta]
+use_when: [search the justdown library, find a tool before doing it by hand, get a jd file's sections, list library categories, trace links of a jd file, lint the jd graph, rebuild graph.tsv, what tools exist for X]
+danger: none
+requires: [just]
+run: search
+provides: [search, get, ls, links, lint, build]
+---
+
+# jd
+
+justdown describing *itself* — the one tool whose recipes operate the library
+that contains it. The whole point of justdown is the reflex from `install.jd`:
+before doing a task by hand, `search` the library for a shard that already does it,
+then `get` it and run its recipe. This file makes that reflex a retrievable tool
+like any other.
+
+| Recipe | CLI verb | Does |
+|--------|----------|------|
+| `search` | `search <q> [kind] [num]` | rank shards by need (name/use_when > tags > prose) |
+| `get` | `get <ref> [only]` | a file as ordered sections: `[0]` frontmatter, then prose / tools |
+| `ls` | `ls` | categories and their member files |
+| `links` | `links <ref>` | inbound + outbound `@links` of a file |
+| `lint` | `lint` | validate every shard's frontmatter (CI-gateable) |
+| `build` | `build` | rescan `<lib>/**/*.jd` → rewrite the local `graph.tsv` |
+
+## The argument grammar
+
+A **REF** is any of: a bare `name`, a `path`, a `key` of the form `dir/name`, or
+that same key with an `@` prefix.
+`search` ranks field-weighted — `name` and `use_when` outweigh `tags`, which
+outweigh prose, and a `not_when` match vetoes a hit. `get`'s `only` filter is
+`frontmatter` | `prose` | `tools` when you want just one region.
+
+Queries **merge** the LOCAL index over the ONLINE one — local entries trump
+online ones by key, so your `just build` output shadows the published graph
+without a clone. Set `JUSTDOWN_FORMAT=json` for a versioned machine schema
+(`justdown.search/1`); errors come back as `justdown.error/1` on stderr.
+
+**Exit codes:** `0` ok · `2` no matches · `3` bad args · `4` sources unreachable.
+The non-zero codes are how an agent tells "found nothing" from "you called me
+wrong" from "the network is down" — branch on them, don't parse the text.
+
+```just
+# rank library shards by a natural-language need (the first move on any task)
+search query kind="" num="5":
+  just search {{quote(query)}} {{quote(kind)}} {{quote(num)}}
+
+# a file as ordered sections; only = frontmatter | prose | tools
+get ref only="":
+  just get {{quote(ref)}} {{quote(only)}}
+
+# categories and their member files
+ls:
+  just ls
+
+# inbound + outbound @links of a file
+links ref:
+  just links {{quote(ref)}}
+
+# validate every shard's frontmatter (run before any push)
+lint:
+  just lint
+
+# rescan the library and rewrite the local graph.tsv index
+build:
+  just build
+```

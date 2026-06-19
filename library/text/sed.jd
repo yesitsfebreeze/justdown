@@ -1,0 +1,69 @@
+---
+name: text_sed
+description: Stream-edit text with sed — substitute, delete, or print lines from stdin or a file, or rewrite a file in place. Use to apply a sed script in a pipeline or do a scripted find-and-replace across files.
+kind: tool
+tags: [text, sed, stream, substitute, replace]
+use_when: [substitute text in a stream, find and replace in a file, sed in place edit, delete lines matching a pattern, print only matching lines, apply a sed script]
+danger: medium
+side_effects: [file-write]
+requires: [sed]
+run: run
+provides: [run, sub, inplace, delete, print]
+---
+
+# sed
+
+The streaming editor: read a file or stdin line by line, apply a script, emit to
+stdout. `run` is the default; the rest are convenience entries over the common
+scripts. The script language — addresses, commands, substitute flags, BRE vs
+ERE — is in @text/sedlang; it mirrors vim's `:s`/`:g`, so see @vim/ex for the
+in-editor twin and @vim/search for the regex. Reach for @search/rg instead when
+you only want to *find* matches, not rewrite them, or want `.gitignore`-aware
+recursion.
+
+| Recipe | Script | Output |
+|--------|--------|--------|
+| `run` | your script | stream result to stdout |
+| `sub` | `s/old/new/g` | every match replaced, to stdout |
+| `inplace` | `s/old/new/g` with `-i` | rewrites the file (no stdout) |
+| `delete` | `/pat/d` | drop lines matching `pat` |
+| `print` | `-n '/pat/p'` | print only lines matching `pat` |
+
+`run`, `sub`, `delete`, and `print` only stream — they never touch the file.
+`inplace` is the one that writes: it edits the file with `sed -i` and prints
+nothing. Patterns are BRE by default; pass an ERE script to `run` with a `-E`
+flag baked into the recipe, or just write `\(\)`/`\+` the BRE way.
+
+```just
+# apply an arbitrary sed script to a file or stdin (default)
+run script file="-":
+  sed {{quote(script)}} -- {{quote(file)}}
+
+# replace every occurrence of old with new, to stdout
+sub old new file="-":
+  #!/usr/bin/env sh
+  set -eu
+  o={{quote(old)}}; n={{quote(new)}}; f={{quote(file)}}
+  sed "s/$o/$n/g" -- "$f"
+
+# replace every occurrence in place, rewriting the file
+inplace old new file:
+  #!/usr/bin/env sh
+  set -eu
+  o={{quote(old)}}; n={{quote(new)}}; f={{quote(file)}}
+  sed -i "s/$o/$n/g" -- "$f"
+
+# delete every line matching a pattern, to stdout
+delete pat file="-":
+  #!/usr/bin/env sh
+  set -eu
+  p={{quote(pat)}}; f={{quote(file)}}
+  sed "/$p/d" -- "$f"
+
+# print only the lines matching a pattern
+print pat file="-":
+  #!/usr/bin/env sh
+  set -eu
+  p={{quote(pat)}}; f={{quote(file)}}
+  sed -n "/$p/p" -- "$f"
+```

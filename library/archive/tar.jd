@@ -1,0 +1,53 @@
+---
+name: archive_tar
+description: Bundle files into a tar archive and read them back — create (optionally gzip), list contents, extract to a directory, append more files. Use for the unix .tar / .tar.gz / .tgz family.
+kind: tool
+tags: [archive, tar, tarball, gzip, backup]
+use_when: [make a tarball, create a tar.gz, list a tar archive, extract a tar, untar a file, append to a tar]
+danger: low
+side_effects: [file-write]
+requires: [tar]
+run: create
+provides: [create, list, extract, append]
+---
+
+# tar
+
+Bundles many paths into one `.tar` stream, optionally gzip-compressed. `create`
+is the default; the rest read or grow an existing archive. Compression is a
+property of the archive, not the tool — see @archive/formats for which extension
+maps to which flag, and @archive/compress to compress a single file instead.
+
+| Recipe | Flags | Does |
+|--------|-------|------|
+| `create` | `-caf` | bundle paths; `--auto-compress` picks gzip from a `.gz`/`.tgz` name |
+| `list` | `-tf` | print archive contents, no extraction |
+| `extract` | `-xf` | unpack into a target dir (writes files) |
+| `append` | `-rf` | add more paths to an existing **uncompressed** tar |
+
+`create` uses `-a` so the output name decides compression: `.tar` is raw,
+`.tar.gz`/`.tgz` is gzip. `append` cannot grow a compressed tar — append to a
+`.tar`, then compress. `extract` always writes under `dir` (created if absent).
+
+```just
+# bundle paths into an archive; name ending .gz/.tgz auto-gzips (default)
+create archive +paths:
+  tar -caf {{quote(archive)}} -- {{paths}}
+
+# list what an archive holds, without unpacking
+list archive:
+  tar -tf {{quote(archive)}}
+
+# extract an archive into a directory (created if missing)
+extract archive dir=".":
+  #!/usr/bin/env sh
+  set -eu
+  a={{quote(archive)}}
+  d={{quote(dir)}}
+  mkdir -p "$d"
+  tar -xf "$a" -C "$d"
+
+# append paths to an existing uncompressed .tar
+append archive +paths:
+  tar -rf {{quote(archive)}} -- {{paths}}
+```

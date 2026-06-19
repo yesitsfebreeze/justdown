@@ -1,0 +1,56 @@
+---
+name: docker_cli
+description: The docker CLI surface — its object model (image, container, volume, network), the run-time flags every command shares, and how name-vs-id targeting works. Pull when wiring any docker command or deciding which object a verb acts on.
+kind: knowledge
+tags: [docker, cli, reference, flags]
+use_when: [docker cli reference, docker run flags, what does -d mean, container vs image, target a container by name, docker object model]
+---
+
+# Docker CLI
+
+Every command is `docker <object> <verb>` over four object types. The thin
+verbs live in their own files; this is the shared surface they assume.
+
+## Object model
+
+| Object | Is | Tool |
+|--------|-----|------|
+| image | a built, immutable filesystem + metadata | @docker/image |
+| container | a running (or stopped) instance of an image | @docker/container |
+| volume | named, persistent storage mounted into containers | @docker/volume |
+| network | a virtual network containers attach to | @docker/network |
+
+A container is created *from* an image; a volume or network is created
+independently and attached *to* a container at run time. `docker run` is the one
+verb that touches all four at once.
+
+## Common `run` flags
+
+| Flag | Means |
+|------|-------|
+| `-d` | detached — run in the background, print the id |
+| `--name NAME` | give the container a stable name (else a random one) |
+| `-p HOST:CONTAINER` | publish a container port to the host |
+| `-v NAME:/path` / `-v /host:/path` | mount a named volume or a host path |
+| `-e KEY=VAL` | set an environment variable |
+| `--rm` | delete the container automatically when it exits |
+| `-it` | interactive + TTY — keep stdin open, allocate a terminal |
+| `--network NET` | attach to a named network instead of the default |
+
+`-d` and `-it` are opposites in practice: `-d` for services, `-it` for a shell.
+
+## Name vs id targeting
+
+Containers, images, volumes, and networks all accept either an **id** (short
+hash) or a **name** wherever a target is required. Names are stable and
+readable; ids are unambiguous. A blank `--name` leaves a container with a
+generated name, so a named target is the reliable handle for `stop`/`rm`/`exec`
+(@docker/container) and for `logs`/`inspect` (@docker/logs). Pass `--` before a
+user-supplied name so a leading dash is never read as a flag.
+
+## Relationship to compose
+
+These tools drive the raw object lifecycle — one container, one image at a time.
+For a multi-service stack declared in `compose.yaml` (build, up, down, per-service
+logs and shell), use @tools/docker instead: compose is the orchestration layer
+over the same objects this CLI exposes.

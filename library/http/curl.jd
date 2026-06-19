@@ -1,0 +1,69 @@
+---
+name: http_curl
+description: curl flag reference — methods, headers, bodies, auth, output, redirects, retries, and the scripting flags (-fsS). Pull when building or reading any curl command line.
+kind: knowledge
+tags: [http, curl, flags, reference, scripting]
+use_when: [curl flags, curl options, what does -f do in curl, curl scripting, curl exit codes, curl retry, curl follow redirects, curl auth]
+---
+
+# curl flags
+
+The shared surface under @http/get, @http/send, and @http/api. curl speaks the
+request; these flags shape it. Method and status semantics are in @http/status.
+
+## Request
+
+| Flag | Does |
+|------|------|
+| `-X M` | set the method (GET, POST, PUT, PATCH, DELETE) |
+| `-H 'K: V'` | add a request header — repeatable |
+| `-d data` | send a body; implies POST, sets `application/x-www-form-urlencoded` |
+| `--data-raw d` | like `-d` but never treats a leading `@` as a file |
+| `-F k=v` | multipart form field; `-F f=@path` attaches a file |
+| `-A ua` | set the `User-Agent` |
+| `-b 'k=v'` | send cookies (`-b file` reads a jar) |
+| `-c file` | write received cookies to a jar |
+
+## Auth
+
+| Flag | Does |
+|------|------|
+| `-u user:pass` | HTTP basic auth |
+| `-H 'Authorization: Bearer <tok>'` | bearer token (no built-in flag) |
+
+## Output & transfer
+
+| Flag | Does |
+|------|------|
+| `-o file` | write body to `file` |
+| `-O` | write body to the URL's filename |
+| `-I` | HEAD request — headers only |
+| `-D -` | dump response headers (`-` = stdout) |
+| `-L` | follow redirects (3xx) |
+| `-k` | skip TLS cert verification — insecure, avoid |
+| `--connect-timeout s` | cap the connect phase |
+| `--retry n` | retry n times on transient failure |
+
+## Scripting flags
+
+Always pass these in scripts and recipes:
+
+| Flag | Why |
+|------|-----|
+| `-f` | fail (non-zero exit) on HTTP 4xx/5xx instead of printing the error body |
+| `-s` | silent — no progress meter |
+| `-S` | with `-s`, still show the error message on failure |
+
+`-fsS` is the scripting baseline; add `-L` to follow redirects. Without `-f`
+curl exits 0 even on a 500, so a script can't tell success from failure.
+
+## Exit codes
+
+| Code | Means |
+|------|-------|
+| `0` | success |
+| `6` | could not resolve host |
+| `7` | could not connect |
+| `22` | HTTP error (with `-f`, a 4xx/5xx) |
+| `28` | timeout |
+| `35` / `60` | TLS handshake / cert verification failed |

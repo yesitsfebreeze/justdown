@@ -1,0 +1,46 @@
+---
+name: archive_formats
+description: Archiving vs compression, and which tool reads which extension — .tar.gz/.tgz, .tar.zst, .tar.xz, .zip. Pull when choosing a format or deciding between tar, zip, and the stream compressors.
+kind: knowledge
+tags: [archive, formats, compression, tar, zip]
+use_when: [which archive format, tar vs zip, what opens a .tar.gz, archive file extensions, gzip vs zstd vs xz, choose a compression format]
+---
+
+# Archive formats
+
+Two separate jobs that unix splits and zip fuses:
+
+- **Archiving** packs many files + their metadata into one stream. `tar` does
+  this and nothing else — a raw `.tar` is uncompressed.
+- **Compression** shrinks one byte stream. `gzip`/`zstd`/`xz` do this and know
+  nothing about files or directories.
+
+A `.tar.gz` is the composition: tar bundles, then a compressor squeezes the
+result (one solid stream). `zip` instead does both at once, compressing each
+entry independently — so it lists and extracts single members without inflating
+the whole thing, at a slightly worse ratio.
+
+## Extension → tool
+
+| Extension | Made by | Read by |
+|-----------|---------|---------|
+| `.tar` | tar (raw) | @archive/tar |
+| `.tar.gz`, `.tgz` | tar + gzip | @archive/tar |
+| `.tar.zst` | tar + zstd | @archive/tar then @archive/compress |
+| `.tar.xz` | tar + xz | @archive/tar then @archive/compress |
+| `.gz`, `.zst`, `.xz` | single-file compressor | @archive/compress |
+| `.zip` | zip | @archive/zip |
+
+## Which to pick
+
+| Want | Use |
+|------|-----|
+| Open it on Windows/macOS unaided | `.zip` (@archive/zip) |
+| Preserve unix perms/symlinks/ownership | `.tar.*` (@archive/tar) |
+| Widest compatibility | gzip (`.tar.gz`) |
+| Fast pack/unpack at a strong ratio | zstd (`.tar.zst`) |
+| Smallest output, time no object | xz (`.tar.xz`) |
+| Shrink a single file | a stream compressor (@archive/compress) |
+
+`.tgz` is just `.tar.gz`. tar's `--auto-compress` reads the codec straight off
+the output name, which is why @archive/tar's `create` needs no compression flag.

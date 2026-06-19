@@ -1,0 +1,77 @@
+---
+name: text_sedlang
+description: sed scripting reference — addresses, commands, substitute flags, and the BRE-vs-ERE regex dialect. Pull when writing or reading a sed script for the @text/sed tool.
+kind: knowledge
+tags: [text, sed, scripting, regex, substitute]
+use_when: [write a sed script, sed addresses, sed substitute flags, sed commands, BRE vs ERE, sed regex reference]
+---
+
+# sed language
+
+A sed script is a list of `[address]command` pairs run against each line of the
+stream. The @text/sed tool runs them; this is the language. It maps closely onto
+vim's command-line layer — every idea here has a `:` twin in @vim/ex, and the
+pattern syntax parallels @vim/search.
+
+## Addresses — which lines a command acts on
+
+| Address | Selects |
+|---------|---------|
+| (none) | every line |
+| `5` | line 5 |
+| `$` | the last line |
+| `/pat/` | every line matching `pat` |
+| `5,20` | lines 5 through 20 |
+| `/a/,/b/` | from a match of `a` to the next match of `b` |
+| `1~2` | every 2nd line from line 1 (GNU step) |
+| `addr!` | negate — lines *not* matched |
+
+The `:g`/`:v` in @vim/ex are `/pat/` and `/pat/!` here.
+
+## Commands
+
+| Cmd | Does |
+|-----|------|
+| `s/pat/rep/` | substitute (see flags below) |
+| `p` | print the line (pair with `-n` to print only these) |
+| `d` | delete — skip to the next line |
+| `a\ text` | append `text` after the line |
+| `i\ text` | insert `text` before the line |
+| `c\ text` | change — replace the line(s) with `text` |
+| `y/abc/xyz/` | transliterate chars one-for-one (like `tr`, see @text/cut) |
+| `N` | append the next line to the pattern space (multi-line) |
+| `q` / `Q` | quit (with / without printing the current line) |
+| `=` | print the current line number |
+
+Group commands on an address with braces: `/pat/{s/x/y/; d}`.
+
+## Substitute flags — `s/pat/rep/FLAGS`
+
+| Flag | Effect |
+|------|--------|
+| `g` | every match on the line, not just the first |
+| `I` | case-insensitive match (GNU) |
+| `N` | replace only the Nth match (e.g. `s/x/y/2`) |
+| `Ng` | the Nth match and all after it |
+| `p` | print the line if a substitution happened |
+| `w file` | write changed lines to `file` |
+
+In the replacement: `&` is the whole match, `\1`…`\9` are capture groups, `\U`/`\L`
+upper/lowercase until `\E`, `\n` a newline. This is the same replacement vocabulary
+as @vim/search, minus vim's `\=expr`.
+
+## BRE vs ERE
+
+sed is **BRE** by default; `-E` (or `-r`) switches to **ERE**.
+
+| Want | BRE (default) | ERE (`-E`) |
+|------|---------------|------------|
+| group | `\(…\)` | `(…)` |
+| 1-or-more | `\+` | `+` |
+| 0-or-1 | `\?` | `?` |
+| alternation | `\|` | `\|` → `|` |
+| backreference | `\1` | `\1` |
+
+`.`, `*`, `^`, `$`, `[…]` mean the same in both. Anchors and classes match
+@vim/search without `\v`; when a job needs richer regex or recursion, drop to
+@search/rg instead.

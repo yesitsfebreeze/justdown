@@ -1,0 +1,82 @@
+---
+name: text_awklang
+description: awk programming reference — the pattern/action model, records and fields, BEGIN/END, variables, arrays, printf, and common one-liners. Pull when writing an awk program for the @text/awk tool.
+kind: knowledge
+tags: [text, awk, programming, fields, reference]
+use_when: [write an awk program, awk fields and records, awk BEGIN END, awk arrays, awk printf, awk one-liners]
+---
+
+# awk language
+
+An awk program is a list of `pattern { action }` rules. For each input record
+(line by default), awk runs the action of every rule whose pattern matches. The
+@text/awk tool runs the program; this is the language. For pure substitution or
+line deletion, @text/sed (and @text/sedlang) is the lighter tool; for slicing
+fixed columns, @text/cut.
+
+## The model
+
+| Form | Runs the action… |
+|------|------------------|
+| `{ … }` | on every record |
+| `/pat/ { … }` | on records matching the ERE `pat` |
+| `expr { … }` | when `expr` is true, e.g. `$3 > 100` |
+| `p1, p2 { … }` | on the range from a `p1` match to a `p2` match |
+| `BEGIN { … }` | once, before any input |
+| `END { … }` | once, after all input |
+
+A bare `/pat/` with no action means `{ print }`; a bare `{ print }` with no
+pattern prints every line.
+
+## Records and fields
+
+| Var | Is |
+|-----|-----|
+| `$0` | the whole record (line) |
+| `$1 $2 … $NF` | field 1, 2, …, last field |
+| `NF` | number of fields in this record |
+| `NR` | record number so far (1-based) |
+| `FNR` | record number within the current file |
+| `FS` | input field separator (set with `-F` or in `BEGIN`) |
+| `OFS` | output field separator (default space) |
+| `RS` / `ORS` | input / output record separator |
+
+`$(NF-1)` is the second-to-last field. Assigning `$2="x"` rebuilds `$0` using
+`OFS`.
+
+## Variables, arrays, control
+
+Variables need no declaration; uninitialized values are `0`/`""`. Arrays are
+associative — keys are strings:
+
+```
+count[$1]++                 # tally by first field
+for (k in count) print k, count[k]
+if ($3 ~ /^[0-9]+$/) n++    # ~ tests a regex
+total += $2                 # arithmetic
+```
+
+`~` / `!~` match a regex; `&&`, `||`, `!` combine; `next` skips to the next
+record; `getline` pulls another.
+
+## printf
+
+`printf "fmt", args` — no trailing newline unless you write `\n`. Common verbs:
+`%s` string, `%d` integer, `%f` float (`%.2f` 2 decimals), `%-10s` left-justify
+in 10 cols, `%5d` right-justify. `print a, b` is the quick form, joined by `OFS`.
+
+## One-liners
+
+| Program | Does |
+|---------|------|
+| `awk '{print $1}'` | first column |
+| `awk -F: '{print $1}'` | first field, colon-delimited (e.g. `/etc/passwd`) |
+| `awk 'NR==1'` | the header line only |
+| `awk 'END{print NR}'` | line count |
+| `awk '{s+=$2} END{print s}'` | sum column 2 |
+| `awk '!seen[$0]++'` | drop duplicate lines, keep order |
+| `awk 'NF'` | drop blank lines |
+| `awk '{$1=$1}1'` | normalize whitespace between fields |
+
+awk patterns are ERE (like `sed -E`, see @text/sedlang), not vim regex
+(@vim/search). When you only need to find matching lines fast, use @search/rg.

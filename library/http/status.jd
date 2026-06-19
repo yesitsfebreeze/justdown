@@ -1,0 +1,60 @@
+---
+name: http_status
+description: HTTP method semantics (safe, idempotent) and status-code families with the common codes. Pull when choosing a method or reading a response code.
+kind: knowledge
+tags: [http, status, methods, idempotency, reference]
+use_when: [http status codes, what does 404 mean, http method semantics, idempotent methods, is put idempotent, 2xx 3xx 4xx 5xx, http response codes]
+---
+
+# Methods & status
+
+Reference for choosing a verb (@http/send, @http/api) and reading the response a
+curl call returns (@http/curl). With `-f`, curl turns 4xx/5xx into a non-zero
+exit.
+
+## Methods
+
+*Safe* = no server state change. *Idempotent* = N identical calls land the same
+as one.
+
+| Method | Safe | Idempotent | Use for |
+|--------|------|------------|---------|
+| GET | yes | yes | read a resource |
+| HEAD | yes | yes | headers only, no body |
+| POST | no | no | create; non-repeatable actions |
+| PUT | no | yes | replace a resource wholesale |
+| PATCH | no | no | partial update |
+| DELETE | no | yes | remove a resource |
+
+Idempotency decides retry safety: GET/PUT/DELETE are safe to `--retry`; a retried
+POST may duplicate.
+
+## Status families
+
+| Family | Class | Meaning |
+|--------|-------|---------|
+| 1xx | informational | interim — rarely surfaced |
+| 2xx | success | request succeeded |
+| 3xx | redirect | resource elsewhere; follow with `-L` |
+| 4xx | client error | the request is wrong — don't blind-retry |
+| 5xx | server error | server failed; a retry may help |
+
+## Common codes
+
+| Code | Means |
+|------|-------|
+| 200 | OK |
+| 201 | Created (POST/PUT made a resource) |
+| 204 | No Content (success, empty body) |
+| 301 / 308 | Moved Permanently (308 keeps the method) |
+| 302 / 307 | Found / Temporary Redirect (307 keeps the method) |
+| 304 | Not Modified (conditional request) |
+| 400 | Bad Request |
+| 401 | Unauthorized (no/invalid credentials) |
+| 403 | Forbidden (authenticated, not allowed) |
+| 404 | Not Found |
+| 409 | Conflict |
+| 422 | Unprocessable Entity (validation failed) |
+| 429 | Too Many Requests (rate-limited) |
+| 500 | Internal Server Error |
+| 502 / 503 / 504 | Bad Gateway / Unavailable / Gateway Timeout |

@@ -1,0 +1,47 @@
+---
+name: ssh_sync
+description: Sync directories over SSH with rsync — push a local tree to a remote, pull one down, or mirror so the destination matches the source exactly. Use for incremental, repeatable transfers.
+kind: tool
+tags: [ssh, rsync, sync, mirror, deploy]
+use_when: [rsync to a remote, sync a directory over ssh, pull a remote directory, mirror a folder to a server, deploy files with rsync, incremental file sync]
+danger: low
+side_effects: [network]
+requires: [ssh, rsync]
+run: push
+provides: [push, pull, mirror]
+---
+
+# Sync over SSH
+
+`rsync -avz` over an SSH transport — archive mode (perms, times, symlinks),
+verbose, compressed. Only the delta crosses the wire, so re-running is cheap;
+that is the difference from @ssh/copy's full scp. `host` resolves through
+@ssh/config.
+
+| Recipe | Direction | Danger |
+|--------|-----------|--------|
+| `push` | local → remote | low |
+| `pull` | remote → local | low |
+| `mirror` | local → remote, **`--delete`** | medium |
+
+A trailing slash on `src` matters: `dir/` copies the *contents* into `dest`,
+`dir` copies the directory itself under `dest`.
+
+**`mirror` deletes.** `--delete` removes anything on the destination that is not
+in the source, so a wrong `src` or a missing slash can wipe remote files. Dry-run
+first: append `--dry-run` to the recipe's flags, or run `push` and confirm before
+reaching for `mirror`.
+
+```just
+# push local src to host:dest, incremental (default)
+push src host dest:
+  rsync -avz -e ssh {{quote(src)}} {{quote(host + ":" + dest)}}
+
+# pull host:src down to a local dest, incremental
+pull host src dest:
+  rsync -avz -e ssh {{quote(host + ":" + src)}} {{quote(dest)}}
+
+# mirror: make host:dest match src exactly, deleting extras on the remote
+mirror src host dest:
+  rsync -avz --delete -e ssh {{quote(src)}} {{quote(host + ":" + dest)}}
+```

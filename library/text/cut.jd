@@ -1,0 +1,62 @@
+---
+name: text_cut
+description: Slice and reshape text with the small coreutils — cut columns by field or character, paste files side by side, and translate, delete, or squeeze characters with tr. Use for lightweight pipeline plumbing that needs no full sed/awk program.
+kind: tool
+tags: [text, cut, paste, tr, columns]
+use_when: [cut a column from delimited text, extract character ranges, paste files side by side, translate or delete characters, squeeze repeats, strip a character set]
+danger: none
+requires: [coreutils]
+run: cut
+provides: [cut, fields, chars, paste, tr]
+---
+
+# cut / paste / tr
+
+The plumbing that rounds out a text pipeline below the @text/sed and @text/awk
+level — no program to write, just a flag. `cut` is the default. Use these when
+the job is "pull column 2", "take bytes 1-10", or "swap commas for newlines";
+reach up to @text/awk when fields need reordering or arithmetic, and to
+@search/rg when you only want to find lines.
+
+| Recipe | Tool | Does |
+|--------|------|------|
+| `cut` | `cut -f -d` | fields `list` split on delimiter `delim` (default tab) |
+| `fields` | `cut -f` | alias of `cut`, reads stdin |
+| `chars` | `cut -c` | character ranges, e.g. `1-10`, `3-`, `2,5` |
+| `paste` | `paste -d` | join files side by side, joined by `delim` |
+| `tr` | `tr` | translate set1→set2, or delete/squeeze |
+
+`cut`'s field list is the cut syntax: `1,3`, `2-`, `1-3`. `tr` mode is one of
+`translate` (map `set1` chars to `set2`), `delete` (`-d set1`), or `squeeze`
+(`-s set1`, collapse runs). Sets accept ranges (`a-z`) and classes (`[:digit:]`).
+Nothing here writes a file.
+
+```just
+# cut fields from delimited text (default) — list like 1,3 or 2-
+cut list delim="\t" file="-":
+  cut -d {{quote(delim)}} -f {{quote(list)}} -- {{quote(file)}}
+
+# same as cut, named for clarity in a fields pipeline
+fields list delim="\t" file="-":
+  cut -d {{quote(delim)}} -f {{quote(list)}} -- {{quote(file)}}
+
+# cut character ranges (e.g. 1-10, 3-, 2,5)
+chars range file="-":
+  cut -c {{quote(range)}} -- {{quote(file)}}
+
+# join two or more files side by side, columns joined by delim
+paste delim="\t" +files="-":
+  paste -d {{quote(delim)}} -- {{files}}
+
+# translate/delete/squeeze characters: mode = translate|delete|squeeze
+tr mode set1 set2="" file="-":
+  #!/usr/bin/env sh
+  set -eu
+  m={{quote(mode)}}; a={{quote(set1)}}; b={{quote(set2)}}; f={{quote(file)}}
+  case "$m" in
+    translate) tr "$a" "$b" < "$f" ;;
+    delete)    tr -d "$a" < "$f" ;;
+    squeeze)   tr -s "$a" < "$f" ;;
+    *) echo "mode must be translate|delete|squeeze" >&2; exit 2 ;;
+  esac
+```

@@ -1,0 +1,60 @@
+---
+name: text_awk
+description: Process text by fields with awk — run a program over stdin or a file, print chosen columns, filter rows by pattern, or sum a column. Use for column-aware extraction and quick aggregation in a pipeline.
+kind: tool
+tags: [text, awk, fields, columns, aggregate]
+use_when: [extract a column, print selected fields, filter rows by pattern, sum a column, aggregate text, run an awk program]
+danger: none
+requires: [awk]
+run: run
+provides: [run, fields, filter, sum]
+---
+
+# awk
+
+Field-oriented stream processor: split each line into fields, run a
+`pattern { action }` program, emit to stdout. `run` is the default; the rest are
+common shapes. The program model — records, fields, `BEGIN`/`END`, variables,
+arrays, `printf` — is in @text/awklang. For plain substitution reach for
+@text/sed; for column slicing without a program, @text/cut is lighter. Patterns
+in an awk program are EREs, not vim regex (@vim/search); to only *find* lines
+fast, prefer @search/rg.
+
+| Recipe | Program | Output |
+|--------|---------|--------|
+| `run` | your program | result to stdout |
+| `fields` | builds `$a $b …` | chosen columns, split on `sep` |
+| `filter` | `/pat/{print}` | only rows matching `pat` |
+| `sum` | `{s+=$n} END{print s}` | total of column `n` |
+
+`fields` takes the separator via `-F` (default whitespace) and a space-separated
+list of field numbers like `1 3`. `sum` totals one column and prints the running
+total at `END`. Nothing here writes a file.
+
+```just
+# run an arbitrary awk program over a file or stdin (default)
+run program file="-":
+  awk {{quote(program)}} {{quote(file)}}
+
+# print selected fields (space-separated list like "1 3"), split on sep
+fields cols sep=" " file="-":
+  #!/usr/bin/env sh
+  set -eu
+  c={{quote(cols)}}; s={{quote(sep)}}; f={{quote(file)}}
+  prog='{ out=""; n=split(C,a," "); for(i=1;i<=n;i++) out=out (i>1?OFS:"") $a[i]; print out }'
+  awk -F "$s" -v C="$c" "$prog" "$f"
+
+# keep only rows matching a pattern
+filter pat file="-":
+  #!/usr/bin/env sh
+  set -eu
+  p={{quote(pat)}}; f={{quote(file)}}
+  awk "/$p/{print}" "$f"
+
+# sum a numeric column n
+sum n file="-":
+  #!/usr/bin/env sh
+  set -eu
+  col={{quote(n)}}; f={{quote(file)}}
+  awk "{s+=\$$col} END{print s}" "$f"
+```

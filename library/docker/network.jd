@@ -1,0 +1,52 @@
+---
+name: docker_network
+description: Manage docker networks — list, create, inspect, remove, and connect a container to one. Use to wire containers together on a private network or to see and clean up existing networks.
+kind: tool
+tags: [docker, network, connectivity]
+use_when: [create a docker network, list networks, connect a container to a network, remove a network, inspect a network, wire containers together]
+danger: medium
+side_effects: [network]
+requires: [docker]
+run: list
+provides: [list, create, rm, inspect, connect]
+---
+
+# Networks
+
+Virtual networks that let containers reach each other by name. `list` is the
+default; the rest are callable by name. A container attaches at run time with
+`--network` (@docker/cli) or after the fact via `connect`; the container itself
+lives in @docker/container.
+
+`rm` deletes a network and only succeeds once no container is attached. To sweep
+every unused network, see @docker/prune.
+
+| Recipe | Maps to | Notes |
+|--------|---------|-------|
+| `list` | `docker network ls` | all networks |
+| `create` | `docker network create` | make a user-defined network |
+| `rm` | `docker network rm` | delete a network |
+| `inspect` | `docker network inspect` | subnet + attached containers as JSON |
+| `connect` | `docker network connect` | attach a running container to a network |
+
+```just
+# list all networks (default)
+list:
+  docker network ls
+
+# create a user-defined network
+create name:
+  docker network create -- {{quote(name)}}
+
+# remove a network (must have no attached containers)
+rm name:
+  docker network rm -- {{quote(name)}}
+
+# show a network's subnet and attached containers as JSON
+inspect name:
+  docker network inspect -- {{quote(name)}}
+
+# attach a running container to a network
+connect net container:
+  docker network connect {{quote(net)}} {{quote(container)}}
+```

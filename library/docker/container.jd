@@ -1,0 +1,64 @@
+---
+name: docker_container
+description: The container lifecycle — run, list, exec into, stop, remove, and restart containers. Use to start a container from an image, see what's running, get a shell inside one, or stop and clean one up.
+kind: tool
+tags: [docker, container, lifecycle, run, exec]
+use_when: [run a container, start a container from an image, list running containers, exec into a container, get a shell in a container, stop a container, remove a container, restart a container]
+danger: medium
+side_effects: [process, network]
+requires: [docker]
+run: ps
+provides: [run, ps, exec, stop, rm, restart]
+---
+
+# Containers
+
+The core lifecycle over a single container. `ps` is the default; the rest are
+callable by name. Flags and the name-vs-id rule come from @docker/cli; the image
+a container runs comes from @docker/image. For a whole compose stack instead of
+one container, see @tools/docker.
+
+`rm` is destructive — it deletes the container (not its named volumes, see
+@docker/volume). `stop` then `rm` is the safe pair; force-removing a running one
+needs `-f`.
+
+| Recipe | Maps to | Notes |
+|--------|---------|-------|
+| `run` | `docker run -d --name` | starts detached; extra `args` after the image |
+| `ps` | `docker ps -a` | every container, running or not |
+| `exec` | `docker exec -it` | run a command (default a shell) inside one |
+| `stop` | `docker stop` | graceful stop, then SIGKILL after a grace period |
+| `rm` | `docker rm -f` | force-remove, even if running |
+| `restart` | `docker restart` | stop and start in place |
+
+```just
+# run a container detached with a stable name; trailing args go to docker run
+run image name +args="":
+  #!/usr/bin/env sh
+  set -eu
+  img={{quote(image)}}; n={{quote(name)}}
+  docker run -d --name "$n" {{args}} -- "$img"
+
+# list all containers, running or stopped (default)
+ps:
+  docker ps -a
+
+# exec a command inside a running container; defaults to an interactive shell
+exec name +cmd="sh":
+  #!/usr/bin/env sh
+  set -eu
+  n={{quote(name)}}
+  docker exec -it -- "$n" {{cmd}}
+
+# stop a running container gracefully
+stop name:
+  docker stop -- {{quote(name)}}
+
+# force-remove a container, even if it is still running
+rm name:
+  docker rm -f -- {{quote(name)}}
+
+# restart a container in place
+restart name:
+  docker restart -- {{quote(name)}}
+```

@@ -1,0 +1,47 @@
+---
+name: ssh_key
+description: Manage SSH keys — generate an ed25519 keypair, install a public key on a remote host, add a key to the agent, or list local keys. Use to set up or inspect key-based authentication.
+kind: tool
+tags: [ssh, key, keygen, agent, auth]
+use_when: [generate an ssh key, create ssh keypair, ssh-keygen, copy public key to server, ssh-copy-id, add key to ssh agent, ssh-add, list ssh keys]
+danger: low
+side_effects: [network]
+requires: [ssh]
+run: gen
+provides: [gen, copy, add, list]
+---
+
+# SSH keys
+
+Set up and inspect key-based auth. `gen` makes an ed25519 keypair, `copy`
+installs the public half on a host, `add` loads a key into the running agent, and
+`list` shows what's in `~/.ssh`. The host file an installed key authorizes against
+and `IdentityFile` selection both live in @ssh/config.
+
+| Recipe | Tool | Effect |
+|--------|------|--------|
+| `gen` | `ssh-keygen -t ed25519` | write keypair to `path` |
+| `copy` | `ssh-copy-id` | append pubkey to remote `authorized_keys` |
+| `add` | `ssh-add` | load key into the agent for this session |
+| `list` | `ls ~/.ssh` | list key files present |
+
+`gen` writes to `~/.ssh/id_ed25519` by default and refuses to clobber an existing
+key. `copy` is the only one that touches the network; the rest are local.
+
+```just
+# generate an ed25519 keypair at path (default)
+gen path="~/.ssh/id_ed25519" comment="":
+  ssh-keygen -t ed25519 -f {{quote(path)}} -C {{quote(comment)}}
+
+# install the local public key onto a remote host
+copy host:
+  ssh-copy-id {{quote(host)}}
+
+# add a private key to the running ssh-agent
+add path="~/.ssh/id_ed25519":
+  ssh-add {{quote(path)}}
+
+# list key files in ~/.ssh
+list:
+  ls -l ~/.ssh
+```

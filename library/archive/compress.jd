@@ -1,0 +1,63 @@
+---
+name: archive_compress
+description: Compress or decompress a single file with gzip, zstd, or xz — the stream compressors behind .gz / .zst / .xz. Use to shrink one file (or feed a tar stream), not to bundle many files.
+kind: tool
+tags: [archive, compress, gzip, zstd, xz]
+use_when: [gzip a file, compress a file, decompress a gz, zstd compress, xz compress, shrink a file]
+danger: low
+side_effects: [file-write]
+requires: [gzip, zstd, xz]
+run: gzip
+provides: [gzip, gunzip, zstd, xz]
+---
+
+# Single-file compressors
+
+These compress one stream; they do **not** bundle directories — pair them with
+@archive/tar for that (the `.tar.gz` / `.tar.zst` / `.tar.xz` pattern). Pick the
+codec by trade-off: gzip is universal, zstd is fast at high ratios, xz packs
+smallest but slowest. See @archive/formats for the extension map.
+
+| Recipe | Tool | Direction |
+|--------|------|-----------|
+| `gzip` | `gzip` | file → `.gz` |
+| `gunzip` | `gunzip` | `.gz` → file |
+| `zstd` | `zstd` / `unzstd` | `.zst` ↔ file |
+| `xz` | `xz` / `unxz` | `.xz` ↔ file |
+
+Every recipe passes `-k` to keep the original; drop it to replace in place. Each
+compressor's matching decompressor undoes it (`gunzip`, `unzstd`, `unxz`).
+
+```just
+# compress a file to .gz, keeping the original (default)
+gzip file:
+  gzip -k -- {{quote(file)}}
+
+# decompress a .gz back to the file, keeping the .gz
+gunzip file:
+  gunzip -k -- {{quote(file)}}
+
+# compress (default) or decompress a file with zstd; mode = c | d
+zstd file mode="c":
+  #!/usr/bin/env sh
+  set -eu
+  f={{quote(file)}}
+  m={{quote(mode)}}
+  case "$m" in
+    c) zstd -k -- "$f" ;;
+    d) unzstd -k -- "$f" ;;
+    *) echo "mode must be c or d" >&2; exit 1 ;;
+  esac
+
+# compress (default) or decompress a file with xz; mode = c | d
+xz file mode="c":
+  #!/usr/bin/env sh
+  set -eu
+  f={{quote(file)}}
+  m={{quote(mode)}}
+  case "$m" in
+    c) xz -k -- "$f" ;;
+    d) unxz -k -- "$f" ;;
+    *) echo "mode must be c or d" >&2; exit 1 ;;
+  esac
+```

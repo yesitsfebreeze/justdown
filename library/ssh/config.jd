@@ -1,0 +1,73 @@
+---
+name: ssh_config
+description: How ~/.ssh/config and the SSH client resolve a host — Host aliases, HostName/User/Port/IdentityFile/ProxyJump, known_hosts, agent forwarding, and the -i/-p/-J/-o flags. The reference every ssh tool's host argument resolves against.
+kind: knowledge
+tags: [ssh, config, known_hosts, agent, options]
+use_when: [ssh config file, set up an ssh host alias, ssh ProxyJump, ssh IdentityFile, known_hosts, ssh agent forwarding, ssh -o options, ssh port flag, jump host]
+---
+
+# SSH client config
+
+When a tool here is handed a `host`, the client expands it through
+`~/.ssh/config` before connecting. An alias there carries the real hostname,
+user, port, and key, so the tools (@ssh/run, @ssh/copy, @ssh/sync, @ssh/key) can
+take a single short name.
+
+## `~/.ssh/config`
+
+Per-host blocks; the first match for each keyword wins, so put specific `Host`
+blocks above wildcards. `Host` is the alias you type; `HostName` is the address
+dialed.
+
+```
+Host web
+  HostName 203.0.113.4
+  User deploy
+  Port 2222
+  IdentityFile ~/.ssh/id_ed25519
+  ProxyJump bastion
+```
+
+| Keyword | Sets |
+|---------|------|
+| `Host` | alias pattern (`*` / `?` wildcards) to type |
+| `HostName` | real address to connect to |
+| `User` | login user |
+| `Port` | TCP port (default 22) |
+| `IdentityFile` | private key to offer (@ssh/key) |
+| `ProxyJump` | hop through a bastion first (`-J`) |
+| `ForwardAgent` | expose local agent on the remote (`yes`) |
+
+## Flags (override the config per call)
+
+| Flag | Equivalent |
+|------|-----------|
+| `-i keyfile` | `IdentityFile` |
+| `-p port` | `Port` (scp/sftp use `-P`) |
+| `-J host` | `ProxyJump` — chain `a,b` to multi-hop |
+| `-A` | `ForwardAgent yes` |
+| `-o KEY=VALUE` | set any config keyword inline |
+
+## `-o` options worth knowing
+
+| `-o` | Effect |
+|------|--------|
+| `StrictHostKeyChecking=accept-new` | trust a new host key, refuse a changed one |
+| `ConnectTimeout=5` | fail fast on an unreachable host |
+| `ServerAliveInterval=30` | keep idle sessions from dropping |
+| `BatchMode=yes` | never prompt — fail instead (for scripts) |
+
+## `known_hosts`
+
+`~/.ssh/known_hosts` pins each host's public key. A changed key aborts the
+connection (possible MITM, or the host was reinstalled). Clear the stale entry
+with `ssh-keygen -R hostname`, then reconnect to re-pin.
+
+## Agent forwarding
+
+`-A` / `ForwardAgent yes` lets a command on the remote authenticate onward using
+your **local** agent (@ssh/key `add`) without copying the private key there.
+Convenient for a jump host you trust; avoid it on hosts you don't, since root
+there can use your agent socket while the session is open. `ProxyJump` is the
+safer way to reach a host behind a bastion — it tunnels rather than exposing the
+agent.

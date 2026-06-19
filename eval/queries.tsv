@@ -93,3 +93,4 @@ which linux distro and version am I on	sys_info
 merge another branch into the current one	git_merge
 send a json payload to an api easily	http_httpie
 compare two files and show what differs	text_diff
+reach a database behind a bastion over ssh	ssh_tunnel

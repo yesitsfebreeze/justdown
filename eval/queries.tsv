@@ -96,3 +96,4 @@ compare two files and show what differs	text_diff
 reach a database behind a bastion over ssh	ssh_tunnel
 bring up a multi-container stack	docker_compose
 read the logs of a kubernetes pod	kube_kubectl
+count how many lines are in a file	text_wc

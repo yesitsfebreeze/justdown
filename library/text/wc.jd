@@ -1,0 +1,49 @@
+---
+name: text_wc
+description: Count lines, words, characters, or bytes with wc — the line count of a file or pipeline, word and byte totals, and the longest line width. Use to count how many lines match, how big a file is in lines, or how many items a command produced.
+kind: tool
+tags: [text, wc, count, lines, words, bytes]
+use_when: [count lines in a file, how many lines, count words, count bytes, count matches from a pipeline, number of files in a listing, longest line length]
+danger: none
+requires: [coreutils]
+run: lines
+provides: [lines, words, bytes, longest]
+---
+
+# wc
+
+Count what comes through. `lines` (`-l`) is the daily driver — "how many" of
+anything, since most commands emit one item per line; `words` and `bytes` count
+the other units; `longest` (`-L`) reports the widest line. Reading from stdin
+makes it the universal tally at the end of a pipe: `… | wc -l`.
+
+| Recipe | Flag | Counts |
+|--------|------|--------|
+| `lines` | `-l` | newlines (≈ line count) |
+| `words` | `-w` | whitespace-separated words |
+| `bytes` | `-c` | bytes (`-m` for characters in a multibyte locale) |
+| `longest` | `-L` | the length of the longest line |
+
+`wc -l` counts *newlines*, so a file with no trailing newline counts one short
+of its visible lines — rarely matters, occasionally surprises. The pipe idiom is
+everything: `grep -c` already counts matches, but `… | wc -l` counts the output
+of *any* command (`ls | wc -l` = file count, `git diff --name-only | wc -l` =
+files changed). Pass a file directly to count it without `cat`.
+
+```just
+# count lines (the universal "how many"; default)
+lines file="-":
+  wc -l < {{quote(file)}}
+
+# count whitespace-separated words
+words file="-":
+  wc -w < {{quote(file)}}
+
+# count bytes (use -m for characters in a multibyte locale)
+bytes file="-":
+  wc -c < {{quote(file)}}
+
+# the length of the longest line
+longest file="-":
+  wc -L < {{quote(file)}}
+```

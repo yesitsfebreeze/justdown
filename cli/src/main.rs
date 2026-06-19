@@ -18,6 +18,7 @@ mod config;
 mod jd;
 mod lint;
 mod query;
+mod render;
 mod store;
 
 use std::process::exit;
@@ -77,8 +78,12 @@ USAGE  jd <command> [args]
   search <query> [kind] [num] [category]
                                rank library files by need (graph-aware:
                                name/use_when > tags > prose; not_when vetoes)
-  get    <ref> [only]          file as ordered sections: frontmatter,
-                               then prose | tools  (only: frontmatter|prose|tools)
+  get    <ref> [only] [--var name=value ...]
+                               file as ordered sections: frontmatter,
+                               then prose | tools  (only: frontmatter|prose|tools).
+                               Resolves <<var>> context injection before output:
+                               values come from JUSTDOWN_VAR_<NAME> env and
+                               --var flags (flags win). One pass, non-recursive.
   ls                           categories and their member files
   links  <ref>                 inbound + outbound @links of a file
   path   <a> <b>               shortest @link connection between two files
@@ -95,6 +100,7 @@ EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable
 ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default graph.db)
        JUSTDOWN_ROOT  JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_REF
        JUSTDOWN_RAW_BASE  JUSTDOWN_FORMAT (text|json)
+       JUSTDOWN_VAR_<NAME>  host value for the <<name>> escape (lower-cased)
 "#
     );
 }

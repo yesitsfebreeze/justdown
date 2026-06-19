@@ -4,6 +4,7 @@
 // degrade-not-fail, text + JSON output, and exit codes (0/2/3/4).
 
 use crate::config::{Config, Format};
+use crate::render::{self, Vars};
 use crate::store::{Row, Source, Store};
 
 // ---------------------------------------------------------------------------
@@ -356,14 +357,51 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
         return 3;
     }
-    let refr = match args.first() {
-        Some(r) if !r.is_empty() => r.clone(),
+
+    // Split `--var name=value` flags (host-injected `<<var>>` values) from the
+    // positional ref/only args. Env-sourced vars seed the map; --var flags layer
+    // on top so a per-call flag overrides the environment.
+    let mut vars = Config::env_vars();
+    let mut positional: Vec<&String> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        let pair = if a == "--var" {
+            i += 1;
+            match args.get(i) {
+                Some(p) => p.as_str(),
+                None => {
+                    emit_err(cfg, "bad-args", "--var needs name=value");
+                    return 3;
+                }
+            }
+        } else if let Some(p) = a.strip_prefix("--var=") {
+            p
+        } else {
+            positional.push(a);
+            i += 1;
+            continue;
+        };
+        match pair.split_once('=') {
+            Some((name, value)) if !name.is_empty() => {
+                vars.insert(name.to_string(), value.to_string());
+            }
+            _ => {
+                emit_err(cfg, "bad-args", &format!("--var wants name=value: {pair}"));
+                return 3;
+            }
+        }
+        i += 1;
+    }
+
+    let refr = match positional.first() {
+        Some(r) if !r.is_empty() => (*r).clone(),
         _ => {
             emit_err(cfg, "bad-args", "get needs a ref");
             return 3;
         }
     };
-    let only = args.get(1).cloned().unwrap_or_default();
+    let only = positional.get(1).map(|s| (*s).clone()).unwrap_or_default();
     if !matches!(only.as_str(), "" | "frontmatter" | "prose" | "tools") {
         emit_err(cfg, "bad-args", &format!("unknown only: {only} (want frontmatter|prose|tools)"));
         return 3;
@@ -419,7 +457,11 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         }
     };
 
-    let sections = split_sections(&body, &only);
+    // Context injection: resolve `<<var>>` escapes against host-supplied values
+    // (env + --var) just before the sections are emitted downstream — the
+    // consume point the jd spec names ("before a file is consumed"). One pass,
+    // non-recursive, so a spliced value can't smuggle in further escapes.
+    let sections: Vec<(String, String)> = inject_vars(split_sections(&body, &only), &vars);
     match cfg.format {
         Format::Json => {
             let mut out = String::new();
@@ -442,6 +484,18 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         }
     }
     0
+}
+
+/// Apply the `<<var>>` render pass to every section's content. Frontmatter,
+/// prose, and tool bodies all pass through the same single-pass renderer.
+fn inject_vars(sections: Vec<(String, String)>, vars: &Vars) -> Vec<(String, String)> {
+    if vars.is_empty() {
+        return sections;
+    }
+    sections
+        .into_iter()
+        .map(|(kind, content)| (kind, render::render(&content, vars)))
+        .collect()
 }
 
 /// Split a .jd body into ordered sections: [0] frontmatter, then prose | tools
@@ -642,6 +696,36 @@ mod platform_tests {
         );
         assert_eq!(parse_platform_attr("not an attr"), None);
         assert_eq!(parse_platform_attr("[unix, bogus]"), None);
+    }
+}
+
+#[cfg(test)]
+mod inject_tests {
+    use super::{inject_vars, Vars};
+
+    fn vars(pairs: &[(&str, &str)]) -> Vars {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn resolves_escapes_per_section() {
+        let secs = vec![
+            ("prose".to_string(), "cwd: <<cwd>>".to_string()),
+            ("tools".to_string(), "open:\n  echo <<shell>>".to_string()),
+        ];
+        let out = inject_vars(secs, &vars(&[("cwd", "/tmp"), ("shell", "nu")]));
+        assert_eq!(out[0].1, "cwd: /tmp");
+        assert_eq!(out[1].1, "open:\n  echo nu");
+    }
+
+    #[test]
+    fn no_vars_is_passthrough() {
+        let secs = vec![("prose".to_string(), "cwd: <<cwd>>".to_string())];
+        let out = inject_vars(secs.clone(), &Vars::new());
+        assert_eq!(out, secs);
     }
 }
 

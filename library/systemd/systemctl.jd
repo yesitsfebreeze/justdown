@@ -1,0 +1,57 @@
+---
+name: systemd_systemctl
+description: Control systemd services with systemctl — start, stop, restart, enable on boot, and check status. The service manager on most Linux systems. Use to bring a service up or down, see why it failed, or make it persist across reboots.
+kind: tool
+tags: [systemd, systemctl, service, daemon, boot, linux]
+use_when: [start a service, restart a service, enable on boot, check service status, why did a service fail, stop a daemon, list running services]
+danger: medium
+side_effects: [system-state]
+requires: [systemctl]
+run: status
+provides: [status, start, stop, restart, enable, list]
+---
+
+# systemctl
+
+The systemd control surface for services (units). `status` (the default) shows
+state plus the last log lines — the first stop when something is down; pair it
+with @systemd/journalctl for the full log. `enable` ≠ `start`: enable wires a
+service to boot, start runs it now (use `enable --now` for both). Most verbs
+need `sudo` for system units; add `--user` for per-user services.
+
+| Recipe | Does |
+|--------|------|
+| `status` | active/failed state + recent log lines for a unit |
+| `start` / `stop` | run / halt a unit now (not persisted) |
+| `restart` | stop then start (`reload` if it supports live reload) |
+| `enable` | start on boot; pass `--now` to also start immediately |
+| `list` | running units (`--failed` for just the broken ones) |
+
+"enabled" vs "active" is the classic confusion: enabled = starts at boot,
+active = running right now. A unit can be enabled but stopped, or active but
+disabled. `systemctl cat <unit>` shows its definition; `daemon-reload` is
+required after editing a unit file before the change takes effect.
+
+```just
+# state + recent logs for a unit (default)
+status unit:
+  systemctl status -- {{quote(unit)}}
+
+# start or stop a unit now (not persisted across reboot)
+start unit:
+  sudo systemctl start -- {{quote(unit)}}
+stop unit:
+  sudo systemctl stop -- {{quote(unit)}}
+
+# restart a unit
+restart unit:
+  sudo systemctl restart -- {{quote(unit)}}
+
+# enable on boot; pass now="--now" to also start it immediately
+enable unit now="":
+  sudo systemctl enable {{now}} -- {{quote(unit)}}
+
+# list running units (pass filter="--failed" for just the broken ones)
+list filter="":
+  systemctl list-units --type=service {{filter}}
+```

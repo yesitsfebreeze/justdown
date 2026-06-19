@@ -1,0 +1,55 @@
+---
+name: systemd_journalctl
+description: Read the systemd journal with journalctl — follow a service's live logs, show the last N lines, filter by time or priority, and read logs from the current boot. The companion to systemctl for diagnosing failures. Use to tail a service, find errors, or see what happened at boot.
+kind: tool
+tags: [systemd, journalctl, logs, journal, follow, errors]
+use_when: [follow service logs, tail systemd logs, show recent logs for a unit, filter logs by time, find errors in the journal, logs since boot, why did the service crash]
+danger: none
+requires: [journalctl]
+run: unit
+provides: [unit, follow, since, errors, boot]
+---
+
+# journalctl
+
+The reader for systemd's journal — the logs behind every @systemd/systemctl
+unit. `unit` shows a service's recent lines; `follow` tails them live (the
+`tail -f` of systemd); `since` and `errors` slice by time and priority. The
+journal is structured, so filters compose: unit + priority + time all at once.
+Add `--user` for per-user service logs.
+
+| Recipe | Flags | Shows |
+|--------|-------|-------|
+| `unit` | `-u name -e` | a unit's logs, jumped to the end |
+| `follow` | `-u name -f` | live tail of a unit |
+| `since` | `--since` | logs newer than a time expression |
+| `errors` | `-p err -b` | priority error-and-worse, this boot |
+| `boot` | `-b` | everything since the current boot |
+
+Time expressions are generous: `--since "10 min ago"`, `--since today`,
+`--since "2024-01-01 12:00"`. Priority levels run `emerg` (0) → `debug` (7);
+`-p err` keeps `err`/`crit`/`alert`/`emerg`. `-b` is the current boot, `-b -1`
+the previous one — invaluable for diagnosing a crash that took the box down.
+`-o cat` strips the metadata for clean copy-paste; `-x` adds explanatory hints.
+
+```just
+# a unit's logs, jumped to the end (default)
+unit name:
+  journalctl -u {{quote(name)}} -e
+
+# live tail of a unit's logs
+follow name:
+  journalctl -u {{quote(name)}} -f
+
+# logs newer than a time expression (e.g. "10 min ago", "today")
+since when:
+  journalctl --since {{quote(when)}}
+
+# error-priority-and-worse from the current boot
+errors:
+  journalctl -p err -b
+
+# everything since the current boot (pass n="-1" for the previous boot)
+boot n="0":
+  journalctl -b {{n}}
+```

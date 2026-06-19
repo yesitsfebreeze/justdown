@@ -1,0 +1,65 @@
+---
+name: shell_history
+description: Command history recall and expansion — incremental reverse search, history expansion (!!, !$, !*, ^old^new), and per-shell recall. The fastest way to reuse a command without retyping. Use to re-run, edit, or pluck arguments from past commands.
+kind: knowledge
+tags: [shell, history, reverse-search, bang, expansion, recall]
+use_when: [search command history, ctrl-r reverse search, repeat last command, reuse last argument, bang bang, history expansion, fix and rerun previous command]
+---
+
+# History
+
+Reuse what you already typed. The interactive keys are near-universal; `!`
+history expansion is a bash/zsh feature (fish and nu use search instead). Pair
+with @shell/fzf to turn reverse-search into a fuzzy picker.
+
+## Interactive recall — every shell
+
+| Key | Does |
+|-----|------|
+| `Ctrl-R` | incremental reverse search; press again for older matches |
+| `Ctrl-S` | forward search (often needs `stty -ixon` to free the key) |
+| `Up` / `Ctrl-P` | previous command |
+| `Alt-.` / `Esc .` | insert last argument of previous command (repeat to cycle) |
+| `Ctrl-G` | abort the search, keep the line |
+
+`Alt-.` is the quiet hero: `mkdir foo` then `cd <Alt-.>` pulls `foo` in.
+
+## History expansion — bash / zsh
+
+The `!` event designators expand *before* the command runs.
+
+| Form | Expands to |
+|------|-----------|
+| `!!` | the entire last command |
+| `!$` | last argument of the last command |
+| `!*` | all arguments of the last command |
+| `!^` | first argument |
+| `!n` / `!-2` | command number `n` / two back |
+| `!foo` | most recent command starting with `foo` |
+| `!?foo?` | most recent command *containing* `foo` |
+| `^old^new` | re-run last command, replacing `old` with `new` |
+
+```bash
+apt install ngix      # typo
+^ngix^nginx           # re-runs as: apt install nginx
+sudo !!               # re-run the last command under sudo
+```
+
+Add `:p` (`!!:p`) to *print* the expansion without running it — a safety check
+before `sudo !!`.
+
+## fish and nu
+
+- **fish**: type a prefix then `Up` for prefix-search; `Ctrl-R` opens an
+  interactive history pager. No `!!` — use `Alt-.` and search instead.
+- **nu**: `Ctrl-R` fuzzy-searches history; history is a SQLite-backed table you
+  can query with `history | where command =~ 'git'`.
+
+## Tuning recall quality
+
+| Shell | Knob |
+|-------|------|
+| bash | `HISTCONTROL=ignoreboth`, `HISTSIZE`, `shopt -s histappend` |
+| zsh | `setopt hist_ignore_all_dups share_history inc_append_history` |
+| fish | dedup is automatic; `history merge` syncs sessions |
+| nu | `$env.config.history.max_size`; `file_format = "sqlite"` |

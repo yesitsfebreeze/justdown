@@ -1,0 +1,70 @@
+---
+name: shell_fzf
+description: fzf — the fuzzy finder that turns any list into an interactive picker. Shell key-bindings (Ctrl-R, Ctrl-T, Alt-C), the **<TAB>** completion trigger, and piping any command into a live filter. Use to fuzzy-search history, files, branches, or any stdin list.
+kind: tool
+tags: [fzf, fuzzy, finder, picker, interactive, history]
+use_when: [fuzzy find a file, fzf key bindings, ctrl-t insert file, alt-c cd into dir, pipe into fzf, fuzzy search git branch, interactive picker from stdin]
+requires: [fzf]
+provides: [pick, history, cd, kill]
+---
+
+# fzf
+
+A general-purpose fuzzy filter: pipe any newline list in, get the chosen line
+on stdout. Its shell key-bindings supercharge @shell/history recall and file
+insertion; its `**<TAB>` trigger fuzzes completion for many commands. The wizard
+move is wrapping `git`, `kill`, `cd`, and `$EDITOR` around it.
+
+## Shell key-bindings
+
+Source the bindings (`eval "$(fzf --bash)"` / `--zsh` / `fzf_key_bindings` for
+fish), then:
+
+| Key | Does |
+|-----|------|
+| `Ctrl-T` | fuzzy-pick file(s); insert paths at the cursor |
+| `Ctrl-R` | fuzzy-search command history (replaces the @shell/history one) |
+| `Alt-C` | fuzzy-pick a subdir and `cd` into it |
+| `**<TAB>` | trigger fuzzy completion (`vim **<TAB>`, `ssh **<TAB>`) |
+
+## Search syntax inside the picker
+
+The query is fuzzy by default; these tokens add structure.
+
+| Token | Matches |
+|-------|---------|
+| `foo` | fuzzy: chars in order, gaps allowed |
+| `'foo` | exact substring |
+| `^foo` / `foo$` | prefix / suffix anchored |
+| `!foo` | negate — exclude matches |
+| `a | b` | OR within a term |
+| `Tab` / `Shift-Tab` | mark / unmark in `--multi` mode |
+
+## Piping any list in
+
+`cmd | fzf` is the whole idiom. Useful wrappers:
+
+```bash
+# jump to any git branch
+git branch --all | fzf | xargs git switch
+
+# open a file in $EDITOR with a live preview
+fzf --preview 'bat --color=always {}' | xargs -r $EDITOR
+
+# kill a process you pick
+ps -ef | fzf --header-lines=1 | awk '{print $2}' | xargs -r kill
+```
+
+| Flag | Does |
+|------|------|
+| `--multi` (`-m`) | select several with `Tab` |
+| `--preview 'cmd {}'` | live preview pane; `{}` is the current line |
+| `--query 'str'` | start with a query prefilled |
+| `--height 40% --reverse` | inline, top-down layout |
+| `--header-lines=N` | freeze N header rows (e.g. `ps` header) |
+
+## Across shells
+
+Bindings exist for bash, zsh, and fish out of the box. In @shell/nu, fzf works
+as a plain external (`ls | get name | str join "\n" | fzf`); nu's own
+`input list --fuzzy` is the native alternative when you want a typed result back.

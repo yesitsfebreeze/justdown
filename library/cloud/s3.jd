@@ -1,0 +1,52 @@
+---
+name: cloud_s3
+description: Work with AWS S3 from the CLI — list buckets and objects, copy files up or down, sync a directory tree, and generate a temporary presigned download URL. Use to upload or fetch an object, mirror a folder to a bucket, or share a private object via a time-limited link.
+kind: tool
+tags: [cloud, aws, s3, storage, bucket, sync]
+use_when: [upload a file to s3, download from s3, list an s3 bucket, sync a folder to s3, share an s3 object with a link, presigned url, copy to a bucket]
+danger: medium
+side_effects: [network, file-write]
+requires: [awscli]
+run: ls
+provides: [ls, copy, sync, presign]
+---
+
+# s3
+
+Object storage from the `aws s3` CLI. `ls` lists buckets or a prefix; `copy`
+moves a single object up or down (the `s3://bucket/key` URI works as either
+source or destination); `sync` mirrors a whole tree, transferring only what
+changed; `presign` makes a temporary public URL for a private object. Paths are
+`s3://bucket/prefix/key`. Credentials come from the environment/`~/.aws` — check
+with `aws sts get-caller-identity`.
+
+| Recipe | Does |
+|--------|------|
+| `ls` | list buckets, or objects under an `s3://` prefix |
+| `copy` | copy one object (local→s3, s3→local, or s3→s3) |
+| `sync` | mirror a directory tree to/from a bucket (incremental) |
+| `presign` | a time-limited URL to download a private object |
+
+`sync` is the workhorse — like @ssh/sync's rsync but for S3: it skips unchanged
+objects and only uploads diffs. Add `--delete` to make the destination match the
+source exactly (removes extras — deliberate). `cp --recursive` also does trees
+but always re-uploads. `presign --expires-in 3600` shares a private object for an
+hour without making the bucket public. Use `--dryrun` on `sync`/`cp` to preview.
+
+```just
+# list buckets, or objects under an s3:// prefix (default: all buckets)
+ls path="":
+  aws s3 ls {{path}}
+
+# copy one object: local->s3, s3->local, or s3->s3
+copy src dst:
+  aws s3 cp {{quote(src)}} {{quote(dst)}}
+
+# mirror a directory tree to/from a bucket (incremental)
+sync src dst:
+  aws s3 sync {{quote(src)}} {{quote(dst)}}
+
+# a time-limited URL to download a private object (default 1 hour)
+presign uri seconds="3600":
+  aws s3 presign {{quote(uri)}} --expires-in {{quote(seconds)}}
+```

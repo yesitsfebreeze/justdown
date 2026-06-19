@@ -3,7 +3,7 @@ name: shell_bash
 description: Bash scripting idioms — parameter expansion, test/[[, arrays, loops, functions, redirection, and the safety preamble. The POSIX-superset every script defaults to. Use to write or debug a bash script, expand variables safely, or remember [[ vs [ rules.
 kind: knowledge
 tags: [shell, bash, posix, scripting, parameter-expansion, redirection]
-use_when: [bash parameter expansion, default value for variable, bash array syntax, double bracket test, bash for loop, redirect stderr, set -euo pipefail, bash string manipulation]
+use_when: [bash parameter expansion, default value for variable, strip a file extension or suffix from a variable, get the basename with parameter expansion, bash array syntax, double bracket test, bash for loop, redirect stderr, set -euo pipefail, bash string manipulation]
 ---
 
 # Bash

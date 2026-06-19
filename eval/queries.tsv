@@ -42,7 +42,7 @@ the canonical product shape	knowledge_product
 filter shell output by column instead of grepping text	shell_nu
 strip a file extension using variable expansion	shell_bash
 select files by attribute with a zsh glob qualifier	shell_zsh
-set a variable that persists across sessions	shell_fish
+set a fish universal variable	shell_fish
 translate a bash idiom into another shell	shell_rosetta
 filter pipeline objects by a property in powershell	shell_pwsh
 keep a long command alive after the terminal closes	shell_jobs
@@ -51,7 +51,7 @@ fuzzy-pick a file interactively from the terminal	shell_fzf
 prepend to PATH without creating duplicates	shell_env
 enable tab completion for a command's flags	shell_completion
 locate files when fd is not installed	search_find
-run an action for every matching path safely	search_xargs
+run a command per line of stdin handling spaces safely	search_xargs
 list the biggest memory hogs right now	proc_ps
 which process is bound to a port	proc_lsof
 monitor cpu load in real time	proc_top

@@ -1,0 +1,62 @@
+---
+name: shell_jobs
+description: Job control and process management across shells — background a job, disown it, bring it back, list and kill jobs, and survive a logout with nohup or a terminal multiplexer. Use to background a long task, reclaim a stopped job, or keep a process alive after disconnect.
+kind: knowledge
+tags: [shell, jobs, job-control, background, nohup, signals, process]
+use_when: [run command in background, bring background job to foreground, disown a job, keep process running after logout, kill a background job, list jobs, suspend a running command]
+---
+
+# Jobs
+
+Backgrounding and reclaiming work, mostly shared across @shell/bash and
+@shell/zsh (fish and nu differ — noted below). For sessions that must outlive a
+disconnect, prefer a @tmux/session over `nohup`. Signals here pair with
+@tools/* that send them.
+
+## Job control — bash / zsh
+
+| Action | Command |
+|--------|---------|
+| run in background | `cmd &` |
+| suspend the foreground job | `Ctrl-Z` (sends `SIGTSTP`) |
+| list jobs | `jobs -l` |
+| resume in background | `bg %1` |
+| bring to foreground | `fg %1` |
+| kill a job | `kill %1` |
+| detach from shell (survive logout) | `disown %1` or `disown -h %1` |
+
+`%1` is job number 1; `%%` is the most recent; `%-` the one before. A job
+keeps the shell as parent until you `disown` it.
+
+## Surviving a logout
+
+| Tool | Use when |
+|------|----------|
+| `nohup cmd &` | one-shot: ignore `SIGHUP`, log to `nohup.out` |
+| `setsid cmd` | start in a new session, fully detached |
+| `disown -h %1` | already running — shield it from `SIGHUP` |
+| @tmux/session | interactive: reattach later, see output, multiple panes |
+
+For anything you might want to *watch again*, a tmux session beats `nohup` —
+you keep a live terminal, not just a log file.
+
+## Signals worth knowing
+
+| Signal | Default effect | Send with |
+|--------|----------------|-----------|
+| `TERM` (15) | polite stop (catchable) | `kill PID` |
+| `INT` (2) | interrupt | `Ctrl-C` |
+| `HUP` (1) | hangup (terminal closed) | `kill -HUP` |
+| `KILL` (9) | unconditional, uncatchable | `kill -9` (last resort) |
+| `STOP` / `CONT` | pause / resume | `kill -STOP` / `kill -CONT` |
+
+Reach for `KILL` only after `TERM` fails — it gives the process no chance to
+clean up temp files or flush buffers.
+
+## fish and nu
+
+- **fish**: `cmd &`, `jobs`, `fg`/`bg`, `disown` all work; there is no `Ctrl-Z`
+  `bg` reflex difference worth noting.
+- **nu**: backgrounding is intentionally limited — run long jobs under a
+  @tmux/session or `job spawn { ... }` for the built-in job list. nu favors a
+  multiplexer over shell job control.

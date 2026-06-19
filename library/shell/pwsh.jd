@@ -1,0 +1,71 @@
+---
+name: shell_pwsh
+description: PowerShell — the object-pipeline shell. Cmdlets emit .NET objects, not text, so you filter with Where-Object and select with Select-Object on real properties. Cross-platform (pwsh) on Linux/macOS too. Use to query output as objects, write pwsh scripts, or translate a Verb-Noun cmdlet.
+kind: knowledge
+tags: [shell, powershell, pwsh, object-pipeline, cmdlet, dotnet]
+use_when: [powershell where-object, pwsh filter output, select-object property, powershell variable syntax, foreach-object, powershell script, verb-noun cmdlet]
+---
+
+# PowerShell
+
+Like @shell/nu, the pipeline carries *objects* — here .NET objects with typed
+properties — not text. Commands are `Verb-Noun` cmdlets (`Get-ChildItem`,
+`Where-Object`). Runs cross-platform as `pwsh`. Where @shell/bash greps text,
+pwsh filters objects on their properties. Idiom map in @shell/rosetta.
+
+## The object pipeline
+
+| Cmdlet (alias) | Does |
+|----------------|------|
+| `Get-ChildItem` (`gci`, `ls`) | list files as `FileInfo` objects |
+| `Where-Object { $_.X -gt 1 }` (`where`, `?`) | filter rows |
+| `Select-Object a,b` (`select`) | project properties |
+| `Sort-Object X` (`sort`) | sort by property |
+| `ForEach-Object { ... }` (`foreach`, `%`) | map a block over the pipe |
+| `Measure-Object` | count / sum / average |
+| `Group-Object X` | aggregate by property |
+
+```powershell
+Get-ChildItem -Recurse -Filter *.log |
+  Where-Object { $_.Length -gt 5MB } |
+  Sort-Object LastWriteTime |
+  Select-Object Name, Length
+```
+
+`$_` (or `$PSItem`) is the current pipeline object inside a block.
+
+## Variables and operators
+
+`$x` holds any type. Comparisons are *worded* operators, not symbols — `-gt`,
+`-eq`, never `>`/`==` (those are redirection/assignment).
+
+| Form | Means |
+|------|-------|
+| `$x = 5` | assignment (any type) |
+| `$env:PATH` | environment variable |
+| `-eq -ne -gt -lt -ge -le` | comparison operators |
+| `-match` / `-replace` | regex test / substitute |
+| `-like` | wildcard match (`*`, `?`) |
+| `-contains` / `-in` | membership |
+| `@(1,2,3)` / `@{k=1}` | array / hashtable |
+
+## Conditionals, loops, functions
+
+```powershell
+if ($x -gt 0) { "pos" } elseif ($x -eq 0) { "zero" } else { "neg" }
+
+foreach ($f in Get-ChildItem) { $f.Name }
+
+function Get-Greeting {
+  param([string]$Name)
+  "hi $Name"
+}
+```
+
+## Gotchas vs POSIX shells
+
+- `>` *redirects*; it is never "greater than" — use `-gt`.
+- A single returned object is not an array; wrap in `@(...)` to force one.
+- Output is objects until it hits the console or `Out-String`; `Format-Table`
+  is display-only — never pipe a `Format-*` into more processing.
+- `=` assigns, `-eq` compares — the reverse of most languages' muscle memory.

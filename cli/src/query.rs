@@ -175,7 +175,7 @@ fn degree_map(rows: &[Row]) -> std::collections::HashMap<String, usize> {
     deg
 }
 
-/// Field-weighted ranking, shared by `search` and `eval`. Filters by kind /
+/// Field-weighted ranking, used by `search`. Filters by kind /
 /// category, applies the not_when veto, scores name/use_when (3) > tags (2) >
 /// purpose (1). Sorts score-desc, then by graph connectivity (a well-connected
 /// tool outranks an isolated one on a tie — the smart-graph signal), then
@@ -233,17 +233,6 @@ fn rank<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Sco
             .then_with(|| a.row.name.cmp(&b.row.name))
     });
     scored
-}
-
-/// Ranked result names for one query (top `limit`), used by `eval`. Mirrors
-/// `search "<q>" "" <limit>` but in-process.
-pub fn ranked_names(cfg: &Config, query: &str, limit: usize) -> Vec<String> {
-    let rows = match gather(cfg) {
-        Ok(r) => r,
-        Err(_) => return Vec::new(),
-    };
-    let scored = rank(&rows, query, "", "");
-    scored.iter().take(limit).map(|s| s.row.name.clone()).collect()
 }
 
 pub fn search(cfg: &Config, args: &[String]) -> i32 {

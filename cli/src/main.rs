@@ -7,7 +7,6 @@
 //   jd get <ref>      a file as ordered sections: frontmatter, then prose|tools
 //   jd ls             categories and their members
 //   jd links <ref>    inbound + outbound @links of a file (graph traversal)
-//   jd eval           score retrieval vs eval/queries.tsv (P@1 + MRR)
 //   jd lint           validate library .jd frontmatter (CI-gateable)
 //   jd version        CLI + store-schema versions
 //
@@ -16,7 +15,6 @@
 
 mod build;
 mod config;
-mod eval;
 mod jd;
 mod lint;
 mod query;
@@ -41,7 +39,6 @@ fn main() {
         "ls" => query::ls(&cfg),
         "links" => query::links(&cfg, rest),
         "path" => query::path(&cfg, rest),
-        "eval" => eval::run(&cfg),
         "lint" => lint::run(&cfg),
         "version" => version(&cfg),
         "help" | "-h" | "--help" => {
@@ -85,7 +82,6 @@ USAGE  jd <command> [args]
   ls                           categories and their member files
   links  <ref>                 inbound + outbound @links of a file
   path   <a> <b>               shortest @link connection between two files
-  eval                         score retrieval vs eval/queries.tsv (P@1 + MRR)
   lint                         validate library .jd frontmatter (CI-gateable)
   version                      CLI + store-schema versions
   help                         this

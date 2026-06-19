@@ -1,0 +1,50 @@
+---
+name: vim_quickfix
+description: Vim quickfix and location lists — populate from :make/:grep/:vimgrep, jump through results, and batch-edit every entry with :cdo. The result-navigation surface.
+kind: knowledge
+tags: [vim, quickfix, location-list, grep, navigation]
+use_when: [vim quickfix, vim grep results, vimgrep, jump through errors, cnext cprev, cdo batch edit]
+---
+
+# Quickfix & location lists
+
+A quickfix list is a global list of file+line positions — compiler errors, grep
+hits, anything with a position. A **location list** is the same but local to one
+window. Both turn a search or build into a navigable worklist.
+
+## Populate
+
+| Cmd | From |
+|-----|------|
+| `:make` | compiler output (parsed by `errorformat`) |
+| `:grep {pat} {files}` | external grep (`grepprg`) |
+| `:vimgrep /{pat}/ {files}` | vim's own regex (@vim/search), e.g. `:vimgrep /TODO/ **/*.js` |
+| `:cexpr {expr}` / `:cgetfile {f}` | a string / a file of `file:line:msg` |
+| `:cbuffer` | the current buffer's lines |
+
+Location-list twins prefix `l`: `:lmake`, `:lgrep`, `:lvimgrep`, `:lexpr`.
+
+## Navigate
+
+| Cmd | Does |
+|-----|------|
+| `:copen` / `:cclose` | open / close the quickfix window |
+| `:cc [n]` | jump to entry n (current if omitted) |
+| `:cnext` / `:cprev` | next / previous entry |
+| `:cfirst` / `:clast` | first / last |
+| `:cnfile` / `:cpfile` | first entry in next / previous file |
+| `:cnewer` / `:colder` | a more / less recent quickfix list |
+
+Location-list twins prefix `l`: `:lopen`, `:lnext`, `:lprev`, `:ll`. Inside the
+quickfix window, `Enter` jumps to the entry under the cursor.
+
+## Batch over the list
+
+| Cmd | Does |
+|-----|------|
+| `:cdo {cmd}` | run `{cmd}` on each entry (@vim/ex), e.g. `:cdo s/old/new/ \| update` |
+| `:cfdo {cmd}` | run `{cmd}` once per file in the list |
+| `:ldo` / `:lfdo` | location-list twins |
+
+`:vimgrep /old/ **/*.js \| cfdo %s/old/new/g \| update` is an in-editor
+project-wide refactor — the interactive sibling of the @vim/batch tool.

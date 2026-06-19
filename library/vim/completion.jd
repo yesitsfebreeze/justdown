@@ -1,0 +1,44 @@
+---
+name: vim_completion
+description: Vim insert-mode completion — the Ctrl-x submode (keywords, lines, files, tags, omni), popup navigation, and spelling suggestions. Built-in completion, no plugins.
+kind: knowledge
+tags: [vim, completion, insert, omni, reference]
+use_when: [vim completion, autocomplete in vim, ctrl-x ctrl-o, omni completion, complete filenames, vim spelling]
+---
+
+# Completion
+
+Insert-mode completion (@vim/modes) is built in: `Ctrl-x` enters a submode that
+picks the *source*, then `Ctrl-n`/`Ctrl-p` walk the matches in the popup.
+
+## Sources (after `Ctrl-x`)
+
+| Keys | Completes from |
+|------|----------------|
+| `Ctrl-n` / `Ctrl-p` | keywords in the current + loaded buffers (no `Ctrl-x` needed) |
+| `Ctrl-x Ctrl-l` | whole lines |
+| `Ctrl-x Ctrl-f` | file names / paths |
+| `Ctrl-x Ctrl-]` | tags (@vim/tags) |
+| `Ctrl-x Ctrl-o` | omni — language-aware via `omnifunc` (LSP in nvim, @vim/nvim) |
+| `Ctrl-x Ctrl-k` | dictionary (`dictionary` option) |
+| `Ctrl-x Ctrl-i` | keywords from included files |
+| `Ctrl-x Ctrl-v` | vim command-line (@vim/ex) |
+| `Ctrl-x Ctrl-s` | spelling suggestions |
+
+## Drive the popup
+
+| Key | Does |
+|-----|------|
+| `Ctrl-n` / `Ctrl-p` | next / previous candidate |
+| `Ctrl-y` | accept the selected candidate |
+| `Ctrl-e` | cancel — keep what you typed |
+| `Ctrl-x Ctrl-n` / `Ctrl-x Ctrl-p` | extend with the next/previous source match |
+
+`:set completeopt=menuone,noinsert,noselect` tunes popup behavior;
+`:set complete=` chooses default keyword sources.
+
+## Spelling
+
+`:set spell spelllang=en` flags misspellings; then `]s`/`[s` jump to the next/prev
+bad word, `z=` lists corrections, and `zg`/`zw` add/remove a word from the
+spellfile.

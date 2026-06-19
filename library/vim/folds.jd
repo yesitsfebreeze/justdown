@@ -1,0 +1,51 @@
+---
+name: vim_folds
+description: Vim folding — collapse and expand regions of a buffer by method (manual, indent, marker, syntax, expr) and the z-key commands that open, close, and navigate folds.
+kind: knowledge
+tags: [vim, folds, folding, view, navigation]
+use_when: [vim folds, fold code, collapse a region, foldmethod, zo zc za, vim folding commands]
+---
+
+# Folds
+
+A fold collapses a range of lines to one summary line — for navigation, not
+editing (the text is untouched). How folds form is set by `foldmethod`; the
+`z`-prefixed keys open, close, and move between them.
+
+## Fold method — `:set foldmethod=`
+
+| Method | Folds by |
+|--------|----------|
+| `manual` | folds you create by hand (`zf`) |
+| `indent` | indentation level (`shiftwidth`) |
+| `marker` | `{{{` / `}}}` markers in the text |
+| `syntax` | syntax regions (language-aware) |
+| `expr` | `foldexpr` — e.g. nvim treesitter (@vim/nvim) |
+| `diff` | unchanged regions in diff mode (@vim/diff) |
+
+## Create (manual / marker)
+
+| Key | Does |
+|-----|------|
+| `zf{motion}` | create a fold over a motion/text-object (`zfap`, `zf}`) |
+| `:{range}fold` | create a fold over an ex range (@vim/ex) |
+| `zd` / `zD` / `zE` | delete fold / recursively / all in window |
+
+## Open, close, toggle
+
+| Key | Does |
+|-----|------|
+| `zo` / `zc` / `za` | open / close / toggle one fold |
+| `zO` / `zC` / `zA` | …recursively (nested folds too) |
+| `zR` / `zM` | open all / close all folds |
+| `zr` / `zm` | open / close one more level everywhere |
+| `zv` | open just enough to see the cursor line |
+
+## Navigate
+
+| Key | To |
+|-----|----|
+| `zj` / `zk` | start of next / end of previous fold |
+| `[z` / `]z` | start / end of the current open fold |
+| `:set foldlevel=N` | open folds shallower than level N |
+| `:set foldcolumn=N` | show a fold-indicator gutter N columns wide |

@@ -1,25 +1,20 @@
-# justfile — the justdown CLI and the one entry point.
+# justfile — the justdown CLI. The single entry point: build, query, and merge
+# the .jd library graph in pure POSIX shell (no node, no extra binary).
 #
-# A small justfile that BEHAVES like a cross-platform CLI and also BUILDS its own
-# index — everything the old MCP server + node builder did, in pure POSIX shell +
-# awk. No node anywhere.
+#   just build          index <lib>/**/*.jd into graph.tsv
+#   just search <q>     rank files by purpose
+#   just get <ref>      a file as ordered sections: [0] frontmatter, then prose|tools
+#   just ls             categories and their members
+#   just links <ref>    inbound + outbound @links of a file
 #
-#   just build            scan the local <lib>/ .jd files → write the index (graph.tsv)
-#   just search <q>       rank files by purpose
-#   just get <ref>        a file as ordered sections: [0] frontmatter, then prose|tools
-#   just ls               categories and their members
-#   just links <ref>      inbound + outbound @links of a file
+# graph.tsv is a flat, tab-separated index (key, name, kind, purpose, tags, path,
+# links). Queries merge the local index over the online one — local entries win by
+# key, so a project's own .jd files shadow the published library. `just build`
+# writes the local index; CI builds the online one on every push.
 #
-# The index is a flat, tab-separated file (key, name, kind, purpose, tags, path,
-# links) that shell can build, grep, and MERGE trivially. Queries MERGE a LOCAL
-# index with the ONLINE one and LOCAL TRUMPS online entries by key — so your repo's
-# own .jd files shadow the published library. Build the local index with `just
-# build`; the online one is built in CI on every push.
-#
-# Requires: just, plus a POSIX shell with curl + awk + find on PATH (git-bash or
-# WSL on Windows). Install: download to <project>/justfile (see install.jd), then
-# run `just <recipe>` from anywhere in the project. Configure the local library
-# dir with JUSTDOWN_LIB (default "library").
+# Requires just, plus curl, awk, and find on PATH (git-bash or WSL on Windows).
+# Install: download to <project>/justfile (see install.jd), then run `just <recipe>`
+# from anywhere in the project. Set JUSTDOWN_LIB to change the library dir.
 
 set shell := ["sh", "-cu"]
 

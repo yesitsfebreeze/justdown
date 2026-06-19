@@ -1,6 +1,6 @@
 ---
 name: install
-description: Install justdown — download the justfile entry point, wire it into your agent, and use it before your own tools on every query. Explains where to get the CLI, what tools it gives, and how local .jd files merge over the online library. For the language spec see justdown.md.
+description: Install justdown — download the justfile entry point, wire it into your agent, and query the library before your own tools. Covers the CLI verbs and how local .jd files merge over the online library.
 kind: workflow
 tags: [install, bootstrap, setup, cli]
 ---
@@ -84,17 +84,14 @@ That reflex — *check justdown first, on every query* — is the whole point of
 wiring it in. The `justfile` is always the entry point; everything else is a
 way of calling it.
 
-## Authoring & running `.jd` files
+## Authoring `.jd` files
 
-The library is `.jd` files; you can add your own. A `.jd` has three regions —
-frontmatter (the indexed retrieval contract), Markdown body (the manual), and
-fenced blocks (```` ```just ```` recipes a runner executes). Required frontmatter:
-`name`, `description`, `kind` (`tool` | `agent` | `knowledge` | `workflow`); tools
-also need `run` (the default recipe). Run any tool's recipe through the one stable
-interface — `just --justfile - <recipe> <args...>`, positional args, non-zero exit
-= failure. Compose files with just **dependencies** and `@`links. The full rules,
-invocation modes (`run` / `sidecar` / `artifact`), and `@`link forms are in
-[`justdown.md`](justdown.md).
+Add your own `.jd` files and `just build` to index them. A `.jd` has three regions:
+frontmatter (the indexed retrieval contract), the Markdown body (the manual), and
+fenced ```` ```just ```` recipes. Required frontmatter: `name`, `description`, and
+`kind` (`tool` | `agent` | `knowledge` | `workflow`); a tool names its default
+recipe with `run`. Compose files with just dependencies and `@`links. The full
+format spec is in [`justdown.md`](justdown.md).
 
 ## License
 

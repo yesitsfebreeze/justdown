@@ -75,3 +75,4 @@ copy terminal output to the system clipboard	clip_clipboard
 repeat a command on a timer and watch it change	watch_watch
 auto-run tests when a file is saved	watch_entr
 check when a TLS certificate expires	cert_openssl
+pull a value out of a yaml config file	search_yq

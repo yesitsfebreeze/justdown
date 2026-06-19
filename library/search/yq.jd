@@ -1,0 +1,49 @@
+---
+name: search_yq
+description: Query and edit YAML, JSON, and XML with yq — read a path, set a value in place, convert between formats, and merge files. The jq-syntax tool for config files. Use to pull a value from a YAML config, rewrite a field, or convert YAML to JSON.
+kind: tool
+tags: [search, yq, yaml, json, config, jq]
+use_when: [read a value from yaml, edit a yaml field, convert yaml to json, query a config file, set a value in yaml in place, merge yaml files, parse kubernetes manifest]
+danger: medium
+side_effects: [file-write]
+requires: [yq]
+run: get
+provides: [get, set, tojson, merge]
+---
+
+# yq
+
+jq's syntax (@search/jq) applied to YAML, JSON, and XML — the tool for config
+files. `get` reads a path; `set` rewrites a field in place; `tojson` converts;
+`merge` deep-merges files. Paths are jq expressions (`.a.b[0]`). This is
+mikefarah's Go `yq`; the python `yq` wraps jq and differs slightly.
+
+| Recipe | Does |
+|--------|------|
+| `get` | read the value at a path |
+| `set` | set a path to a value, rewriting the file in place |
+| `tojson` | convert YAML/XML input to JSON |
+| `merge` | deep-merge a second file over the first |
+
+`set` writes in place (`-i`) and **preserves comments and key order** — the
+reason to use yq over a sed hack on YAML. Quote the path expression. For pure
+JSON, @search/jq is leaner; reach for yq when the file is YAML or you need
+comment-preserving edits.
+
+```just
+# read the value at a path (e.g. '.spec.replicas')
+get path file:
+  yq {{quote(path)}} {{quote(file)}}
+
+# set a path to a value in place, preserving comments and order
+set path value file:
+  yq -i {{quote(path + " = " + value)}} {{quote(file)}}
+
+# convert YAML (or XML) input to JSON
+tojson file:
+  yq -o=json {{quote(file)}}
+
+# deep-merge the second file over the first (to stdout)
+merge base overlay:
+  yq eval-all 'select(fi==0) * select(fi==1)' {{quote(base)}} {{quote(overlay)}}
+```

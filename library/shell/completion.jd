@@ -1,0 +1,70 @@
+---
+name: shell_completion
+description: Tab completion across shells — enabling the completion system, loading a tool's completion script, and generating completions from CLIs that emit them. Use to make Tab complete subcommands and flags, or wire up completion for a new tool.
+kind: knowledge
+tags: [shell, completion, tab, autocomplete, compinit, bash-completion]
+use_when: [enable tab completion, load completion script, generate completion for a tool, compinit, bash-completion not working, fish completions, nu external completer]
+---
+
+# Completion
+
+Making `Tab` complete subcommands, flags, and arguments. Each shell has its own
+engine; most modern CLIs emit a completion script per shell that you source.
+Pairs with @shell/fzf, which can replace the menu with a fuzzy picker.
+
+## Turning the engine on
+
+| Shell | One-time setup (in rc) |
+|-------|------------------------|
+| bash | install `bash-completion`, then `source /usr/share/bash-completion/bash_completion` |
+| zsh | `autoload -Uz compinit && compinit` (regenerates `~/.zcompdump`) |
+| fish | on by default — completions auto-discovered from `~/.config/fish/completions/` |
+| nu | set `$env.config.completions.external.enable = true`; menus are built in |
+
+## Loading a tool's completion
+
+Most CLIs print a completion script on demand. Source it in your rc (cheap) or
+dump it into the shell's completions dir (cached, faster startup).
+
+```bash
+# source at startup
+eval "$(gh completion -s bash)"        # bash
+eval "$(gh completion -s zsh)"         # zsh
+gh completion -s fish | source         # fish
+
+# or cache to the completions directory (zsh example)
+gh completion -s zsh > "${fpath[1]}/_gh"
+
+# common generators
+kubectl completion zsh
+rustup completions bash
+just --completions fish
+```
+
+The pattern is almost always `<tool> completion <shell>` or
+`<tool> --completions <shell>`. Cache to a file when startup feels slow —
+`eval`-ing several scripts each launch adds up.
+
+## zsh menu and matching tweaks
+
+zsh's completion is the most configurable; a few `zstyle` lines pay off:
+
+| zstyle | Effect |
+|--------|--------|
+| `zstyle ':completion:*' menu select` | arrow-key menu selection |
+| `zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'` | case-insensitive |
+| `zstyle ':completion:*' list-colors ...` | colorize matches |
+
+## nu external completer
+
+nu can delegate to `carapace` or fzf for any external command:
+
+```nu
+$env.config.completions.external = {
+  enable: true
+  completer: { |spans| carapace $spans.0 nushell ...$spans | from json }
+}
+```
+
+`carapace` is the cross-shell shortcut — one binary supplies completions for
+hundreds of CLIs in bash, zsh, fish, and nu alike.

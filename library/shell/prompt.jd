@@ -1,0 +1,63 @@
+---
+name: shell_prompt
+description: Customize the shell prompt across bash, zsh, fish, and nu — where each shell defines it, the escape/variable for cwd, git branch, and exit status, and how to color it. Use to change your prompt, show the git branch, or add the last exit code per shell.
+kind: knowledge
+tags: [shell, prompt, ps1, customize, bash, zsh, fish, nu]
+use_when: [customize the shell prompt, change PS1, show git branch in prompt, add exit code to prompt, color the prompt, prompt across shells, set the prompt]
+---
+
+# Prompt
+
+Where and how each shell builds its prompt. The concepts are shared — cwd, git
+branch, exit status, color — but the variable, the escape syntax, and the color
+mechanism all differ. A rosetta like @shell/rosetta; per-shell depth is in
+@shell/bash, @shell/zsh, @shell/fish, @shell/nu.
+
+## Where the prompt is defined
+
+| Shell | Variable / function |
+|-------|---------------------|
+| bash | `PS1` (string with `\` escapes); `PROMPT_COMMAND` runs before each prompt |
+| zsh | `PROMPT` (aka `PS1`) with `%` escapes; `precmd()` hook |
+| fish | a `fish_prompt` function that **echoes** the prompt |
+| nu | `$env.PROMPT_COMMAND` — a closure returning a string |
+
+## The common tokens
+
+| Want | bash | zsh | fish | nu |
+|------|------|-----|------|-----|
+| cwd | `\w` | `%~` | `(prompt_pwd)` | `(pwd)` |
+| host | `\h` | `%m` | `(hostname)` | `(sys host).hostname` |
+| user | `\u` | `%n` | `$USER` | `$env.USER` |
+| exit status | `$?` (in `PROMPT_COMMAND`) | `%?` | `$status` | `$env.LAST_EXIT_CODE` |
+| literal `$`/`%` | `\$` | `%%` | — | — |
+
+## Color
+
+bash/zsh wrap color codes but must mark them **non-printing** or line-editing
+miscounts width: bash `\[\e[31m\]…\[\e[0m\]`, zsh `%F{red}…%f` (zsh tracks width
+itself). fish uses `set_color red` / `set_color normal`; nu builds an ANSI
+string with `ansi red` / `ansi reset`.
+
+```bash
+# bash: cwd in cyan, red ✗ / green ✓ from last exit
+PROMPT_COMMAND='code=$?; [ $code = 0 ] && c=32 || c=31; PS1="\[\e[36m\]\w\[\e[${c}m\] \$\[\e[0m\] "'
+```
+
+```fish
+function fish_prompt
+    set -l code $status
+    set_color cyan; echo -n (prompt_pwd)
+    test $code = 0; and set_color green; or set_color red
+    echo -n ' $ '; set_color normal
+end
+```
+
+## git branch
+
+None of the four show the branch by default. bash/zsh source a helper
+(`__git_ps1` from git's `git-prompt.sh`); fish has it built in
+(`fish_vcs_prompt`); nu calls `git branch --show-current` in the closure. Most
+people delegate the whole prompt to a cross-shell engine like **starship**
+(`starship init <shell>`), which renders an identical prompt in all four and
+sidesteps every row above.

@@ -88,3 +88,4 @@ trace the system calls a command makes	proc_strace
 who last changed this line of code	git_blame
 load environment variables automatically per project	env_direnv
 push my branch to origin and set upstream	git_remote
+show the git branch in my shell prompt	shell_prompt

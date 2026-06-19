@@ -39,42 +39,41 @@ stay thin; the entire execution glue is one parser extension that lifts
 ## Contents
 
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
-- [`install.jd`](install.jd) — install and use justdown: download the one-file
-  CLI, what tools it gives, and how to wire it into an agent.
-- [`justfile`](justfile) — the CLI itself: a small justfile that behaves
-  like a cross-platform tool (`search`, `get`, `ls`, `links`) in pure shell.
-- [`library/`](library/) — twenty `.jd` files exercising every `kind`
+- [`install.jd`](install.jd) — install and use justdown: install the `jd`
+  binary, what tools it gives, and how to wire it into an agent.
+- [`cli/`](cli/) — the CLI itself: **`jd`**, a small self-contained Rust binary
+  (`search`, `get`, `ls`, `links`, `path`, `build`, `lint`) over the library graph.
+- [`library/`](library/) — `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting.
-- [`graph.tsv`](graph.tsv) — the flat, tab-separated index the CLI queries
-  (key, name, kind, purpose, tags, path, links, use_when, not_when, danger,
-  side_effects, requires, category — category inferred from the parent folder).
-  Built by `just build`; CI keeps
-  it fresh on every push. No node anywhere.
+- [`graph.db`](graph.db) — the SQLite graph store the CLI queries: nodes carrying
+  the retrieval contract + safety metadata, and resolved `@`link edges (category
+  inferred from the parent folder). Built by `jd build`; CI keeps it fresh on
+  every push. No node anywhere.
 
 ## Use it as a CLI
 
-The repo *is* the package — a CLI, a tool library, and docs, distributed as plain
-files in git. Download one file, [`justfile`](justfile), and `just`
-becomes your tool runner over the library. The same justfile **builds** a flat
-index ([`graph.tsv`](graph.tsv)) from `.jd` files and **queries** it in pure shell,
-**merging your local index over the online one** (local trumps by key). No clone,
+The repo *is* the package — a CLI, a tool library, and docs in git. Install one
+binary, **`jd`**, and it becomes your lookup over the library. `jd` **builds** a
+SQLite graph store ([`graph.db`](graph.db)) from `.jd` files and **queries** it,
+**merging your local store over the online one** (local trumps by key). No clone,
 no `npm install`, no node, no model.
 
 ```sh
-# install: one file
-curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/justfile -o justfile
+# install: one binary
+cargo install --git https://github.com/yesitsfebreeze/justdown jd
 
 # use it
-just search "cut a release"   # find a tool
-just get release              # read it as sections
-just get release tools        # just the runnable steps
+jd search "cut a release"   # find a tool
+jd get release              # read it as sections
+jd get release tools        # just the runnable steps
 ```
 
-The justfile **does not define how it is used** — an agent can call the recipes
-directly, or wrap the four verbs (`search`, `get`, `ls`, `links`) as an MCP tool
-lookup. The recipes are the contract; the wiring is yours. See
-[`install.jd`](install.jd).
+`jd` finds tools; [`just`](https://just.systems) runs them (a tool's recipe is
+just-syntax, executed as `just --justfile - <recipe>`). `jd` **does not define how
+it is used** — an agent can call the verbs directly, or wrap them (`search`,
+`get`, `ls`, `links`, `path`) as an MCP tool lookup. The library is the contract;
+the wiring is yours. See [`install.jd`](install.jd).
 
 ## Why
 

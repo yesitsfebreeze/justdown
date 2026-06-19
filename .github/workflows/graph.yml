@@ -1,16 +1,17 @@
 name: graph
 
-# Keep the committed index (graph.tsv) in sync with the library/ files. The index
-# is CREATED BY THE JUSTFILE — the same `just build` you run locally — so there is
-# no node anywhere. On push it is rebuilt and committed back; on pull requests
-# (where pushing to the source branch may not be possible) it only verifies.
+# Keep the committed index (graph.db) in sync with the library/ files. The index
+# is BUILT BY THE jd BINARY (cli/) — the same `jd build` you run locally. On push
+# to main it is rebuilt and committed back; on pull requests (where pushing to the
+# source branch may not be possible) it only verifies. graph.db is a SQLite file
+# that `jd build` produces deterministically, so a byte-diff is a valid check.
 
 on:
   push:
     branches: [main]
-    paths: ["library/**", "justfile", ".github/workflows/graph.yml"]
+    paths: ["library/**", "cli/**", ".github/workflows/graph.yml"]
   pull_request:
-    paths: ["library/**", "justfile", ".github/workflows/graph.yml"]
+    paths: ["library/**", "cli/**", ".github/workflows/graph.yml"]
 
 jobs:
   build:
@@ -20,31 +21,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: extractions/setup-just@v2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+
+      - name: Build jd
+        run: cargo build --release --manifest-path cli/Cargo.toml
 
       - name: Rebuild the index
-        run: just build
+        run: ./cli/target/release/jd build
 
       # On a PR we cannot reliably push; just fail if the author forgot to rebuild.
-      - name: Verify graph.tsv is in sync (pull requests)
+      - name: Verify graph.db is in sync (pull requests)
         if: github.event_name == 'pull_request'
         run: |
-          if ! git diff --exit-code -- graph.tsv; then
-            echo "::error::graph.tsv is out of date. Run 'just build' and commit, or push to main to let CI rebuild it."
+          if ! git diff --exit-code -- graph.db; then
+            echo "::error::graph.db is out of date. Run 'jd build' and commit, or push to main to let CI rebuild it."
             exit 1
           fi
-          echo "graph.tsv is in sync."
+          echo "graph.db is in sync."
 
       # On push to main, commit the freshly built index back to the branch.
-      - name: Commit refreshed graph.tsv (push to main)
+      - name: Commit refreshed graph.db (push to main)
         if: github.event_name == 'push'
         run: |
-          if git diff --quiet -- graph.tsv; then
-            echo "graph.tsv already in sync."
+          if git diff --quiet -- graph.db; then
+            echo "graph.db already in sync."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add graph.tsv
-          git commit -m "ci: rebuild graph.tsv"
+          git add graph.db
+          git commit -m "ci: rebuild graph.db"
           git push

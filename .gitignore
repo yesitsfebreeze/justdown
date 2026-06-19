@@ -15,9 +15,8 @@ dist/
 node_modules/
 .vite.pid
 
-# rust cli build output + the local graph store (a build artifact)
+# rust cli build output (graph.db itself is committed — the published index)
 cli/target/
-graph.db
 graph.db-journal
 graph.db-wal
 

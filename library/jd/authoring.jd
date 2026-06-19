@@ -1,0 +1,66 @@
+---
+name: jd_authoring
+description: How to author a .jd shard — the frontmatter retrieval contract, the four kinds, the three invocation modes, recipe conventions, and the lint gate. The meta-shard for writing more shards. Use when adding a tool to the library, choosing a kind, or fixing a lint error.
+kind: knowledge
+tags: [jd, justdown, authoring, frontmatter, kind, invocation-mode, lint]
+use_when: [how to write a jd file, what frontmatter fields does a shard need, choose a kind for a shard, run vs sidecar vs artifact, why does lint fail, recipe conventions for a tool shard, add a tool to the library]
+---
+
+# Authoring
+
+Writing a new shard for the library @jd/cli queries. One `.jd` file serves four
+readers — humans, indexers, agents, runners — so the frontmatter is a *retrieval
+contract*, not decoration: it decides when the tool gets pulled. Get it right and
+the shard surfaces on the right need; get it vague and it never ranks.
+
+## The four kinds
+
+| `kind` | Carries | Needs |
+|--------|---------|-------|
+| `tool` | a runnable ```just``` recipe | `run:` + the recipe; `requires:` |
+| `knowledge` | reference prose / tables, maybe a scaffold | nothing beyond the basics |
+| `agent` | a ```psaido``` scaffold (@jd/psaido) for a model to translate | `provides:` names |
+| `workflow` | a recipe orchestrating other shards | `run:` |
+
+Basics every shard needs: `name`, `description`, `kind`, `tags`, `use_when`. A
+`kind: tool` **must** have a `run:` field naming the default recipe *and* a
+```just``` block — the single most common lint error is a tool with no recipe
+(make it `knowledge` if it is reference-only).
+
+## The retrieval contract
+
+| Field | Weight in search | Purpose |
+|-------|------------------|---------|
+| `name` | highest | the canonical handle |
+| `use_when` | highest | the needs that should pull this shard |
+| `tags` | medium | topical keywords |
+| prose body | low | full context for the agent after retrieval |
+| `not_when` | veto | needs that should *exclude* this shard |
+
+Write `use_when` as the user's words ("free a busy port", not "lsof -i"). The
+field-weighting means a need phrased in `use_when` outranks the same word buried
+in prose.
+
+## Invocation modes — how a tool's result is delivered
+
+Declared once in frontmatter, the runner contract is "arguments in, exit code
+out" — the *mode* says where the payload goes.
+
+| Mode | Payload delivery |
+|------|------------------|
+| `run` | stdout / exit code — the default, synchronous tool |
+| `sidecar` | a live stream (a follow/tail/watch that keeps running) |
+| `artifact` | a written path — the recipe produces a file, prints where |
+
+Recipe conventions: positional params with `quote(...)` on every interpolated
+value, a leading `#!/usr/bin/env sh` + `set -eu` for multi-line bodies, and a
+one-line `# comment` above each recipe. Mirror an existing shard in the same
+directory.
+
+## Before you push
+
+Run @jd/cli `lint` (`just lint`) and read the `N error(s)` line — never bury it
+in a pipe whose tail succeeds. Zero errors, then commit. The two recurring
+gotchas: a `kind: tool` missing its recipe, and a literal `@`-prefixed
+`dir/name` token in prose that the linter reads as a broken link (describe the
+form, don't write the token).

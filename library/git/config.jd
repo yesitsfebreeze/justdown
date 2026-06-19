@@ -1,0 +1,55 @@
+---
+name: git_config
+description: Read and set git configuration — your name and email, a shorthand alias, and any key, at global or per-repo scope. Use to set the identity on commits, add a command alias, or check where a setting comes from.
+kind: tool
+tags: [git, config, identity, alias, settings, vcs]
+use_when: [set my git name and email, add a git alias, configure git, list git config, change commit author, where is this git setting from, global vs local git config]
+danger: low
+side_effects: [file-write]
+requires: [git]
+run: list
+provides: [list, identity, set, alias]
+---
+
+# config
+
+Git's settings, layered global (`~/.gitconfig`) → local (`.git/config`), with
+local winning. `list` shows the merged result and where each value comes from;
+`identity` sets the name/email stamped on commits; `set` writes any key; `alias`
+makes a command shorthand. Set identity *before* committing or @tools/commit
+records the wrong author.
+
+| Recipe | Does |
+|--------|------|
+| `list` | every setting and its origin file (`--show-origin`) |
+| `identity` | set `user.name` and `user.email` (global by default) |
+| `set` | set any `section.key` to a value |
+| `alias` | define a `git <name>` shorthand for a command |
+
+`--global` writes `~/.gitconfig` (all repos); omit it to write the current
+repo only — useful for a different email on a work repo. `git config
+user.email` (no value) *reads* the effective value. Aliases save the daily
+verbs: `git config --global alias.co checkout` makes `git co`. A leading `!` in
+an alias runs a shell command (`alias.last '!git log -1'`). `--show-origin`
+answers "why is this set" by naming the file.
+
+```just
+# every setting and the file it comes from (default)
+list:
+  git config --list --show-origin
+
+# set the commit identity (global by default; scope="--local" for this repo)
+identity name email scope="--global":
+  #!/usr/bin/env sh
+  set -eu
+  git config {{scope}} user.name {{quote(name)}}
+  git config {{scope}} user.email {{quote(email)}}
+
+# set any section.key to a value
+set key value scope="--global":
+  git config {{scope}} {{quote(key)}} {{quote(value)}}
+
+# define a git <name> shorthand (e.g. name="co" command="checkout")
+alias name command:
+  git config --global {{quote("alias." + name)}} {{quote(command)}}
+```

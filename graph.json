@@ -6,7 +6,7 @@
   "counts": {
     "nodes": 20,
     "edges": 9,
-    "vocab": 188,
+    "vocab": 187,
     "categories": 13
   },
   "categories": {
@@ -507,14 +507,13 @@
       "provides": [
         "new"
       ],
-      "purpose": "Scaffold a new .jd tool shard from a template. Use when the user asks to create, add, or bootstrap a new justdown tool.",
+      "purpose": "Scaffold a new .jd tool file from a template. Use when the user asks to create, add, or bootstrap a new justdown tool.",
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/new-tool.jd",
       "path": "library/tools/new-tool.jd",
       "vec": {
         "new": 255,
         "tool": 255,
         "scaffold": 128,
-        "shard": 64,
         "template": 64,
         "create": 64,
         "add": 64,

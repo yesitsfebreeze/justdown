@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // justdown — single-file, zero-dependency MCP server + graph builder.
 //
-//   node mcp.mjs --build [libraryDir] [outFile]   scan .jd shards → write graph.json
+//   node mcp.mjs --build [libraryDir] [outFile]   scan .jd files → write graph.json
 //   node mcp.mjs                                   stdio MCP server over the graph
 //
-// The graph is a flat, autark index: every shard is a SPARSE, QUANTIZED
+// The graph is a flat, autark index: every file is a SPARSE, QUANTIZED
 // term-vector ("embed"). The vocabulary is dynamic — a key exists only if a
-// shard uses it (2 keys → 2 entries, nothing pre-allocated). Keys are plain
+// file uses it (2 keys → 2 entries, nothing pre-allocated). Keys are plain
 // words, so the stored JSON reads back as named categories with no decoder.
 // Scoring is an integer dot-product: no model, no floats, no dependencies.
 //
 // Files are addressed by raw git link, so neither building nor querying needs a
-// clone — `get` fetches a shard body over HTTP (or from disk when local).
+// clone — `get` fetches a file body over HTTP (or from disk when local).
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname, relative, resolve } from "node:path";
@@ -53,7 +53,7 @@ function frontmatter(src) {
   return fm;
 }
 
-// @links that reference another shard: require a slash (drops shell `@echo`),
+// @links that reference another file: require a slash (drops shell `@echo`),
 // keep only `dir/name`; unresolved targets (`@auth/crypto`) drop at link time.
 function atLinks(src) {
   const body = src.replace(/^---\n[\s\S]*?\n---/, "");
@@ -76,9 +76,9 @@ function walk(dir) {
 function build(libDir, outFile) {
   const root = resolve(libDir);
   const files = walk(root).sort();
-  if (!files.length) { console.error(`no .jd shards under ${libDir}`); process.exit(1); }
+  if (!files.length) { console.error(`no .jd files under ${libDir}`); process.exit(1); }
 
-  // 1) read shards → distilled purpose + raw term list per shard
+  // 1) read files → distilled purpose + raw term list per file
   const docs = files.map(abs => {
     const src = frontmatterSrc(abs);
     const fm = frontmatter(src.raw);
@@ -121,7 +121,7 @@ function build(libDir, outFile) {
     d.vec = vec;
   }
 
-  // 4) edges: resolve @links against existing shards (by dir/name suffix)
+  // 4) edges: resolve @links against existing files (by dir/name suffix)
   const byKey = new Map(docs.map(d => [d.key, d]));
   const edges = [];
   for (const d of docs)
@@ -130,7 +130,7 @@ function build(libDir, outFile) {
       if (t && t.id !== d.id) edges.push({ from: d.id, to: t.id, ref: `@${l}` });
     }
 
-  // 5) categories: group each shard under its most-shared TAG (tags are the
+  // 5) categories: group each file under its most-shared TAG (tags are the
   // curated vocabulary). Ties break by global frequency then alpha → stable.
   const tagDf = new Map();
   for (const d of docs) for (const t of d.tags) tagDf.set(t, (tagDf.get(t) || 0) + 1);
@@ -194,9 +194,9 @@ function rankSearch(g, query, k = 5, kind) {
   }));
 }
 
-async function getShard(g, ref) {
+async function getFile(g, ref) {
   const n = g.byName.get(ref) || g.byPath.get(ref) || g.nodes.find(x => x.name === ref || x.path.endsWith(`/${ref}.jd`));
-  if (!n) throw new Error(`no shard: ${ref}`);
+  if (!n) throw new Error(`no file: ${ref}`);
   const localGuess = resolve(HERE, n.path);
   let body;
   if (existsSync(localGuess) && statSync(localGuess).isFile()) body = readFileSync(localGuess, "utf8");
@@ -206,7 +206,7 @@ async function getShard(g, ref) {
 
 function neighbors(g, ref) {
   const n = g.byName.get(ref) || g.byPath.get(ref);
-  if (!n) throw new Error(`no shard: ${ref}`);
+  if (!n) throw new Error(`no file: ${ref}`);
   const link = id => { const t = g.byPath.get(id); return t ? { name: t.name, raw: t.raw } : { path: id }; };
   return {
     name: n.name,
@@ -217,13 +217,13 @@ function neighbors(g, ref) {
 
 // tool registry
 const TOOLS = [
-  { name: "search", description: "Search justdown shards by purpose (integer term-vector dot-product). Returns ranked shards with raw git links.",
+  { name: "search", description: "Search justdown files by purpose (integer term-vector dot-product). Returns ranked files with raw git links.",
     inputSchema: { type: "object", properties: { query: { type: "string" }, k: { type: "number", description: "max results (default 5)" }, kind: { type: "string", enum: ["tool", "agent", "knowledge", "workflow"] } }, required: ["query"] } },
-  { name: "get", description: "Fetch a shard's full .jd body by name or path (over the raw git link, or disk when local).",
-    inputSchema: { type: "object", properties: { ref: { type: "string", description: "shard name or path" } }, required: ["ref"] } },
-  { name: "categories", description: "List the named, readable categories (vocabulary keys) and their member shards.",
+  { name: "get", description: "Fetch a file's full .jd body by name or path (over the raw git link, or disk when local).",
+    inputSchema: { type: "object", properties: { ref: { type: "string", description: "file name or path" } }, required: ["ref"] } },
+  { name: "categories", description: "List the named, readable categories (vocabulary keys) and their member files.",
     inputSchema: { type: "object", properties: {} } },
-  { name: "neighbors", description: "Outbound and inbound @links of a shard.",
+  { name: "neighbors", description: "Outbound and inbound @links of a file.",
     inputSchema: { type: "object", properties: { ref: { type: "string" } }, required: ["ref"] } },
 ];
 
@@ -231,7 +231,7 @@ async function callTool(name, args) {
   const g = await loadGraph();
   switch (name) {
     case "search":     return rankSearch(g, args.query, args.k, args.kind);
-    case "get":        return await getShard(g, args.ref);
+    case "get":        return await getFile(g, args.ref);
     case "categories": return { categories: g.categories, counts: g.counts };
     case "neighbors":  return neighbors(g, args.ref);
     default: throw new Error(`unknown tool: ${name}`);

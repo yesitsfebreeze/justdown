@@ -15,7 +15,7 @@ spawns it detached, watches stdout for `READY`, and treats that as started;
 logs stream after. No exit code is read (a healthy sidecar never exits), so
 `READY` / `ERROR` lines are the contract.
 
-One-shot commands live as **separate named recipes in the same shard**, called
+One-shot commands live as **separate named recipes in the same file**, called
 by name as normal `run`-style recipes.
 
 ```just

@@ -1,6 +1,6 @@
 name: graph
 
-# Keep the committed graph.json in sync with the library/ shards.
+# Keep the committed graph.json in sync with the library/ files.
 # Rebuilds with mcp.mjs and fails if the result differs from what's checked in.
 
 on:

@@ -97,7 +97,7 @@ resolves `@`.
 ## 5. Install a plugin
 
 A plugin is just a folder/repo of `.jd` files. Link the path or git URL into
-your system; the `.jd` files become available like any local shard. No manifest,
+your system; the `.jd` files become available like any local file. No manifest,
 no build step — clone the repo, link it, done.
 
 ## Getting-started chart

@@ -8,7 +8,7 @@ run: review
 
 # Review
 
-An agent shard: the prose below is the *brief* the agent reads after the
+An agent file: the prose below is the *brief* the agent reads after the
 frontmatter selects this file, and the `just` recipe is the thin entry point
 that hands the brief to a model CLI. The recipe body delegates to a real CLI
 (`gh` + `claude`); heavy logic would live in a script on disk, the recipe is

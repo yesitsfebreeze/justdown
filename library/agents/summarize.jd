@@ -8,7 +8,7 @@ run: summarize
 
 # Summarize
 
-An agent shard: the prose is the brief, the recipe hands a file to a model CLI
+An agent file: the prose is the brief, the recipe hands a file to a model CLI
 and prints the summary.
 
 **Brief.** Read the file at `path` and produce a tight summary: one sentence on

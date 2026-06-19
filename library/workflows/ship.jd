@@ -18,7 +18,7 @@ it" where the tree is expected to be green. For a dry run of the gate alone, use
 @tools/gate directly.
 
 ```just
-# gate first, then release; both delegate to the shards above
+# gate first, then release; both delegate to the files above
 ship version="patch": gate release
   just gate
   just release {{version}}

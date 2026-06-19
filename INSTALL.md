@@ -7,7 +7,7 @@ agent one link (or a local path) and it wires itself up.
 
 - spec & overview → [`README.md`](README.md)
 - how to author & run a `.jd` tool → [`HELP.md`](HELP.md)
-- the shards → [`library/`](library/)
+- the files → [`library/`](library/)
 - the queryable graph → [`graph.json`](graph.json)
 - the server → [`mcp.mjs`](mcp.mjs)
 
@@ -26,7 +26,7 @@ addressable by its **raw git link**:
 https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>
 ```
 
-`mcp.mjs` and `graph.json` sit at the repo root, and each shard under
+`mcp.mjs` and `graph.json` sit at the repo root, and each file under
 `library/` is reachable at `…/<branch>/library/<dir>/<name>.jd`. So the agent
 never needs the whole tree — it fetches exactly the file a query points at.
 
@@ -55,10 +55,10 @@ agent's MCP config at it.
 
 The agent flow is: **grab the repo location → fetch `mcp.mjs` → register it as an
 MCP server → done.** With only `JUSTDOWN_REPO`/`JUSTDOWN_BRANCH` set, the server
-loads `graph.json` and every shard body straight from the raw git links — no
+loads `graph.json` and every file body straight from the raw git links — no
 clone required.
 
-**From a local clone** (offline; reads `graph.json` and shards from disk):
+**From a local clone** (offline; reads `graph.json` and files from disk):
 
 ```jsonc
 {
@@ -71,7 +71,7 @@ clone required.
 }
 ```
 
-When `mcp.mjs` finds a sibling `graph.json` (or the shard file) on disk it uses
+When `mcp.mjs` finds a sibling `graph.json` (or the file file) on disk it uses
 it; otherwise it falls back to the raw git link. So the *same* file works whether
 the repo is remote or local — that is the "could also be local" case.
 
@@ -83,41 +83,41 @@ the repo is remote or local — that is the "could also be local" case.
 | `JUSTDOWN_BRANCH` | `main` | branch for the raw base URL |
 | `JUSTDOWN_RAW_BASE` | derived from repo+branch | override the whole raw base |
 | `JUSTDOWN_GRAPH` | sibling file, else `…/graph.json` | explicit graph URL or path |
-| `JUSTDOWN_LIB` | `library` | shard folder (for `--build`) |
+| `JUSTDOWN_LIB` | `library` | file folder (for `--build`) |
 
 ## What the agent gets — a flat graph as a tool
 
-The MCP exposes the library as one **flat, queryable graph**. Every shard is a
+The MCP exposes the library as one **flat, queryable graph**. Every file is a
 node carrying its retrieval contract (the frontmatter) plus a **sparse, quantized
 term-vector** — a tiny "embed" whose keys are plain words. Scoring is an integer
 dot-product, so query is fast and needs no model. Edges are the `@`links between
-shards. The keys double as human-readable **categories**, so `graph.json` reads
+files. The keys double as human-readable **categories**, so `graph.json` reads
 back as named groups with no decoder.
 
 Tools:
 
 | Tool | Does |
 |------|------|
-| `search` | rank shards by a natural-language query; returns names, purposes, and raw git links |
-| `get` | fetch a shard's full `.jd` body by name (over the raw link, or from disk when local) |
-| `categories` | list the named categories and their member shards |
-| `neighbors` | the inbound/outbound `@`links of a shard |
+| `search` | rank files by a natural-language query; returns names, purposes, and raw git links |
+| `get` | fetch a file's full `.jd` body by name (over the raw link, or from disk when local) |
+| `categories` | list the named categories and their member files |
+| `neighbors` | the inbound/outbound `@`links of a file |
 
-A typical loop: `search` for a need → read the returned purpose → `get` the shard
+A typical loop: `search` for a need → read the returned purpose → `get` the file
 body → run its recipe with the runner interface from [`HELP.md`](HELP.md)
 (`just --justfile - <recipe> -- <args...>`).
 
 ## Rebuilding the graph
 
 `graph.json` is committed, so consumers never build it. When you add or edit
-shards, regenerate it from the local library:
+files, regenerate it from the local library:
 
 ```sh
 node mcp.mjs --build            # library/ → graph.json
 node mcp.mjs --build library out.json   # explicit in/out
 ```
 
-Commit the refreshed `graph.json` alongside the shard change.
+Commit the refreshed `graph.json` alongside the file change.
 
 ## License
 

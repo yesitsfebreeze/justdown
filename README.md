@@ -13,7 +13,7 @@ serves four readers without copies**:
 - **runners** extract and execute fenced ```` ```just ```` blocks
 
 > justdown is a **task runner and a tool maker in one file**. Authoring a `.jd`
-> tool-shard *is* making the executable thing — no separate tool implementation,
+> tool-file *is* making the executable thing — no separate tool implementation,
 > no MCP server per capability, no hand-written function to keep in sync with
 > its docs. The `just` recipe in the fenced block *is* the tool; the prose
 > around it is the *why* and *when*; the frontmatter is the retrieval contract
@@ -40,7 +40,7 @@ stay thin; the entire execution glue is one parser extension that lifts
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
 - [`HELP.md`](HELP.md) — how to author and run a `.jd` tool.
 - [`INSTALL.md`](INSTALL.md) — wire this repo into your agent as an MCP server.
-- [`library/`](library/) — twenty `.jd` shards exercising every `kind`
+- [`library/`](library/) — twenty `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting; see
   [`library/README.md`](library/README.md) for the index.
@@ -52,7 +52,7 @@ stay thin; the entire execution glue is one parser extension that lifts
 The repo *is* the package — MCP server, tool library, docs, and plugin in one,
 distributed as plain files in git. Hand your agent the repo URL (or a local
 path) and it registers [`mcp.mjs`](mcp.mjs), then queries the library as a flat
-graph: each shard is a node with its retrieval contract and a sparse quantized
+graph: each file is a node with its retrieval contract and a sparse quantized
 term-vector, edges are the `@`links, and the keys read back as named categories.
 No clone, no `npm install`, no model — see [`INSTALL.md`](INSTALL.md).
 

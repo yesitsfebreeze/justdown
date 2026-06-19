@@ -16,7 +16,7 @@ without copies:
 ## Intention
 
 justdown is a **task runner and a tool maker in one file**. Authoring a `.jd`
-tool-shard *is* making the executable thing — there is no separate tool
+tool-file *is* making the executable thing — there is no separate tool
 implementation, no MCP server per capability, no hand-written tool function to
 keep in sync with its docs. The `just` recipe in the fenced block *is* the tool;
 the prose around it is the *why* and *when*; the frontmatter is the retrieval
@@ -34,7 +34,7 @@ just --justfile - <recipe> -- <args...>
 ```
 
 A file may hold several recipes; `run:` names the default, the rest are
-callable by name. So one shard can expose a family of related entry points
+callable by name. So one file can expose a family of related entry points
 without becoming several tools.
 
 The result contract is correspondingly thin: arguments in, **exit code out**;
@@ -65,7 +65,7 @@ It is the match surface that decides *when* the file is pulled.
 |-------|----------|---------|
 | `name` | yes | File identity; also the just module name when relevant. |
 | `description` | yes | One or two lines: what it is and when to use it. **This is the contract** — the agent retrieves on it. |
-| `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow`. |
+| `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow` \| `hook`. A `hook` file subscribes to engine events — see [Hooks](#hooks-dynamic-edges). |
 | `tags` | no | Free-form labels for grouping and retrieval. |
 | `run` | tool only | Default recipe entry point, e.g. `release`. The runner invokes it as `just --justfile - release -- <args...>`. |
 | `invoke` | tool only | Invocation mode: `run` (default) \| `sidecar` \| `artifact`. Declares how the runner spawns the recipe and reads its result. See [Invocation modes](#invocation-modes). |
@@ -176,7 +176,7 @@ produces one).
   address", not a payload.
 
 One long-lived recipe (`run:` names it). One-shot commands (reload, status,
-stop) go as **separate named recipes in the same shard**, called by name as
+stop) go as **separate named recipes in the same file**, called by name as
 normal `run`-style recipes.
 
 ```just
@@ -373,6 +373,65 @@ and a literal `@` must never reach the shell. In a scaffold, translate each link
 into the target language's normal import or call (see [Scaffold
 blocks](#scaffold-blocks-psaido) for the inline and aliased forms).
 
+## Hooks (dynamic edges)
+
+`@` links one file's content into another *before* the agent reads it — a
+**static** edge resolved at retrieval. A **hook** is the runtime counterpart: a
+named point the host engine fires while it runs, that `.jd` files subscribe to.
+`@` wires *context*; a hook wires *control*. Both are edges in the same graph —
+one resolved at read time, one at run time.
+
+The direction matters: **the host's own source is the source of truth.** The
+engine fires real hooks; a scanner reads those call sites and *generates* a
+readable catalog; files subscribe against that catalog. justdown owns the
+subscription side, not the firing side.
+
+### The shape
+
+```text
+host source ──fires──▶ [generated catalog .jd] ◀──@EVENT subscribe── file .jd
+  swirl_emit!(name)        (scanned, readable)         in a ```just fence
+```
+
+1. **The engine fires.** A real call in the host's source emits a hook at
+   runtime — not an inert comment. The primitive is the host's own; swirl uses a
+   macro, `swirl_emit!(name, payload)` (and `swirl_emit!(name => Ret, payload)`
+   for an answer hook). The call site is the truth about what hooks exist.
+
+2. **The catalog is generated.** A scanner greps the source for fire sites and
+   writes *one* readable `.jd` listing every hook — name, kind (observe / answer),
+   payload, and where it fires. It is regenerated, never hand-authored; `provides`
+   lists the names so files resolve them. (swirl: `hooks/scan.mjs` →
+   `hooks/catalog.jd`.)
+
+3. **A file subscribes** with an `@EVENT` block inside a ```` ```just ```` fence.
+   The file is `kind: hook` — subscribers are found **by type in the index, not
+   by folder**. The host indexes every `.jd`'s frontmatter, buckets paths by
+   `kind`, and registers the `hook` bucket; it diffs the index on startup / add /
+   delete and re-registers only what changed. When the hook fires, the engine
+   runs each subscribed block — payload delivered as JSON on an environment
+   variable (swirl: `$SWIRL_EVENT`). This rides the ordinary just-fence runner
+   ([The just blocks](#the-just-blocks-recipes)); a subscriber is just a plugin
+   file, locatable anywhere the index reaches.
+
+```just
+@paste_proposed
+echo "$SWIRL_EVENT" >> /tmp/pastes.log         # observe — output ignored
+
+@gate_decision
+case "$(echo "$SWIRL_EVENT" | jq -r .bytes)" in
+  *"rm -rf /"*) echo '{"approved":false,"reason":"blocked"}' ;;  # answer — JSON steers
+esac                                            # print nothing → defer to default
+```
+
+- **observe** hooks run subscribers for side effects; their output is ignored.
+- **answer** hooks let a subscriber print JSON matching the hook's return type to
+  steer the engine — the first valid answer wins; printing nothing defers.
+
+No build step, no generated *code* on the subscription side (justdown has
+neither — see [Plugins](#plugins)). The host fires; the catalog is a generated
+index; files bind to names with the same just fences they already use.
+
 ## Plugins
 
 A **plugin** is just a folder or a repository containing one or more `.jd`
@@ -381,7 +440,7 @@ holds `.jd` files, it is a plugin.
 
 Install a plugin by **linking** it: point the system at the folder path or git
 URL and the `.jd` files inside become available to the index and runner like
-any locally authored shard. A plugin is nothing more than the `.jd` files it
+any locally authored file. A plugin is nothing more than the `.jd` files it
 contains, linked in.
 
 Plugins are **persisted on disk as plain files** — Markdown, frontmatter, and

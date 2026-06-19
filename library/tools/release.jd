@@ -10,7 +10,7 @@ run: release
 
 Builds, gates, tags, and publishes. Runs the gate first via @tools/gate and
 refuses on a red gate — a non-zero exit from `just gate` aborts the recipe before
-`npm version` ever runs. The gate lives in its own shard so release and any other
+`npm version` ever runs. The gate lives in its own file so release and any other
 tool can share one definition of "green".
 
 ```just

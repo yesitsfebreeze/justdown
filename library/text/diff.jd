@@ -1,0 +1,51 @@
+---
+name: text_diff
+description: Compare two files or directories with diff — a unified patch-style diff, a side-by-side view, a recursive directory compare, and an ignore-whitespace mode. Use to see what differs between two files, compare trees, or produce a patch.
+kind: tool
+tags: [text, diff, compare, patch, files, directories]
+use_when: [compare two files, what changed between files, side by side diff, compare two directories, make a patch, diff ignoring whitespace, show differences]
+danger: none
+requires: [diffutils]
+run: unified
+provides: [unified, side, dirs, ignorews]
+---
+
+# diff
+
+Compare two files (or trees) outside git — the tool for arbitrary files, where
+@git/stage `diff` only covers tracked changes. `unified` is the patch-style
+output `patch` and reviewers expect; `side` shows two columns; `dirs` walks two
+directories; `ignorews` hides whitespace-only noise. The unified output is a
+valid patch — redirect it to a `.patch` and apply with `patch -p1` or
+`git apply`.
+
+| Recipe | Flags | Shows |
+|--------|-------|-------|
+| `unified` | `-u` | patch-style, with `+`/`-` and context lines |
+| `side` | `-y` | the two files in side-by-side columns |
+| `dirs` | `-ru` | recursively compare two directories |
+| `ignorews` | `-u -w` | unified, ignoring all whitespace differences |
+
+Exit status is meaningful: `0` identical, `1` differ, `2` trouble — so
+`diff -q a b` is a scriptable "are these the same?". `-r` recurses directories;
+`-q` reports only *which* files differ (brief); `-w` ignores whitespace, `-i`
+case. For a nicer rendering, pipe unified output through `delta` or use `git
+diff --no-index a b`.
+
+```just
+# patch-style unified diff (default)
+unified a b:
+  diff -u -- {{quote(a)}} {{quote(b)}}
+
+# side-by-side two-column comparison
+side a b:
+  diff -y -- {{quote(a)}} {{quote(b)}}
+
+# recursively compare two directories
+dirs a b:
+  diff -ru -- {{quote(a)}} {{quote(b)}}
+
+# unified diff ignoring all whitespace differences
+ignorews a b:
+  diff -u -w -- {{quote(a)}} {{quote(b)}}
+```

@@ -1,0 +1,51 @@
+---
+name: crypto_gpg
+description: Encrypt, decrypt, sign, and verify with GnuPG — symmetric passphrase encryption, recipient-key encryption, detached signatures, and signature checks. Use to protect a file, share an encrypted secret, sign a release artifact, or verify a downloaded signature.
+kind: tool
+tags: [crypto, gpg, gnupg, encrypt, sign, verify]
+use_when: [encrypt a file, decrypt a file, password protect a file, sign a file, verify a signature, encrypt for a recipient, check a release signature]
+danger: low
+side_effects: [file-write]
+requires: [gpg]
+run: encrypt
+provides: [encrypt, decrypt, sign, verify]
+---
+
+# gpg
+
+File and message crypto. `encrypt` does symmetric (passphrase) encryption — the
+quick "protect this file" move; for sharing, encrypt to a recipient's public key
+(noted below). `decrypt` reverses it; `sign` makes a detached signature;
+`verify` checks one against the file. For TLS certificates instead, see
+@cert/openssl — gpg is for files and messages, openssl for transport.
+
+| Recipe | Does |
+|--------|------|
+| `encrypt` | symmetric passphrase encryption → `.gpg` |
+| `decrypt` | decrypt a `.gpg` back to plaintext |
+| `sign` | make a detached `.sig` signature |
+| `verify` | check a detached signature against its file |
+
+Symmetric (`-c`) needs only a shared passphrase — good for a one-off secret.
+Recipient encryption is `gpg -e -r alice@example.com file` (their public key
+must be imported). `verify` is the daily driver for downloads: a release ships
+`file` + `file.sig`, and `gpg --verify file.sig file` confirms it — after you
+have imported and trust the signer's key.
+
+```just
+# symmetric passphrase encryption → file.gpg (default)
+encrypt file:
+  gpg -c {{quote(file)}}
+
+# decrypt a .gpg back to plaintext (prints to stdout with -d)
+decrypt file:
+  gpg -d {{quote(file)}}
+
+# make a detached signature → file.sig
+sign file:
+  gpg --detach-sign {{quote(file)}}
+
+# verify a detached signature against its file
+verify sig file:
+  gpg --verify {{quote(sig)}} {{quote(file)}}
+```

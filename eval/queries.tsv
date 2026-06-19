@@ -78,3 +78,4 @@ check when a TLS certificate expires	cert_openssl
 pull a value out of a yaml config file	search_yq
 compare the speed of two commands	bench_hyperfine
 convert a unix timestamp to a readable date	date_date
+verify the signature on a downloaded release	crypto_gpg

@@ -42,11 +42,14 @@ build:
     libdir="$root/$lib"
     out="$root/$index"
     [ -d "$libdir" ] || { echo "jd: no library dir: $libdir" >&2; exit 1; }
+    trap 'rm -f "$out.tmp"' EXIT
     : > "$out.tmp"
     find "$libdir" -name '*.jd' | LC_ALL=C sort | while IFS= read -r f; do
       rel=${f#"$root/"}
-      awk -v rel="$rel" '
-        function val(s){ sub(/^[^:]*:[ \t]*/,"",s); sub(/[ \t\r]+$/,"",s); return s }
+      JD_REL="$rel" awk '
+        BEGIN{ rel=ENVIRON["JD_REL"] }
+        # strip the "key:" prefix, neutralize tabs (they delimit the index), trim trailing
+        function val(s){ sub(/^[^:]*:[ \t]*/,"",s); gsub(/[\t]/," ",s); sub(/[ \r]+$/,"",s); return s }
         function arr(s){ sub(/^[^:]*:[ \t]*\[/,"",s); sub(/\].*/,"",s); gsub(/[ \t]/,"",s); return s }
         NR==1 && $0=="---" { fm=1; next }
         fm==1 && $0=="---" { fm=2; next }
@@ -76,6 +79,7 @@ build:
     done
     LC_ALL=C sort -o "$out.tmp" "$out.tmp"
     mv "$out.tmp" "$out"
+    trap - EXIT
     echo "built $out: $(wc -l < "$out" | tr -d ' ') entries" >&2
 
 # rank library files by a natural-language need (optional: <kind> <num>)
@@ -83,13 +87,15 @@ search query kind="" num="5":
     #!/usr/bin/env sh
     set -eu
     root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
-    query={{quote(query)}}; kind={{quote(kind)}}; num={{quote(num)}}
+    # user input crosses into awk via ENVIRON (no -v backslash-escape processing)
+    export JD_QUERY={{quote(query)}} JD_KIND={{quote(kind)}} JD_NUM={{quote(num)}} JD_BASE="$raw_base"
     idx() {
       if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
       curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
-    idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' -v q="$query" -v kind="$kind" -v base="$raw_base" '
-      BEGIN{ nq=split(tolower(q), qt, /[^a-z0-9+]+/) }
+    idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' '
+      BEGIN{ q=tolower(ENVIRON["JD_QUERY"]); kind=ENVIRON["JD_KIND"]; base=ENVIRON["JD_BASE"]
+             nq=split(q, qt, /[^a-z0-9+]+/) }
       kind!="" && $4!=kind { next }
       {
         hay=tolower($3 " " $5 " " $6); score=0
@@ -99,7 +105,8 @@ search query kind="" num="5":
           printf "%d\t%s\t%s\t%s\t%s\n", score, $3, $4, $5, raw
         }
       }
-    ' | LC_ALL=C sort -rn | awk -F'\t' -v n="$num" '
+    ' | LC_ALL=C sort -rn | awk -F'\t' '
+      BEGIN{ n=ENVIRON["JD_NUM"]+0; if (n<=0) n=5 }
       NR>n { exit }
       { printf "%d. %s  [%s]  score %s\n   %s\n   %s\n", NR, $2, $3, $1, $4, $5 }
     '
@@ -110,20 +117,22 @@ get ref only="":
     #!/usr/bin/env sh
     set -eu
     root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
-    ref={{quote(ref)}}; only={{quote(only)}}
+    export JD_REF={{quote(ref)}} JD_ONLY={{quote(only)}}
     idx() {
       if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
       curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
-    row=$(idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' -v ref="$ref" '
+    row=$(idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' '
       function base(p){ sub(/\.jd$/,"",p); n=split(p,a,"/"); return a[n] }
-      { r=ref; sub(/^@/,"",r); sub(/#.*$/,"",r)
-        if ($3==r || $2==r || $7==r || base($7)==r){ print $1 "\t" $7; exit } }')
-    [ -n "$row" ] || { echo "jd: no file: $ref" >&2; exit 1; }
+      BEGIN{ ref=ENVIRON["JD_REF"]; sub(/^@/,"",ref); sub(/#.*$/,"",ref) }
+      { if ($3==ref || $2==ref || $7==ref || base($7)==ref){ print $1 "\t" $7; exit } }')
+    [ -n "$row" ] || { echo "jd: no file: $JD_REF" >&2; exit 1; }
     src=$(printf '%s' "$row" | cut -f1)
     path=$(printf '%s' "$row" | cut -f2)
+    case "$path" in /*|*..*) echo "jd: refusing suspicious path: $path" >&2; exit 1 ;; esac
     if [ "$src" = local ]; then body() { cat "$root/$path"; }; else body() { curl -fsSL "$raw_base/$path"; }; fi
-    body | awk -v only="$only" '
+    body | awk '
+      BEGIN{ only=ENVIRON["JD_ONLY"] }
       function flush(  i,isjust,injust){
         if (bn==0) return
         isjust=0
@@ -139,7 +148,7 @@ get ref only="":
         } else if (!isjust && (only=="" || only=="prose")) {
           print "# prose"; for (i=1;i<=bn;i++) print blk[i]; print ""
         }
-        bn=0; delete blk
+        bn=0; split("", blk)
       }
       NR==1 && $0=="---" { infm=1; if (only==""||only=="frontmatter") print "# frontmatter"; next }
       infm==1 && $0=="---" { infm=2; if (only==""||only=="frontmatter") print ""; next }
@@ -170,18 +179,19 @@ links ref:
     #!/usr/bin/env sh
     set -eu
     root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
-    ref={{quote(ref)}}
+    export JD_REF={{quote(ref)}}
     idx() {
       if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
       curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
     m=$(idx | awk -F'\t' '!seen[$2]++')
-    key=$(printf '%s\n' "$m" | awk -F'\t' -v ref="$ref" '
+    key=$(printf '%s\n' "$m" | awk -F'\t' '
       function base(p){ sub(/\.jd$/,"",p); n=split(p,a,"/"); return a[n] }
-      { r=ref; sub(/^@/,"",r); sub(/#.*$/,"",r)
-        if ($3==r || $2==r || $7==r || base($7)==r){ print $2; exit } }')
-    [ -n "$key" ] || { echo "jd: no file: $ref" >&2; exit 1; }
-    printf '%s\n' "$m" | awk -F'\t' -v key="$key" '
+      BEGIN{ ref=ENVIRON["JD_REF"]; sub(/^@/,"",ref); sub(/#.*$/,"",ref) }
+      { if ($3==ref || $2==ref || $7==ref || base($7)==ref){ print $2; exit } }')
+    [ -n "$key" ] || { echo "jd: no file: $JD_REF" >&2; exit 1; }
+    printf '%s\n' "$m" | JD_KEY="$key" awk -F'\t' '
+      BEGIN{ key=ENVIRON["JD_KEY"] }
       { keys[$2]=1; row[NR]=$0 }
       END{
         for (r=1;r<=NR;r++){ split(row[r], c, "\t")

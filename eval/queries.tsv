@@ -74,3 +74,4 @@ count how often each line appears	text_uniq
 copy terminal output to the system clipboard	clip_clipboard
 repeat a command on a timer and watch it change	watch_watch
 auto-run tests when a file is saved	watch_entr
+check when a TLS certificate expires	cert_openssl

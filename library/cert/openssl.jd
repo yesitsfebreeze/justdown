@@ -1,0 +1,51 @@
+---
+name: cert_openssl
+description: Inspect and test TLS certificates with openssl — decode a cert file, check a live endpoint's expiry and chain, see SANs, and generate a self-signed pair. Use to debug an expired or mismatched cert, read a PEM, or make a throwaway cert.
+kind: tool
+tags: [cert, openssl, tls, ssl, x509, expiry]
+use_when: [check certificate expiry, inspect a TLS cert, decode a PEM file, what SANs does this cert have, test an https endpoint's certificate, generate a self-signed certificate, debug ssl handshake]
+danger: low
+side_effects: [file-write]
+requires: [openssl]
+run: show
+provides: [show, remote, expiry, selfsigned]
+---
+
+# openssl
+
+Read and test X.509 certs. `show` decodes a PEM on disk; `remote` pulls and
+inspects what a live server actually serves (the real "why is my cert wrong"
+answer); `expiry` prints just the validity dates; `selfsigned` mints a throwaway
+pair. For port reachability behind the cert, see @net/ss; for the name it should
+match, @net/dig.
+
+| Recipe | Does |
+|--------|------|
+| `show` | decode a cert file: subject, issuer, dates, SANs |
+| `remote` | fetch and decode the cert a host:port serves |
+| `expiry` | just the notBefore/notAfter validity window |
+| `selfsigned` | generate a self-signed key+cert pair |
+
+`remote` is the daily driver — it shows the chain the server sends, catching a
+missing intermediate or a wrong-host cert that a local file check misses. Add
+`-servername` (done in the recipe) so SNI returns the right vhost's cert.
+
+```just
+# decode a cert file: subject, issuer, validity, SANs (default)
+show file:
+  openssl x509 -in {{quote(file)}} -noout -text
+
+# fetch and decode the cert a live host:port serves
+remote host port="443":
+  #!/usr/bin/env sh
+  set -eu
+  echo | openssl s_client -connect {{quote(host)}}:{{quote(port)}} -servername {{quote(host)}} 2>/dev/null | openssl x509 -noout -text
+
+# just the validity window (notBefore / notAfter)
+expiry file:
+  openssl x509 -in {{quote(file)}} -noout -dates
+
+# generate a self-signed key + cert pair (throwaway/dev)
+selfsigned name="localhost" days="365":
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout {{quote(name)}}.key -out {{quote(name)}}.crt -days {{quote(days)}} -subj "/CN={{name}}"
+```

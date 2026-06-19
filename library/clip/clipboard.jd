@@ -1,0 +1,53 @@
+---
+name: clip_clipboard
+description: Cross-platform clipboard from the terminal — copy stdin in and paste the clipboard out on Wayland, X11, macOS, and WSL/Windows. The wizard's "pipe to clipboard" move, written for every environment. Use to copy command output to the clipboard or paste it into a pipeline.
+kind: knowledge
+tags: [clip, clipboard, copy, paste, wayland, x11, macos, wsl]
+use_when: [copy command output to clipboard, pipe to clipboard, paste clipboard into a command, clipboard tool for wayland or x11, pbcopy equivalent on linux, copy from terminal, clipboard on WSL]
+---
+
+# Clipboard
+
+Getting text between a terminal pipe and the system clipboard — the move is
+`cmd | <copy>` and `<paste> | cmd`. The binary differs per display server and
+OS, so this is a rosetta like @shell/rosetta: find your environment's row. Detect
+the environment first — `$WAYLAND_DISPLAY` set means Wayland, else `$DISPLAY`
+means X11.
+
+| Environment | Copy (stdin → clipboard) | Paste (clipboard → stdout) |
+|-------------|--------------------------|----------------------------|
+| Wayland | `wl-copy` | `wl-paste` |
+| X11 | `xclip -selection clipboard` | `xclip -selection clipboard -o` |
+| X11 (alt) | `xsel --clipboard --input` | `xsel --clipboard --output` |
+| macOS | `pbcopy` | `pbpaste` |
+| WSL / Windows | `clip.exe` | `powershell.exe Get-Clipboard` |
+| tmux buffer | `tmux load-buffer -` | `tmux save-buffer -` |
+
+```sh
+# copy a command's output to the clipboard (X11 example)
+git rev-parse HEAD | xclip -selection clipboard
+
+# paste the clipboard into a command (Wayland example)
+wl-paste | grep TODO
+```
+
+## A portable wrapper
+
+Define `copy`/`paste` functions that pick the right binary once, in your shell
+rc — then muscle memory is environment-independent:
+
+```sh
+copy() {
+  if [ -n "$WAYLAND_DISPLAY" ]; then wl-copy
+  elif [ -n "$DISPLAY" ];       then xclip -selection clipboard
+  elif command -v pbcopy >/dev/null; then pbcopy
+  else clip.exe
+  fi
+}
+```
+
+Gotchas: X11's `xclip` keeps the selection only while the process lives — pipe
+*into* it, do not background it and exit. There are three X selections
+(`primary`, `secondary`, `clipboard`); `clipboard` is the Ctrl-C/Ctrl-V one you
+almost always want. On WSL, `clip.exe` writes the Windows clipboard, so it works
+straight from a Linux shell.

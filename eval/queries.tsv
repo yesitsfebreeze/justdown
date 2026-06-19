@@ -115,3 +115,4 @@ run a makefile target in parallel	build_make
 merge stderr into stdout when redirecting	shell_redirect
 tag a release and push the tag	git_tag
 share a private s3 object with a temporary link	cloud_s3
+what changed between two branches	git_diff

@@ -1,0 +1,51 @@
+---
+name: git_diff
+description: Compare commits, branches, and files with git diff — a full diff between two refs, a per-file summary, just the changed filenames, and a word-level diff. Use to see what a branch changed, review before committing, or get the list of files a range touched.
+kind: tool
+tags: [git, diff, compare, branch, stat, review]
+use_when: [diff two branches, what changed between commits, list files changed in a range, summary of changes, word level diff, review changes before commit, compare a file across commits]
+danger: none
+requires: [git]
+run: range
+provides: [range, stat, names, word]
+---
+
+# git diff
+
+Compare two points in history (where @git/stage `diff` only covers the working
+tree). `range` shows the full diff between refs; `stat` summarizes per file;
+`names` lists just the changed paths (for scripting); `word` highlights changes
+within a line. Refs and the `A..B` range grammar come from @git/refs;
+@git/history shows the commits behind a range.
+
+| Recipe | Flags | Shows |
+|--------|-------|-------|
+| `range` | — | full diff between two refs (or ref vs working tree) |
+| `stat` | `--stat` | per-file insertion/deletion counts |
+| `names` | `--name-only` | just the changed filenames |
+| `word` | `--word-diff` | changes highlighted within each line |
+
+`git diff main..feature` is "what feature changed relative to main"; a single
+ref (`git diff main`) compares it to the working tree. `--name-only` feeds a
+pipeline — `git diff --name-only main | xargs …` acts on changed files
+(@search/xargs). `--stat` is the at-a-glance review; `--word-diff` shines on
+prose or single-line edits where a line diff is noise. Add `-- path` to scope to
+one file. `git diff --cached` is the staged diff (same as @git/stage `diff --staged`).
+
+```just
+# full diff between two refs, or a ref vs the working tree (default)
+range a b="":
+  git diff {{quote(a)}} {{b}}
+
+# per-file insertion/deletion summary
+stat a b="":
+  git diff --stat {{quote(a)}} {{b}}
+
+# just the changed filenames (for piping)
+names a b="":
+  git diff --name-only {{quote(a)}} {{b}}
+
+# changes highlighted within each line (word-level)
+word a b="":
+  git diff --word-diff {{quote(a)}} {{b}}
+```

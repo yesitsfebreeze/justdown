@@ -1,0 +1,71 @@
+---
+name: cron_crontab
+description: Schedule recurring jobs with cron — edit the crontab, list entries, the five-field time syntax, and the @-shortcuts. Use to run a command on a schedule, read or back up existing cron jobs, or decode a cron expression.
+kind: tool
+tags: [cron, crontab, schedule, recurring, jobs, timer]
+use_when: [schedule a recurring command, edit crontab, cron syntax meaning, run a job every day, list cron jobs, what does this cron expression mean, back up crontab]
+danger: medium
+side_effects: [system-state]
+requires: [crontab]
+run: list
+provides: [list, edit, backup, install]
+---
+
+# crontab
+
+The classic recurring scheduler. `list` shows the current user's jobs; `edit`
+opens them in `$EDITOR`; `backup`/`install` move a crontab to and from a file
+so it lives in version control. Each line is five time fields plus a command.
+For one-off "run once at a time" jobs use `at` instead; for systemd boxes,
+@systemd/systemctl timers are the modern alternative.
+
+| Recipe | Does |
+|--------|------|
+| `list` | print the current user's crontab |
+| `edit` | open the crontab in `$EDITOR` |
+| `backup` | dump the crontab to a file (commit it) |
+| `install` | replace the crontab from a file |
+
+## The five fields
+
+```
+┌── minute  (0-59)
+│ ┌── hour  (0-23)
+│ │ ┌── day of month (1-31)
+│ │ │ ┌── month (1-12)
+│ │ │ │ ┌── day of week (0-7, 0 and 7 both = Sunday)
+│ │ │ │ │
+* * * * *  command to run
+```
+
+| Field form | Means |
+|------------|-------|
+| `*` | every value |
+| `*/15` | every 15 (step) |
+| `1,15,30` | a list of values |
+| `9-17` | a range |
+| `0 9 * * 1-5` | 09:00 on weekdays |
+| `@daily` / `@hourly` / `@reboot` | shortcuts (midnight / top of hour / at boot) |
+
+Cron runs with a *minimal* environment — no your-shell `PATH`, no rc files. Use
+absolute paths in commands, set `PATH=` at the top of the crontab, and redirect
+output (`>> /var/log/job.log 2>&1`) or cron mails it to you. Test the command in
+a bare `env -i sh -c '...'` first to catch missing-PATH surprises.
+
+```just
+# print the current user's crontab (default)
+list:
+  crontab -l
+
+# edit the crontab in $EDITOR
+edit:
+  crontab -e
+
+# dump the crontab to a file so it can be version-controlled
+backup file="crontab.txt":
+  crontab -l > {{quote(file)}}
+
+# replace the crontab from a file
+install file="crontab.txt":
+  crontab {{quote(file)}}
+```

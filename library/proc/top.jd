@@ -1,0 +1,50 @@
+---
+name: proc_top
+description: Watch processes live with top/htop — the interactive moving view, a one-shot batch snapshot for scripts, and load/memory at a glance. Use to watch CPU in real time, capture a scriptable snapshot, or interactively hunt and kill a hog.
+kind: tool
+tags: [proc, top, htop, monitor, live, cpu, load]
+use_when: [watch cpu usage live, real time process monitor, interactive process viewer, scriptable top snapshot, system load, htop, kill a process interactively]
+danger: none
+requires: [top]
+run: watch
+provides: [watch, htop, snapshot, load]
+---
+
+# top
+
+The live, updating view of processes — the moving picture to @proc/ps's
+snapshot. `watch` launches the interactive monitor; `htop` the friendlier TUI
+(scroll, mouse, tree, F9 to kill) when installed; `snapshot` runs top in batch
+mode so its output is pipeable like ps. Once you spot the hog, signal it via
+@shell/jobs (`kill PID`) or F9 in htop.
+
+| Recipe | Mode | Use |
+|--------|------|-----|
+| `watch` | interactive top | live CPU/mem, sorted, refreshing |
+| `htop` | interactive htop | scrollable tree, F-key actions, mouse |
+| `snapshot` | `top -b -n1` | one batch frame, scriptable / greppable |
+| `load` | `uptime` | load averages on one line |
+
+Interactive top keys worth knowing: `P` sort by CPU, `M` by memory, `k` kill a
+PID, `1` show per-core, `c` full command line, `q` quit. The three load-average
+numbers are the run-queue length over 1/5/15 minutes — compare against core
+count (a load of 4 on 4 cores is fully busy, not overloaded). `snapshot` is the
+one to pipe; the interactive modes are for a human at the terminal.
+
+```just
+# interactive live process monitor (default)
+watch:
+  top
+
+# friendlier interactive TUI (tree, mouse, F9 kill) — needs htop installed
+htop:
+  htop
+
+# one batch frame, scriptable and greppable like ps
+snapshot:
+  top -b -n1
+
+# load averages on one line
+load:
+  uptime
+```

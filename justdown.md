@@ -30,8 +30,11 @@ is the thin, named, parameterized entry point that delegates to them. This
 keeps the runner's interface stable and identical across every tool:
 
 ```text
-just --justfile - <recipe> -- <args...>
+just --justfile - <recipe> <args...>
 ```
+
+Arguments are positional — `just` maps them to the recipe's parameters in order;
+there is no `--` separator (`just` would read `--` as another recipe name).
 
 A file may hold several recipes; `run:` names the default, the rest are
 callable by name. So one file can expose a family of related entry points
@@ -67,7 +70,7 @@ It is the match surface that decides *when* the file is pulled.
 | `description` | yes | One or two lines: what it is and when to use it. **This is the contract** — the agent retrieves on it. |
 | `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow` \| `hook`. A `hook` file subscribes to engine events — see [Hooks](#hooks-dynamic-edges). |
 | `tags` | no | Free-form labels for grouping and retrieval. |
-| `run` | tool only | Default recipe entry point, e.g. `release`. The runner invokes it as `just --justfile - release -- <args...>`. |
+| `run` | tool only | Default recipe entry point, e.g. `release`. The runner invokes it as `just --justfile - release <args...>`. |
 | `invoke` | tool only | Invocation mode: `run` (default) \| `sidecar` \| `artifact`. Declares how the runner spawns the recipe and reads its result. See [Invocation modes](#invocation-modes). |
 | `provides` | no | Names other files link to via `#Name` (schemas, functions, recipes). |
 
@@ -115,7 +118,7 @@ each recipe a name, declared parameters, defaults, and dependencies while keepin
 the recipe body as ordinary shell. That gives the runner one stable interface:
 
 ```text
-just --justfile - <recipe> -- <args...>
+just --justfile - <recipe> <args...>
 ```
 
 Heavy logic should still live in real scripts on disk; a just recipe is the thin,
@@ -131,7 +134,7 @@ syntax errors. The runner does one cheap step: it lifts every ```` ```just ````
 fence out, concatenates them, and runs the requested recipe.
 
 ```
-extract ```just fences  →  feed to `just --justfile - <recipe> -- <args>`
+extract ```just fences  →  feed to `just --justfile - <recipe> <args>`
 ```
 
 That extractor — one small parser extension — is the entire execution glue.
@@ -140,7 +143,7 @@ That extractor — one small parser extension — is the entire execution glue.
 ## Invocation modes
 
 `invoke` (default `run`) tells the runner **how to spawn and read back**. The
-recipe is always ordinary shell under `just --justfile - <recipe> -- <args...>`;
+recipe is always ordinary shell under `just --justfile - <recipe> <args...>`;
 the mode changes only the process contract around it.
 
 | Mode | Process | Result | Use when |
@@ -220,7 +223,7 @@ chart out="dist/chart.png":
 - Stays alive → **`sidecar`**.
 - If the result is a file the agent reads by path → **`artifact`**.
 
-All three share one spawn shape — `just --justfile - <recipe> -- <args...>` —
+All three share one spawn shape — `just --justfile - <recipe> <args...>` —
 so the runner's interface stays stable; only the read-back differs.
 
 ## Scaffold blocks (`psaido`)
@@ -497,7 +500,7 @@ release version="patch":
 
 - An index ingests the frontmatter, keyed by the file's path.
 - The agent, on a "ship it" query, pulls the file and reads the body.
-- The runner shells `just --justfile - release -- <version>` from the extracted
+- The runner shells `just --justfile - release <version>` from the extracted
   block.
 
 ## Example: a knowledge file with a scaffold

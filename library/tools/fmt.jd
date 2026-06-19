@@ -12,7 +12,7 @@ provides: [fmt, check]
 A family of related entry points in one file. `run: fmt` picks the default, so
 the runner calls `fmt` when no recipe is named; `check` is callable by name for
 CI and pre-commit hooks. One file, several recipes, one stable invocation
-shape — `just --justfile - <recipe> -- <args>`.
+shape — `just --justfile - <recipe> <args>`.
 
 ```just
 # write formatted files (default)

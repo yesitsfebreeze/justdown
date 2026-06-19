@@ -46,19 +46,21 @@ The runner lifts ```` ```just ```` fences out of the `.jd` file and feeds them
 to `just`. One stable interface for every tool:
 
 ```text
-just --justfile - <recipe> -- <args...>
+just --justfile - <recipe> <args...>
 ```
 
 So for `gate.jd` above:
 
 ```sh
-just --justfile - gate --
+just --justfile - gate
 ```
 
-With args (a recipe with parameters):
+With args (a recipe with parameters), pass them **positionally** — `just` maps
+them to the recipe's parameters in order (do not use a `--` separator; `just`
+would read it as another recipe name):
 
 ```sh
-just --justfile - release -- minor
+just --justfile - release minor
 ```
 
 Non-zero exit = failure. The rest depends on the recipe's **invocation mode**.
@@ -115,7 +117,7 @@ flowchart TD
   I -- stdout, finishes --> J[invoke: run]
   I -- long-lived process --> K[invoke: sidecar]
   I -- writes a file --> L[invoke: artifact]
-  J & K & L --> M[Run: just --justfile - recipe -- args]
+  J & K & L --> M[Run: just --justfile - recipe args]
   H --> N[Agent reads body after retrieval]
   M --> O{exit 0?}
   O -- yes --> P[Success]
@@ -124,7 +126,7 @@ flowchart TD
 
 ## Quick reference
 
-- **Run a tool:** `just --justfile - <recipe> -- <args...>`
+- **Run a tool:** `just --justfile - <recipe> <args...>` (args are positional, no `--`)
 - **Default recipe:** named by `run:` in frontmatter
 - **Result contract:** args in, exit code out; non-zero = failure
 - **Indexed surface:** frontmatter only — body stays on disk until pulled

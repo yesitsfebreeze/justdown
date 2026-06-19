@@ -15,29 +15,33 @@ stub recipe, immediately runnable and indexable.
 
 ```just
 # scaffold a new .jd tool file at tools/<name>.jd
+# (shebang recipe: just runs the whole body as one script, so the heredoc —
+#  which spans multiple lines and blank lines — works; a plain line-by-line
+#  recipe would run each line in its own shell and break the heredoc.)
 new name tool="default":
-  @mkdir -p tools
-  @cat > tools/{{name}}.jd <<EOF
----
-name: {{name}}
-description: TODO — what this tool is and when to use it.
-kind: tool
-tags: []
-run: {{tool}}
-provides: [{{tool}}]
----
+  #!/usr/bin/env sh
+  mkdir -p tools
+  cat > tools/{{name}}.jd <<EOF
+  ---
+  name: {{name}}
+  description: TODO — what this tool is and when to use it.
+  kind: tool
+  tags: []
+  run: {{tool}}
+  provides: [{{tool}}]
+  ---
 
-# {{name}}
+  # {{name}}
 
-TODO — why and when to reach for this tool.
+  TODO — why and when to reach for this tool.
 
-\`\`\`just
-# TODO — the default recipe
-{{tool}}:
-  @echo "hello from {{name}}"
-\`\`\`
-EOF
-  @echo "created tools/{{name}}.jd with default recipe '{{tool}}'"
+  \`\`\`just
+  # TODO — the default recipe
+  {{tool}}:
+    @echo "hello from {{name}}"
+  \`\`\`
+  EOF
+  echo "created tools/{{name}}.jd with default recipe '{{tool}}'"
 ```
 
 ## Invocation

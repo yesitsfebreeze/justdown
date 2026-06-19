@@ -120,7 +120,7 @@ Tools:
 
 A typical loop: `search` for a need → read the returned purpose → `get` the file
 body → run its recipe with the runner interface from [`HELP.md`](HELP.md)
-(`just --justfile - <recipe> -- <args...>`).
+(`just --justfile - <recipe> <args...>`).
 
 ## Rebuilding the graph
 

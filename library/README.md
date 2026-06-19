@@ -47,4 +47,4 @@ Conventions used across these files:
 - `@` links in prose and `psaido` are resolved before the agent sees the file;
   never put `@` inside a `just` recipe body (the runner does not resolve it).
 - A `tool` file's `run` field names the default recipe; the runner calls
-  `just --justfile - <recipe> -- <args...>` on the extracted fences.
+  `just --justfile - <recipe> <args...>` on the extracted fences.

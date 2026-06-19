@@ -22,10 +22,11 @@ serves four readers without copies**:
 The runner interface is one stable shape for every tool:
 
 ```text
-just --justfile - <recipe> -- <args...>
+just --justfile - <recipe> <args...>
 ```
 
-Arguments in, **exit code out**. A non-zero exit is a failure. How the result is
+Arguments are **positional** (mapped to the recipe's parameters in order; no `--`
+separator). Arguments in, **exit code out**. A non-zero exit is a failure. How the result is
 delivered (stdout / a live sidecar / a written path) is the recipe's
 *invocation mode*, declared once in frontmatter.
 

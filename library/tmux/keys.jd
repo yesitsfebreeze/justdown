@@ -1,0 +1,71 @@
+---
+name: tmux_keys
+description: The prefix key (`C-b`) and the default in-app keybinding table — windows, panes, copy-mode, sessions. Read to drive tmux interactively from inside a session.
+kind: knowledge
+tags: [tmux, keys, prefix, bindings, copy-mode]
+use_when: [tmux keybindings, tmux prefix key, how to split a pane in tmux, tmux copy mode keys, default tmux shortcuts]
+requires: [tmux]
+---
+
+# In-app keys
+
+Every in-app command starts with the **prefix**, default `C-b` (hold Ctrl, press
+`b`, release, then the command key). Notation: `C-b c` = prefix then `c`. Rebind
+the prefix and any of these in @tmux/config; address things from outside instead
+with @tmux/cli and the driving tools (@tmux/window, @tmux/pane).
+
+## Sessions
+
+| Key | Does |
+|-----|------|
+| `C-b d` | detach (session keeps running) |
+| `C-b s` | interactive session tree |
+| `C-b $` | rename session |
+| `C-b (` / `)` | previous / next session |
+
+## Windows
+
+| Key | Does |
+|-----|------|
+| `C-b c` | new window |
+| `C-b ,` | rename window |
+| `C-b 0`…`9` | select window by index |
+| `C-b n` / `p` | next / previous window |
+| `C-b w` | choose window from a list |
+| `C-b &` | kill window (confirms) |
+
+## Panes
+
+| Key | Does |
+|-----|------|
+| `C-b %` | split left/right (vertical border) |
+| `C-b "` | split top/bottom (horizontal border) |
+| `C-b o` / `;` | next pane / last active pane |
+| `C-b ←↑↓→` | select pane by direction |
+| `C-b z` | toggle zoom (fullscreen the pane) |
+| `C-b {` / `}` | swap pane with previous / next |
+| `C-b Space` | cycle preset layouts |
+| `C-b x` | kill pane (confirms) |
+| `C-b !` | break pane into its own window |
+| `C-b q` | show pane numbers (press one to jump) |
+
+## Copy mode
+
+`C-b [` enters copy mode; `q` leaves it. Movement is vi-like by default
+(`set -g mode-keys vi` in @tmux/config makes it strictly vi).
+
+| Key | Does |
+|-----|------|
+| `Space` / `v` | start selection |
+| `Enter` / `y` | copy selection and exit |
+| `/` , `?` | search forward / back |
+| `g` / `G` | top / bottom of history |
+| `C-b ]` | paste the buffer |
+
+## Misc
+
+| Key | Does |
+|-----|------|
+| `C-b ?` | list every binding (the live reference) |
+| `C-b :` | command prompt (type any tmux command) |
+| `C-b t` | big clock |

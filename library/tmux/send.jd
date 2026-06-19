@@ -1,0 +1,56 @@
+---
+name: tmux_send
+description: Drive a live program in a tmux pane — type keys, send literal text, run a shell command, and read back the pane's output. The control surface for scripting a real terminal.
+kind: tool
+tags: [tmux, send, keys, capture, control]
+use_when: [send keys to a tmux pane, type into a tmux pane, run a command in tmux, read tmux pane output, capture tmux pane, automate a terminal program]
+danger: medium
+side_effects: [process]
+requires: [tmux]
+run: send
+provides: [send, literal, run, capture]
+---
+
+# Drive a pane
+
+This is the "drive a live program" surface for tmux — the same idea as
+@vim/remote, but for any program in a pane. `send` types key names (so `Enter`,
+`C-c`, `Tab` are interpreted); `literal` sends raw text verbatim; `run` types a
+command and presses Enter; `capture` reads what the pane currently shows so an
+agent can act on the result. `target` is a @tmux/cli address down to the pane;
+pick the pane with @tmux/pane / @tmux/window first.
+
+Loop to automate: `run` a command, give it a moment, then `capture` and read the
+output. `send` interprets key names — to send characters that look like key
+names (or arbitrary untrusted text), use `literal`. Pass `keys` as one quoted
+string of space-separated tokens (`"Hello Enter"`, `C-c`); the recipe splits it
+into key arguments internally without letting shell metacharacters reach the host.
+
+```just
+# send key names to a pane — Enter, C-c, Tab, Up, etc. (default)
+send target keys:
+  #!/usr/bin/env sh
+  set -euf
+  t={{quote(target)}}; k={{quote(keys)}}
+  tmux send-keys -t "$t" $k
+
+# send literal text verbatim (-l), no key-name interpretation
+literal target text:
+  tmux send-keys -l -t {{quote(target)}} {{quote(text)}}
+
+# type a shell command into the pane and run it (text + Enter)
+run target cmd:
+  tmux send-keys -l -t {{quote(target)}} {{quote(cmd)}}
+  tmux send-keys -t {{quote(target)}} Enter
+
+# print the pane's visible contents (add lines>0 to include scrollback)
+capture target lines="0":
+  #!/usr/bin/env sh
+  set -eu
+  t={{quote(target)}}; n={{quote(lines)}}
+  if [ "$n" -gt 0 ]; then
+    tmux capture-pane -p -t "$t" -S -"$n"
+  else
+    tmux capture-pane -p -t "$t"
+  fi
+```

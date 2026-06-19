@@ -1,0 +1,70 @@
+---
+name: git_refs
+description: The ref and revision grammar — HEAD, branches, tags, ~/^ ancestry, .. and ... ranges, refspecs, and @{...} reflog syntax. The vocabulary every git tool takes as an argument.
+kind: knowledge
+tags: [git, refs, revisions, ranges, reference, vcs]
+use_when: [what does HEAD~3 mean, git revision syntax, commit range syntax, refspec, reflog ref syntax, tilde and caret in git, two dots vs three dots]
+---
+
+# Refs
+
+How git names a commit. Every commit-ish accepted by @git/branch, @git/rebase,
+@git/cherry, @git/bisect, and @git/history is built from this grammar.
+
+## Symbolic refs
+
+| Ref | Points at |
+|-----|-----------|
+| `HEAD` | the current checkout (tip of the current branch) |
+| `@` | shorthand for `HEAD` |
+| `<branch>` / `<tag>` | the commit a branch or tag names |
+| `origin/<branch>` | the remote-tracking copy of a branch |
+| `FETCH_HEAD` / `MERGE_HEAD` | last fetched / merging-in commit |
+| `ORIG_HEAD` | HEAD before the last big move (reset, rebase, merge) |
+
+## Ancestry — walk backward from a ref
+
+`~` follows first parents; `^` selects which parent at a merge.
+
+| Form | Means |
+|------|-------|
+| `HEAD~` / `HEAD~1` | first parent (one commit back) |
+| `HEAD~3` | three first-parent steps back |
+| `HEAD^` | first parent (same as `~1`) |
+| `HEAD^2` | the *second* parent of a merge commit |
+| `HEAD^@` | all parents of HEAD |
+
+## Ranges — for log and diff
+
+| Form | Selects |
+|------|---------|
+| `A..B` | commits reachable from `B` but not `A` (what `B` adds) |
+| `A...B` | commits on either side but not both (symmetric difference) |
+| `^A B` | reachable from `B`, excluding `A` (same as `A..B`) |
+| `B --not A` | the explicit form of exclusion |
+
+`main..HEAD` is "my unmerged work"; `main...HEAD` in a log shows both branches'
+divergence. Feed these straight to @git/history.
+
+## Reflog and date selectors — `@{...}`
+
+The per-ref history of where a ref pointed. Recovery leans on this (@git/recover).
+
+| Form | Means |
+|------|-------|
+| `HEAD@{2}` | where HEAD was two moves ago |
+| `<branch>@{1}` | the branch's previous position |
+| `HEAD@{yesterday}` | where HEAD pointed at that time |
+| `<branch>@{upstream}` (`@{u}`) | the branch's tracked remote ref |
+| `stash@{0}` | the newest @git/stash entry |
+
+## Refspecs — `src:dst`
+
+The `+src:dst` form used by fetch/push to map one ref onto another.
+
+| Refspec | Does |
+|---------|------|
+| `main:main` | push local `main` to remote `main` |
+| `HEAD:refs/heads/feature` | push current commit to a named remote branch |
+| `+refs/heads/*:refs/remotes/origin/*` | fetch all branches; `+` allows non-fast-forward |
+| `:topic` | empty source = delete remote `topic` |

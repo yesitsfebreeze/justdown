@@ -1,0 +1,56 @@
+---
+name: git_recover
+description: Undo and recovery — reflog, ORIG_HEAD, git restore, reset --hard/--soft, and getting back a dropped stash or a lost commit. Use when a change was lost or a command went wrong.
+kind: knowledge
+tags: [git, recover, undo, reflog, reset, vcs]
+use_when: [undo a git command, recover a lost commit, get back a dropped stash, undo a reset, undo a rebase, unstage changes, discard local changes, git reset explained]
+---
+
+# Recover
+
+Almost nothing in git is truly gone — commits linger in the object store until
+garbage collection, and the reflog remembers every move. The recovery loop:
+find the lost SHA in the reflog (@git/history `reflog`), then point a ref at it.
+
+## The anchors
+
+| Anchor | Holds |
+|--------|-------|
+| reflog | every position HEAD/a branch has had (see `@{n}` in @git/refs) |
+| `ORIG_HEAD` | HEAD just before the last reset/rebase/merge — one-step undo |
+
+`git reset --hard ORIG_HEAD` undoes a botched @git/rebase or merge in one move.
+For anything older, read the reflog and reset onto the SHA you want back.
+
+## reset — move HEAD, optionally the tree
+
+| Command | Moves HEAD | Index | Working tree |
+|---------|-----------|-------|--------------|
+| `git reset --soft <ref>` | yes | kept | kept (changes left staged) |
+| `git reset [--mixed] <ref>` | yes | reset | kept (changes left unstaged) |
+| `git reset --hard <ref>` | yes | reset | **overwritten** — destructive |
+
+`--soft HEAD~1` uncommits but keeps the work staged (redo a commit message via
+@tools/commit). `--hard` discards uncommitted work — recoverable only if it was
+committed or stashed first.
+
+## restore — touch files, not HEAD
+
+| Command | Does |
+|---------|------|
+| `git restore <file>` | discard unstaged changes to a file |
+| `git restore --staged <file>` | unstage but keep the change |
+| `git restore --source=<ref> <file>` | bring a file back from another commit |
+
+## Getting things back
+
+| Lost | Recover by |
+|------|-----------|
+| a commit you reset past | `git reflog`, then `git reset --hard <sha>` or branch it |
+| a deleted branch | reflog still has its tip SHA; `git branch <name> <sha>` (@git/branch) |
+| a dropped @git/stash | `git fsck --no-reflog \| grep commit` to find the dangling commit, then `git stash apply <sha>` |
+| a bad rebase/merge | `git reset --hard ORIG_HEAD` |
+| an accidental `--hard` | only if the work was once committed/stashed — find it via reflog or `git fsck` |
+
+When in doubt, branch the SHA (`git branch rescue <sha>`) before resetting — it
+makes the recovery itself undoable.

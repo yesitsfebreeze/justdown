@@ -1,0 +1,60 @@
+---
+name: tmux_cli
+description: tmux's server/client model, the `-t session:window.pane` target syntax, and the shape of a `tmux <command>` invocation. Read to address the right pane from the command line.
+kind: knowledge
+tags: [tmux, cli, target, server, client]
+use_when: [tmux target syntax, address a tmux pane, tmux server client model, tmux command line flags, what does -t mean in tmux]
+requires: [tmux]
+---
+
+# tmux from the command line
+
+One **server** holds every session; each `tmux` invocation is a **client** that
+talks to it over a socket. The first `tmux` command starts the server lazily; it
+lives until the last session is killed. Every command has the shape:
+
+```
+tmux [-L socket] [-f conf] <command> [flags] [-t target]
+```
+
+Commands have short aliases (`new-session`→`new`, `list-windows`→`lsw`,
+`send-keys`→`send`). The driving tools are @tmux/session, @tmux/window,
+@tmux/pane, and @tmux/send; in-app bindings are @tmux/keys; config is
+@tmux/config.
+
+## The target: `-t session:window.pane`
+
+`-t` is the universal addressing flag. The three parts narrow from coarse to
+fine, and any trailing part may be omitted (it defaults to the current/active
+one).
+
+| Target | Means |
+|--------|-------|
+| `work` | session `work`, its active window+pane |
+| `work:1` | window index 1 in session `work` |
+| `work:editor` | the window named `editor` |
+| `work:1.2` | pane 2 of window 1 (pane index after the `.`) |
+| `:.2` | pane 2 of the current window |
+| `.2` / `%7` | pane by index / by unique pane id |
+| `work:{end}` | the last window (also `{start}`, `+`, `-`) |
+| `{left}`,`{right}`,`{up}`,`{down}` | pane in a direction (for `select-pane`) |
+
+Unique ids are the robust choice for scripts: `%N` for panes, `@N` for windows,
+`$N` for sessions — they never shift when others are added or removed. Get them
+with `display-message -p '#{pane_id}'` or `list-panes -F '#{pane_id}'`.
+
+## Useful global flags
+
+| Flag | Does |
+|------|------|
+| `-L name` | use a named socket (isolate servers; pairs with config) |
+| `-f file` | start with an alternate config file |
+| `-2` | force 256-colour |
+| `-C` / `-CC` | control mode (machine-readable protocol stream) |
+| `-V` | print the tmux version |
+
+## Reading state
+
+`display-message -p '<format>'` prints any `#{...}` format string — the fastest
+way to learn the current target (`#{session_name}:#{window_index}.#{pane_index}`).
+`list-sessions`, `list-windows`, `list-panes` enumerate with `-F` formats.

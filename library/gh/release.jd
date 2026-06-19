@@ -1,0 +1,57 @@
+---
+name: gh_release
+description: Manage GitHub Releases — create, list, view, upload assets, download assets. Use to publish a release for a tag, attach or fetch build artifacts, or inspect releases.
+kind: tool
+tags: [gh, github, release, assets, publish]
+use_when: [publish a github release, create a release, list releases, view a release, upload a release asset, download a release artifact]
+danger: low
+side_effects: [network]
+requires: [gh]
+run: create
+provides: [create, list, view, upload, download]
+---
+
+# GitHub Releases
+
+Releases on GitHub for a git tag — distinct from @tools/release, which bumps and
+publishes a package version. Use this to attach binaries to a tag and ship release
+notes. `create` is the default; the rest are callable by name. Repo targeting and
+JSON output come from @gh/cli.
+
+`create` publishes a release and `upload` attaches assets — both touch the remote
+(`side_effects: network`). `create --draft` keeps it unpublished until ready.
+
+| Recipe | Maps to | Notes |
+|--------|---------|-------|
+| `create` | `gh release create` | tag + title/notes; trailing assets attach |
+| `list` | `gh release list` | recent releases |
+| `view` | `gh release view` | notes + assets for a tag |
+| `upload` | `gh release upload` | attach assets to an existing release |
+| `download` | `gh release download` | fetch a release's assets locally |
+
+```just
+# publish a release for a tag, with notes and optional asset files
+create tag title notes="" *assets:
+  #!/usr/bin/env sh
+  set -eu
+  t={{quote(tag)}}; ti={{quote(title)}}; n={{quote(notes)}}
+  set -- "$t" --title "$ti"
+  if [ -n "$n" ]; then set -- "$@" --notes "$n"; else set -- "$@" --generate-notes; fi
+  gh release create "$@" {{assets}}
+
+# list recent releases
+list limit="20":
+  gh release list --limit {{quote(limit)}}
+
+# view a release by tag
+view tag:
+  gh release view {{quote(tag)}}
+
+# attach asset files to an existing release
+upload tag +assets:
+  gh release upload {{quote(tag)}} {{assets}}
+
+# download a release's assets into the cwd (blank tag = latest)
+download tag="":
+  gh release download {{quote(tag)}}
+```

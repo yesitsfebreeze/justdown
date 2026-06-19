@@ -1,0 +1,63 @@
+---
+name: search_jqlang
+description: The jq filter language — identity, field access, iteration, pipes, select/map, to_entries, length, string interpolation, and the -r/-c/--arg flags. The grammar reference behind the jq tool.
+kind: knowledge
+tags: [search, jq, json, language, filter, syntax]
+use_when: [jq filter syntax, jq language, how to write a jq filter, jq select, jq map, jq to_entries, jq string interpolation, jq flags]
+---
+
+# jq filter language
+
+A jq program is a pipeline of filters that each take one JSON value and emit
+zero or more. The default filter is the identity `.`. This is the grammar the
+@search/jq tool runs; it is its own language, not shell.
+
+## Accessing values
+
+| Filter | Yields |
+|--------|--------|
+| `.` | the input unchanged |
+| `.foo` / `.foo.bar` | a field, then a nested field |
+| `.["foo"]` | a field whose name needs quoting |
+| `.foo?` | the field, or nothing if not an object |
+| `.[0]` / `.[-1]` | array element by index (negative from end) |
+| `.[]` | every value of an array or object, streamed |
+| `.[2:5]` | array slice |
+
+## Combining and transforming
+
+| Filter | Does |
+|--------|------|
+| `a | b` | pipe a's output into b |
+| `a, b` | emit a then b (two outputs) |
+| `select(cond)` | keep the input only when cond is true |
+| `map(f)` | apply f to each element of an array |
+| `to_entries` | object → array of `{key, value}` (inverse `from_entries`) |
+| `length` | string/array length, object size, abs of a number |
+| `keys` / `values` | sorted keys / the values |
+| `has("k")` / `contains(x)` | membership tests |
+| `add` / `unique` / `sort` / `sort_by(f)` | aggregate / dedupe / order |
+
+`select` pairs with iteration: `.[] | select(.age > 30)` filters a stream.
+Comparison and boolean operators (`==`, `!=`, `<`, `and`, `or`, `not`) build
+the condition.
+
+## String interpolation
+
+`"\(expr)"` splices a value into a string: `.[] | "\(.name): \(.age)"`. Combined
+with `-r` this prints clean lines instead of quoted JSON strings.
+
+## Flags
+
+| Flag | Effect |
+|------|--------|
+| `-r` | raw output — strings without surrounding quotes |
+| `-c` | compact — one JSON value per line, no indentation |
+| `-n` | start from `null` input (build from nothing) |
+| `-s` | slurp — read the whole input stream into one array |
+| `--arg name val` | bind a shell string as `$name` inside the filter |
+| `--argjson name val` | same, but the value is parsed as JSON |
+
+`--arg` is how a query value reaches the filter safely:
+`jq --arg q "$term" '.[] | select(.name == $q)'`. `-c` makes output greppable by
+@search/rg; `-r` feeds plain text to other tools.

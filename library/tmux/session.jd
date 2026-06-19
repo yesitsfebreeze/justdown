@@ -1,0 +1,41 @@
+---
+name: tmux_session
+description: Manage tmux sessions — create, attach, list, rename, kill. Use to start or tear down a named workspace the server keeps alive in the background.
+kind: tool
+tags: [tmux, session, workspace, server]
+use_when: [start a tmux session, create a detached session, attach to tmux, list tmux sessions, kill a tmux session]
+danger: low
+side_effects: [process]
+requires: [tmux]
+run: new
+provides: [new, attach, list, rename, kill]
+---
+
+# Sessions
+
+A session is a named workspace the server keeps running whether or not a client
+is attached. `new` is the default; the rest are callable by name. `new` creates
+it detached (`-d`) so a script can keep going, then drive it with @tmux/send or
+attach later. Targets follow @tmux/cli; windows inside live in @tmux/window.
+
+```just
+# create a new detached session (default); name it for stable targeting
+new name="main":
+  tmux new-session -d -s {{quote(name)}}
+
+# attach the current terminal to an existing session
+attach name="main":
+  tmux attach-session -t {{quote(name)}}
+
+# list every session the server holds
+list:
+  tmux list-sessions
+
+# rename a session
+rename name newname:
+  tmux rename-session -t {{quote(name)}} {{quote(newname)}}
+
+# kill a session and everything in it
+kill name:
+  tmux kill-session -t {{quote(name)}}
+```

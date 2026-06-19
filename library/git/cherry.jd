@@ -1,0 +1,46 @@
+---
+name: git_cherry
+description: Apply or undo individual commits — cherry-pick a commit onto HEAD, or revert one with an inverse commit. Use to port a fix between branches or back out a change.
+kind: tool
+tags: [git, cherry-pick, revert, vcs]
+use_when: [cherry-pick a commit, port a fix to another branch, revert a commit, undo a commit safely, apply a single commit]
+danger: medium
+side_effects: [git-write]
+requires: [git]
+run: pick
+provides: [pick, revert, continue, abort]
+---
+
+# Cherry
+
+Move single commits, not whole branches. `pick` replays a commit (any
+commit-ish, @git/refs) onto the current branch as a new commit — the way to port
+a fix without a @git/rebase. `revert` records the inverse of a commit as a new
+commit, so it undoes a change without rewriting history (safe on shared
+branches, unlike reset — see @git/recover). Either can conflict: resolve, then
+`continue`; `abort` unwinds. Find the target SHA with @git/history.
+
+| Recipe | Does |
+|--------|------|
+| `pick rev` | replay `rev` onto HEAD as a new commit (default) |
+| `revert rev` | commit the inverse of `rev` |
+| `continue` | resume after resolving a conflict |
+| `abort` | unwind the in-progress pick/revert |
+
+```just
+# replay a commit onto HEAD as a new commit (default)
+pick rev:
+  git cherry-pick {{quote(rev)}}
+
+# record the inverse of a commit as a new commit
+revert rev:
+  git revert --no-edit {{quote(rev)}}
+
+# resume after resolving a conflict
+continue:
+  git cherry-pick --continue
+
+# unwind the in-progress pick or revert
+abort:
+  git cherry-pick --abort
+```

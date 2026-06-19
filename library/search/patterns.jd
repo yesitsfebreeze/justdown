@@ -1,0 +1,65 @@
+---
+name: search_patterns
+description: How matching works across rg and fd — Rust-regex syntax, where it differs from vim regex, fd smart-case and glob mode, and the walk flags (--hidden, --no-ignore, -g) shared by both. The matching companion to the search tools.
+kind: knowledge
+tags: [search, patterns, regex, glob, rg, fd]
+use_when: [rg regex syntax, fd regex, glob vs regex, smart case, search hidden files, ignore gitignore, how matching works in rg and fd]
+---
+
+# Matching in rg & fd
+
+Both @search/rg and @search/fd match with the same Rust regex engine and walk
+the tree the same way. This is the shared "how matching works" layer under both.
+
+## Rust regex (rg and fd's default)
+
+| Atom | Matches |
+|------|---------|
+| `.` `*` `+` `?` | any char · 0+ · 1+ · 0-or-1 |
+| `{n,m}` | n to m repeats |
+| `^` `$` | start / end (of line in rg, of filename in fd) |
+| `\b` | word boundary |
+| `\d \w \s` | digit / word / whitespace (`\D \W \S` negate) |
+| `(…)` | capture group · `(?:…)` non-capturing |
+| `a|b` | alternation |
+| `[abc]` `[^abc]` | class / negated class |
+
+### Differences from vim regex (@vim/search)
+
+| Concept | Rust (rg/fd) | Vim |
+|---------|--------------|-----|
+| metachars `+ ? ( ) { } |` | bare, always active | need `\` unless `\v` |
+| word boundary | `\b` | `\<` `\>` |
+| non-capturing group | `(?:…)` | `%(…)` |
+| case control | flags / smart-case | `\c` `\C` in-pattern |
+
+Rust regex has no backreferences and no look-around; vim has both. So a vim
+pattern often must be rewritten, not pasted, when moving to rg.
+
+## Case
+
+- rg: case-sensitive by default. `-i` ignore, `-S` smart-case (lowercase →
+  insensitive, any uppercase → sensitive).
+- fd: smart-case by default; `-s` forces sensitive, `-i` forces insensitive.
+
+## Glob vs regex
+
+rg and fd take **regex** for the main pattern. To match by shell glob instead:
+
+- rg: `-g '<glob>'` filters which paths are searched (`-g '!<glob>'` excludes).
+- fd: `-g '<glob>'` switches the pattern itself to glob mode (`*.rs`, `**/test/*`).
+
+A glob `*` spans any name segment; a regex `.*` does the same within the regex
+engine — don't mix the two syntaxes in one argument.
+
+## Walk flags (shared)
+
+| Flag | Effect |
+|------|--------|
+| `--hidden` (rg) / `-H` (fd) | include dotfiles and dot-dirs |
+| `--no-ignore` (rg) / `-I` (fd) | ignore `.gitignore`/`.ignore` rules |
+| `-g <glob>` | glob filter (rg) / glob mode (fd) |
+
+Both honor `.gitignore` and skip hidden paths by default — add the flags above to
+reach into ignored or hidden territory. rg matches feed @vim/quickfix for
+jump-to-result navigation.

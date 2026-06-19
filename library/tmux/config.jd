@@ -1,0 +1,55 @@
+---
+name: tmux_config
+description: Configuring tmux — `set-option`/`setw`, `bind-key`/`unbind`, the `.tmux.conf` file, and reloading it live. Read to change tmux behaviour or rebind keys.
+kind: knowledge
+tags: [tmux, config, options, bindings, tmux.conf]
+use_when: [configure tmux, edit tmux.conf, rebind tmux prefix, set tmux option, reload tmux config]
+requires: [tmux]
+---
+
+# Config
+
+Options and bindings are ordinary tmux commands. Put them in `~/.tmux.conf` (read
+once at server start) or type them at the `C-b :` prompt for a live change. The
+default bindings you are overriding are in @tmux/keys; address panes by
+@tmux/cli target syntax.
+
+## Options
+
+| Command | Scope |
+|---------|-------|
+| `set-option -g name value` (`set`) | server/session global |
+| `set-window-option -g name value` (`setw`) | window |
+| `set -ga name value` | append to a list option |
+| `show-options -g` | dump current values |
+
+Common ones:
+
+| Option | Effect |
+|--------|--------|
+| `set -g prefix C-a` + `unbind C-b` + `bind C-a send-prefix` | move the prefix to `C-a` |
+| `set -g mouse on` | mouse select/resize/scroll |
+| `set -g base-index 1` / `setw -g pane-base-index 1` | number windows/panes from 1 |
+| `set -g history-limit 50000` | scrollback depth |
+| `setw -g mode-keys vi` | vi keys in copy mode |
+| `set -g default-terminal "tmux-256color"` | colour support |
+
+## Bindings
+
+| Command | Does |
+|---------|------|
+| `bind-key key command` (`bind`) | bind `key` after the prefix |
+| `bind -n key command` | bind without the prefix (`-n` = no-prefix) |
+| `bind -r key command` | repeatable (hold-friendly, e.g. resize) |
+| `unbind key` | drop a binding |
+| `bind r source-file ~/.tmux.conf` | a "reload config" key |
+
+## Reload
+
+Config is not re-read automatically. After editing, reload the running server:
+
+```
+tmux source-file ~/.tmux.conf
+```
+
+or use a self-defined `bind r` from the table above.

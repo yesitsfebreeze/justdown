@@ -1,0 +1,54 @@
+---
+name: git_stash
+description: Shelve and restore uncommitted changes — push, pop, list, show, drop, apply a stash. Use to park work-in-progress before switching branches or pulling.
+kind: tool
+tags: [git, stash, wip, vcs]
+use_when: [stash changes, shelve work in progress, pop a stash, list stashes, restore stashed changes]
+danger: low
+side_effects: [git-write]
+requires: [git]
+run: push
+---
+
+# Stash
+
+Parks a dirty tree onto a LIFO stack so @git/branch switch or a pull runs
+clean. Entries are addressed as `stash@{n}` (see the `@{...}` syntax in
+@git/refs). `pop` applies the top entry and removes it; `apply` keeps it.
+`drop` discards one — a dropped stash is still recoverable for a while
+(@git/recover).
+
+| Recipe | Does |
+|--------|------|
+| `push msg` | shelve tracked changes with a label (default) |
+| `pop ref` | apply newest (or `ref`) and remove it |
+| `apply ref` | apply but keep the entry |
+| `list` | the stash stack |
+| `show ref` | diffstat of an entry |
+| `drop ref` | discard one entry |
+
+```just
+# shelve current changes with a label (default)
+push msg="wip":
+  git stash push --message {{quote(msg)}}
+
+# apply the top entry (or a given ref) and remove it
+pop ref="stash@{0}":
+  git stash pop {{quote(ref)}}
+
+# apply an entry but keep it on the stack
+apply ref="stash@{0}":
+  git stash apply {{quote(ref)}}
+
+# the stash stack
+list:
+  git stash list
+
+# diffstat of one entry
+show ref="stash@{0}":
+  git stash show --stat {{quote(ref)}}
+
+# discard one entry
+drop ref="stash@{0}":
+  git stash drop {{quote(ref)}}
+```

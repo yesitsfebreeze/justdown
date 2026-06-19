@@ -1,0 +1,53 @@
+---
+name: search_rg
+description: Search file contents with ripgrep — find matches, list matching files, count, preview a replacement, filter by type or glob. Use to grep a repo fast, respecting .gitignore.
+kind: tool
+tags: [search, rg, ripgrep, grep, content]
+use_when: [search file contents, grep the repo, find a string in code, list files containing a pattern, count matches, preview a regex replacement]
+danger: none
+requires: [ripgrep]
+run: find
+provides: [find, files, count, replace, type]
+---
+
+# ripgrep
+
+Content search that walks the tree, skips `.gitignore`/hidden by default, and
+prints matches with line numbers. `find` is the default; the rest narrow the
+output shape. Patterns are Rust-regex, not vim regex — see @search/patterns for
+the dialect gap against @vim/search, and @vim/quickfix to load results into a
+fixlist. Shared walk flags (`--hidden`, `--no-ignore`, `-g`) live in
+@search/patterns.
+
+| Recipe | Flag | Output |
+|--------|------|--------|
+| `find` | — | every match, `file:line:text` |
+| `files` | `-l` | just the filenames that match |
+| `count` | `-c` | per-file match counts |
+| `replace` | `--replace` | preview substituted lines to stdout (no write) |
+| `type` | `-t lang` | search only one language's files |
+
+`replace` is preview-only — ripgrep never edits in place. Use `$1`/`$2` in the
+replacement to reference capture groups from the pattern.
+
+```just
+# search every match under a path (default)
+find pattern path=".":
+  rg --line-number {{quote(pattern)}} {{quote(path)}}
+
+# list only files that contain a match
+files pattern path=".":
+  rg --line-number -l {{quote(pattern)}} {{quote(path)}}
+
+# per-file count of matches
+count pattern path=".":
+  rg -c {{quote(pattern)}} {{quote(path)}}
+
+# preview a replacement to stdout — does not modify files
+replace pattern replacement path=".":
+  rg --line-number {{quote(pattern)}} --replace {{quote(replacement)}} {{quote(path)}}
+
+# restrict to one language by type name (e.g. rust, py, md)
+type pattern lang path=".":
+  rg --line-number -t {{quote(lang)}} {{quote(pattern)}} {{quote(path)}}
+```

@@ -1,0 +1,56 @@
+---
+name: git_bisect
+description: Binary-search the history to find the commit that introduced a regression. Use to locate exactly when a bug or behavior change first appeared.
+kind: tool
+tags: [git, bisect, debug, regression, vcs]
+use_when: [find the commit that broke it, bisect a regression, when did this break, binary search history, locate a bad commit]
+danger: low
+side_effects: [git-write]
+requires: [git]
+run: start
+provides: [start, good, bad, run, skip, reset]
+---
+
+# Bisect
+
+Binary search over a commit range to pin the first bad commit. Mark a known-bad
+and known-good endpoint (any commit-ish, see @git/refs); git checks out the
+midpoint, you mark it `good`/`bad`, and it halves the range until one commit
+remains. `run` automates this with a test script that exits 0 for good, non-zero
+for bad. `skip` sidesteps an untestable commit; `reset` ends the session and
+returns to the original HEAD. Inspect candidates with @git/history.
+
+| Recipe | Does |
+|--------|------|
+| `start bad good` | begin a bisect between two endpoints (default) |
+| `good` | mark the current checkout as good |
+| `bad` | mark the current checkout as bad |
+| `skip` | skip an untestable commit |
+| `run cmd` | auto-bisect: run `cmd` at each step (0=good) |
+| `reset` | end the session, return to original HEAD |
+
+```just
+# begin a bisect: bad endpoint then good endpoint (default)
+start bad good:
+  git bisect start {{quote(bad)}} {{quote(good)}}
+
+# mark the current checkout good
+good:
+  git bisect good
+
+# mark the current checkout bad
+bad:
+  git bisect bad
+
+# skip an untestable commit
+skip:
+  git bisect skip
+
+# auto-bisect by running a test command at each step (exit 0 = good)
+run +cmd:
+  git bisect run {{cmd}}
+
+# end the session and return to the original HEAD
+reset:
+  git bisect reset
+```

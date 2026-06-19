@@ -1,0 +1,76 @@
+---
+name: gh_pr
+description: Manage GitHub pull requests end to end — create, list, view, checkout, merge, review, comment. Use to open a PR, inspect or check out one, leave a review or comment, or merge.
+kind: tool
+tags: [gh, github, pr, pull-request, review]
+use_when: [open a pull request, create a pr, list prs, check out a pr, merge a pr, review a pr, comment on a pr, view pr]
+danger: low
+side_effects: [network]
+requires: [gh]
+run: list
+provides: [create, list, view, checkout, merge, review, comment]
+---
+
+# Pull requests
+
+The agent's PR control surface. `list` is the default; the rest are callable by
+name. All run against the cwd's repo unless retargeted — see `-R` and JSON output
+in @gh/cli. Build the PR body from a clean history (@tools/commit).
+
+`create`, `merge`, and `review` touch the remote (`side_effects: network`).
+`merge` is the consequential one: it lands code and (with `--delete-branch`) drops
+the branch — pass an explicit method and confirm the target before calling.
+
+| Recipe | Maps to | Notes |
+|--------|---------|-------|
+| `create` | `gh pr create` | title + body required; `head`/`base` optional |
+| `list` | `gh pr list` | filter by `state` (open/closed/merged/all) |
+| `view` | `gh pr view` | `target` = number/URL/branch; blank = current branch |
+| `checkout` | `gh pr checkout` | fetch a PR branch locally by number |
+| `merge` | `gh pr merge` | `method` = merge/squash/rebase |
+| `review` | `gh pr review` | `action` = approve/request-changes/comment |
+| `comment` | `gh pr comment` | drop a single comment |
+
+```just
+# open a PR; head/base default to the current branch and the repo default
+create title body head="" base="":
+  #!/usr/bin/env sh
+  set -eu
+  t={{quote(title)}}; b={{quote(body)}}; h={{quote(head)}}; base={{quote(base)}}
+  set -- --title "$t" --body "$b"
+  [ -n "$h" ] && set -- "$@" --head "$h"
+  [ -n "$base" ] && set -- "$@" --base "$base"
+  gh pr create "$@"
+
+# list PRs by state (default open)
+list state="open":
+  gh pr list --state {{quote(state)}}
+
+# view a PR (number/URL/branch; blank = current branch)
+view target="":
+  gh pr view {{quote(target)}}
+
+# fetch a PR branch into the local clone
+checkout number:
+  gh pr checkout {{quote(number)}}
+
+# merge a PR and delete its branch; method = merge|squash|rebase
+merge target method="squash":
+  #!/usr/bin/env sh
+  set -eu
+  tgt={{quote(target)}}; m={{quote(method)}}
+  gh pr merge "$tgt" "--$m" --delete-branch
+
+# review a PR; action = approve|request-changes|comment
+review target action="approve" body="":
+  #!/usr/bin/env sh
+  set -eu
+  tgt={{quote(target)}}; a={{quote(action)}}; b={{quote(body)}}
+  set -- "$tgt" "--$a"
+  [ -n "$b" ] && set -- "$@" --body "$b"
+  gh pr review "$@"
+
+# leave one comment on a PR
+comment target body:
+  gh pr comment {{quote(target)}} --body {{quote(body)}}
+```

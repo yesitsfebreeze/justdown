@@ -1,0 +1,56 @@
+---
+name: gh_cli
+description: How the gh CLI is driven — auth, repo targeting, and scriptable JSON output. The shared surface the gh tools build on; pull when wiring any gh command or parsing its output.
+kind: knowledge
+tags: [gh, github, cli, auth, json]
+use_when: [gh auth, gh json output, gh jq, gh api, target a repo with gh, scriptable github]
+requires: [gh]
+---
+
+# gh CLI
+
+`gh` talks to GitHub over its REST/GraphQL API with the host's stored token. The
+`@gh/pr`, `@gh/issue`, `@gh/run`, and `@gh/release` tools are thin wrappers over
+the verbs below; this file is the surface they share.
+
+## Auth
+
+| Command | Does |
+|---------|------|
+| `gh auth login` | interactive browser/token login (writes a host token) |
+| `gh auth status` | who am I, which host, token scopes — run first when a call 401s |
+| `gh auth token` | print the active token (for piping into other tools) |
+| `gh auth refresh -s <scope>` | add a missing OAuth scope |
+
+A bare `gh` call infers the repo from the cwd's `origin` remote.
+
+## Targeting a repo
+
+`-R owner/repo` (or `--repo`) overrides inference — required when running outside
+a clone or against a different repo. Every verb accepts it.
+
+## Scriptable output
+
+Human output is for terminals; for parsing, force JSON. Never scrape the table.
+
+| Flag | Does |
+|------|------|
+| `--json f1,f2` | emit only those fields as JSON (run with no value to list fields) |
+| `--jq '<expr>'` (`-q`) | filter the JSON through gh's built-in jq |
+| `-t '<tmpl>'` | Go-template the JSON instead |
+
+`gh pr list --json number,title,state --jq '.[].number'` → bare numbers, one per
+line. The field set is per-command; `--json` with an empty/invalid field prints
+the valid names.
+
+## The api escape hatch
+
+`gh api <endpoint>` hits any REST endpoint the wrappers don't cover, with auth
+and pagination handled.
+
+| Form | Does |
+|------|------|
+| `gh api repos/{owner}/{repo}/pulls` | raw REST call (`{owner}`/`{repo}` auto-fill) |
+| `gh api -X PATCH … -f key=val` | write with a field |
+| `gh api graphql -f query='…'` | GraphQL query |
+| `gh api --paginate <ep>` | follow every page |

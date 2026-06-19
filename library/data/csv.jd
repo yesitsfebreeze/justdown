@@ -1,0 +1,51 @@
+---
+name: data_csv
+description: Process CSV and TSV by field name with Miller (mlr) — select columns, filter rows, sort, and convert to JSON, correctly handling quoted fields and embedded commas that break cut and awk. Use to extract a CSV column by header, filter records, or turn a CSV into JSON.
+kind: tool
+tags: [data, csv, miller, mlr, tsv, records]
+use_when: [cut a column from a csv by name, filter csv rows, convert csv to json, handle quoted csv fields, sort a csv, process tsv, csv without breaking on commas]
+danger: none
+requires: [miller]
+run: columns
+provides: [columns, filter, tojson, sort]
+---
+
+# csv
+
+CSV done right. @text/cut and @text/awk split on a literal delimiter, so they
+mangle a quoted field that *contains* a comma — Miller (`mlr`) parses real CSV by
+header name instead. `columns` projects fields by name; `filter` keeps matching
+rows; `tojson` converts; `sort` orders by a column. Every recipe assumes a header
+row (`--csv` = named fields).
+
+| Recipe | Verb | Does |
+|--------|------|------|
+| `columns` | `cut -f` | keep only the named columns |
+| `filter` | `filter` | keep rows where an expression is true |
+| `tojson` | `--ojson cat` | convert CSV to JSON records |
+| `sort` | `sort -f/-nf` | order rows by a column (lexical or numeric) |
+
+Fields are referenced by `$name` in expressions: `filter '$age > 30'`,
+`put '$full = $first . " " . $last'`. Miller chains verbs with `then`
+(`mlr --csv cut -f a,b then sort -nr a file`), the structured-data analogue of a
+shell pipe. `--c2j` is shorthand for CSV-in/JSON-out; `--c2p` gives pretty
+aligned output (like @text/format). For YAML/JSON config files instead of
+tabular data, see @search/yq and @search/jq.
+
+```just
+# keep only the named columns (comma-separated), header-aware (default)
+columns fields file:
+  mlr --csv cut -f {{quote(fields)}} {{quote(file)}}
+
+# keep rows where an expression is true (e.g. '$age > 30')
+filter expr file:
+  mlr --csv filter {{quote(expr)}} {{quote(file)}}
+
+# convert CSV to JSON records
+tojson file:
+  mlr --c2j cat {{quote(file)}}
+
+# sort by a column; numeric="-nf" for numeric, default lexical "-f"
+sort field flag="-f" file:
+  mlr --csv sort {{flag}} {{quote(field)}} {{quote(file)}}
+```

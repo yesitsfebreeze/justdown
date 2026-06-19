@@ -98,3 +98,4 @@ bring up a multi-container stack	docker_compose
 read the logs of a kubernetes pod	kube_kubectl
 count how many lines are in a file	text_wc
 stop a background job from hogging the cpu	proc_nice
+stop being asked for my ssh key passphrase every time	ssh_agent

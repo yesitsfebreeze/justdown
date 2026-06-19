@@ -3,7 +3,7 @@ name: shell_history
 description: Command history recall and expansion — incremental reverse search, history expansion (!!, !$, !*, ^old^new), and per-shell recall. The fastest way to reuse a command without retyping. Use to re-run, edit, or pluck arguments from past commands.
 kind: knowledge
 tags: [shell, history, reverse-search, bang, expansion, recall]
-use_when: [search command history, ctrl-r reverse search, repeat last command, reuse last argument, bang bang, history expansion, fix and rerun previous command]
+use_when: [search command history, ctrl-r reverse search, repeat last command, reuse last argument, insert the last argument of the previous command, alt dot last arg, bang bang, history expansion, fix and rerun previous command]
 ---
 
 # History

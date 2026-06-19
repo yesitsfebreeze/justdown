@@ -1,0 +1,76 @@
+# justdown retrieval eval set — query<TAB>expected-tool-name (the `name` field).
+# Queries are deliberately paraphrased (synonyms, intent, not the description
+# verbatim) so this measures real ranking quality, not echo overlap.
+# Run with `just eval`. Lines starting with # are ignored.
+#
+# query	expected
+publish a new version to npm	tools_release
+cut a patch release	tools_release
+run the tests and type checks	tools_gate
+check the tree is green before merging	tools_gate
+start the local development server	tools_serve
+launch the app on my machine	tools_serve
+containerize the project	tools_docker
+build and run inside docker	tools_docker
+apply database migrations	tools_db
+roll back the schema and reseed	tools_db
+reformat my source files	tools_fmt
+check formatting without writing	tools_fmt
+write a conventional commit	tools_commit
+stage changes and commit them	tools_commit
+take a screenshot of a web page	tools_screenshot
+capture a url as a pdf	tools_screenshot
+generate a changelog report	tools_report
+audit my dependencies	tools_report
+scaffold a new jd tool file	tools_new-tool
+create a new tool from a template	tools_new-tool
+set up a fresh clone for development	workflows_onboard
+onboard onto the project end to end	workflows_onboard
+ship it all the way out	workflows_ship
+gate release and announce	workflows_ship
+open a review of the current pr	agents_review
+summarize this diff for me	agents_summarize
+tighten a jd file to a brief	agents_distill
+implement pagination over a list	scaffolds_pagination
+add a read-through cache with ttl	scaffolds_cache
+login and session handling sketch	scaffolds_auth
+a success-or-error result type	scaffolds_result
+how is an order total computed	knowledge_orders
+the canonical product shape	knowledge_product
+#
+# --- cross-shell / CLI-wizard library (shell, search, proc, net, disk, ...) ---
+filter shell output by column instead of grepping text	shell_nu
+strip a file extension using variable expansion	shell_bash
+select files by attribute with a zsh glob qualifier	shell_zsh
+set a variable that persists across sessions	shell_fish
+translate a bash idiom into another shell	shell_rosetta
+filter pipeline objects by a property in powershell	shell_pwsh
+keep a long command alive after the terminal closes	shell_jobs
+pull the last argument from the previous command	shell_history
+fuzzy-pick a file interactively from the terminal	shell_fzf
+prepend to PATH without creating duplicates	shell_env
+enable tab completion for a command's flags	shell_completion
+locate files when fd is not installed	search_find
+run an action for every matching path safely	search_xargs
+list the biggest memory hogs right now	proc_ps
+which process is bound to a port	proc_lsof
+monitor cpu load in real time	proc_top
+terminate a process by name	proc_kill
+see which sockets are listening	net_ss
+resolve a hostname and check its records	net_dig
+find the default gateway and routes	net_ip
+diagnose where on the route packets are lost	net_ping
+find which filesystem is out of space	disk_df
+track down what is filling the disk	disk_du
+enable a daemon to start at boot	systemd_systemctl
+follow a service's logs as they happen	systemd_journalctl
+install software on an unfamiliar linux distro	pkg_rosetta
+schedule a recurring job with cron	cron_crontab
+search the library for an existing tool	jd_cli
+understand the scaffold dialect syntax	jd_psaido
+what fields does a jd file's frontmatter need	jd_authoring
+order numbers in a column correctly	text_sort
+count how often each line appears	text_uniq
+copy terminal output to the system clipboard	clip_clipboard
+repeat a command on a timer and watch it change	watch_watch
+auto-run tests when a file is saved	watch_entr

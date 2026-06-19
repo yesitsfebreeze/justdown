@@ -1,0 +1,52 @@
+---
+name: file_perms
+description: Change file permissions and ownership — set the mode with octal or symbolic chmod, change owner and group with chown, and read the current permissions. Use to make a file executable, fix a permission-denied, restrict a key file, or change who owns a path.
+kind: tool
+tags: [file, chmod, chown, permissions, mode, ownership]
+use_when: [make a file executable, change file permissions, fix permission denied, chmod, chown, restrict a private key file, change owner of a file, recursive permissions]
+danger: high
+side_effects: [file-write]
+requires: [coreutils]
+run: show
+provides: [show, mode, exec, own]
+---
+
+# perms
+
+Set who can read, write, and execute a file. `show` reads the current mode and
+owner; `mode` sets permissions (octal or symbolic); `exec` is the common "make
+it runnable"; `own` changes owner/group. The octal digits are user/group/other,
+each summing read 4 + write 2 + execute 1 — so `755` is `rwxr-xr-x`, `600` is
+owner-only `rw`.
+
+| Recipe | Tool | Does |
+|--------|------|------|
+| `show` | `ls -l` | current mode, owner, and group of a path |
+| `mode` | `chmod` | set permissions (octal `755` or symbolic `u+x`) |
+| `exec` | `chmod +x` | make a file executable |
+| `own` | `chown` | change owner (and group with `user:group`) |
+
+Symbolic mode is often clearer than octal: `chmod u+x` adds execute for the
+owner without disturbing the rest; `go-w` removes write for group/other;
+`a=r` sets read-only for everyone. `600` on a private key is what SSH demands
+(@ssh/key). Add `-R` to recurse a directory — but `chmod -R 755` on a tree also
+makes *files* executable; use `find … -type f -exec chmod 644` to set files and
+dirs differently. `chown` usually needs root.
+
+```just
+# current mode, owner, and group of a path (default)
+show path:
+  ls -l -d -- {{quote(path)}}
+
+# set permissions: octal (e.g. "755", "600") or symbolic (e.g. "u+x", "go-w")
+mode spec path:
+  chmod {{quote(spec)}} -- {{quote(path)}}
+
+# make a file executable
+exec path:
+  chmod +x -- {{quote(path)}}
+
+# change owner (and group with "user:group")
+own owner path:
+  sudo chown {{quote(owner)}} -- {{quote(path)}}
+```

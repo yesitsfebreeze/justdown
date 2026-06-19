@@ -90,3 +90,4 @@ load environment variables automatically per project	env_direnv
 push my branch to origin and set upstream	git_remote
 show the git branch in my shell prompt	shell_prompt
 which linux distro and version am I on	sys_info
+merge another branch into the current one	git_merge

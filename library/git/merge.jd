@@ -1,0 +1,53 @@
+---
+name: git_merge
+description: Combine branches with git merge — join another branch into the current one, abort a conflicted merge, mark conflicts resolved, and choose fast-forward vs a merge commit. Use to integrate a branch, recover from a bad merge, or finish resolving conflicts.
+kind: tool
+tags: [git, merge, conflict, integrate, branch, vcs]
+use_when: [merge a branch, integrate changes, abort a merge, resolve merge conflicts, fast forward merge, finish a conflicted merge, combine two branches]
+danger: medium
+side_effects: [git-write]
+requires: [git]
+run: into
+provides: [into, abort, resolve, noff]
+---
+
+# merge
+
+Join another branch into the current one. `into` merges and, if the histories
+diverged, makes a merge commit; `abort` backs all the way out of a conflicted
+merge; `resolve` continues after you edit the conflicted files; `noff` forces a
+merge commit even when a fast-forward was possible (keeps the branch visible in
+history). Branch names follow @git/refs; @git/rebase is the alternative that
+replays instead of merging.
+
+| Recipe | Does |
+|--------|------|
+| `into` | merge a branch into the current one |
+| `abort` | discard a conflicted merge, return to pre-merge state |
+| `resolve` | continue the merge after editing conflicted files |
+| `noff` | merge but always create a merge commit (`--no-ff`) |
+
+On a conflict, git marks the files with `<<<<<<<` / `=======` / `>>>>>>>` —
+your side above, theirs below. Edit to the desired result, remove the markers,
+`git add` each file (that is `resolve`'s @git/stage step), then `resolve`
+finishes. `abort` is the safe undo whenever it gets messy. A *fast-forward*
+(no merge commit) happens when the current branch has no commits the other
+lacks; `noff` suppresses it when you want the merge recorded explicitly.
+
+```just
+# merge a branch into the current one (default)
+into branch:
+  git merge {{quote(branch)}}
+
+# discard a conflicted merge and return to the pre-merge state
+abort:
+  git merge --abort
+
+# continue the merge after editing + staging the conflicted files
+resolve:
+  git merge --continue
+
+# merge but always create a merge commit, even if fast-forward was possible
+noff branch:
+  git merge --no-ff {{quote(branch)}}
+```

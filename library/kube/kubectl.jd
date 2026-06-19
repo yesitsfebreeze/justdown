@@ -1,0 +1,51 @@
+---
+name: kube_kubectl
+description: Drive a Kubernetes cluster with kubectl — list resources, read pod logs, exec into a container, apply manifests, and switch context. Use to inspect what is running, debug a failing pod, deploy a manifest, or change which cluster you target.
+kind: tool
+tags: [kube, kubectl, kubernetes, pods, logs, context]
+use_when: [list kubernetes pods, read pod logs, exec into a pod, apply a manifest, switch kube context, why is a pod failing, deploy to the cluster, describe a resource]
+danger: medium
+side_effects: [network, system-state]
+requires: [kubectl]
+run: get
+provides: [get, logs, exec, apply]
+---
+
+# kubectl
+
+The cluster control surface. `get` lists resources; `logs` reads a pod's output;
+`exec` drops you into a container; `apply` declaratively deploys a manifest.
+Every command runs against the current *context* (cluster + namespace) — check
+it with `kubectl config current-context` before any write. `-n <ns>` scopes to a
+namespace; `-A` spans all of them.
+
+| Recipe | Does |
+|--------|------|
+| `get` | list resources of a kind (pods, svc, deploy, …) |
+| `logs` | a pod's logs (`-f` to follow, like @text/tail) |
+| `exec` | run a command (or a shell) inside a pod |
+| `apply` | create/update resources from a manifest file or dir |
+
+`get pods -o wide` adds node/IP columns; `describe` (not a recipe here, but
+`kubectl describe pod X`) shows events that explain a crash or pending state —
+the first stop when a pod will not start. `logs --previous` reads the *crashed*
+container's logs after a restart. `apply -f` is declarative (idempotent); prefer
+it over imperative `create`. Edit manifests the @search/yq way.
+
+```just
+# list resources of a kind in a namespace (default kind=pods)
+get kind="pods" ns="default":
+  kubectl get {{quote(kind)}} -n {{quote(ns)}} -o wide
+
+# a pod's logs; pass follow="-f" to stream
+logs pod ns="default" follow="":
+  kubectl logs {{follow}} {{quote(pod)}} -n {{quote(ns)}}
+
+# run a command inside a pod (e.g. cmd="/bin/sh" for a shell)
+exec pod ns="default" cmd="/bin/sh":
+  kubectl exec -it {{quote(pod)}} -n {{quote(ns)}} -- {{cmd}}
+
+# apply a manifest file or directory (declarative)
+apply path:
+  kubectl apply -f {{quote(path)}}
+```

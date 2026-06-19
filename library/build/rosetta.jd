@@ -1,0 +1,46 @@
+---
+name: build_rosetta
+description: Cross-language build/package-manager translation — install deps, add a package, build, test, and run a script written for npm, cargo, pip, and go side by side. The wizard's lookup when you know the npm verb but land in a Rust, Python, or Go project.
+kind: knowledge
+tags: [build, package-manager, npm, cargo, pip, go, rosetta]
+use_when: [install project dependencies, add a package, build the project, run the tests, npm equivalent in cargo or pip, how do I build this rust or go project, run a package script]
+---
+
+# Build Rosetta
+
+One task, four ecosystems. Land in an unfamiliar project, find the column, read
+across. Mirrors the OS-level @pkg/rosetta for language toolchains. `npm` stands
+in for the JS managers (yarn/pnpm share its verbs); `cargo` is Rust, `pip`
+Python (with `poetry`/`uv` notes), `go` the Go toolchain.
+
+## Core lifecycle
+
+| Task | npm / yarn / pnpm | cargo (Rust) | pip / poetry (Python) | go |
+|------|-------------------|--------------|------------------------|-----|
+| install all deps | `npm install` | `cargo fetch` | `pip install -r requirements.txt` | `go mod download` |
+| add a dependency | `npm install P` | `cargo add P` | `pip install P` / `poetry add P` | `go get P` |
+| remove a dep | `npm uninstall P` | `cargo remove P` | `pip uninstall P` | `go mod tidy` (drops unused) |
+| build | `npm run build` | `cargo build` (`--release`) | — (no compile) | `go build ./...` |
+| run tests | `npm test` | `cargo test` | `pytest` | `go test ./...` |
+| run the app | `npm start` | `cargo run` | `python -m app` | `go run .` |
+| run a defined script | `npm run NAME` | `cargo NAME` (alias) | `poetry run NAME` | — |
+
+## Lockfiles and reproducibility
+
+| Ecosystem | Manifest | Lockfile | Clean install |
+|-----------|----------|----------|---------------|
+| npm | `package.json` | `package-lock.json` | `npm ci` (exact, CI-safe) |
+| yarn/pnpm | `package.json` | `yarn.lock` / `pnpm-lock.yaml` | `--frozen-lockfile` |
+| cargo | `Cargo.toml` | `Cargo.lock` | `cargo build --locked` |
+| pip/poetry | `pyproject.toml` | `poetry.lock` / `uv.lock` | `poetry install --no-update` |
+| go | `go.mod` | `go.sum` | `go mod verify` |
+
+## Notes
+
+- **`npm ci`** (not `npm install`) is the reproducible CI install: it deletes
+  `node_modules` and installs exactly the lockfile — faster and deterministic.
+- **cargo** compiles debug by default; add `--release` for optimized builds.
+- **Python** has no build step for pure packages; the "install" *is* the setup.
+  Prefer a venv (`python -m venv`) or `uv`/`poetry` over global `pip`.
+- **go** has no central script runner — a `Makefile` or `just` fills that role.
+- For OS packages (apt/brew/…) rather than language deps, see @pkg/rosetta.

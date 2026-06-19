@@ -109,3 +109,4 @@ check if a command is installed in a script	shell_which
 make a file executable	file_perms
 create a symbolic link to a file	file_link
 copy a directory preserving permissions	file_copy
+how do I build and test this rust or go project	build_rosetta

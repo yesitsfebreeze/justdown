@@ -1,0 +1,52 @@
+---
+name: net_ping
+description: Test reachability and trace the path to a host — ping a fixed count, trace the hops with traceroute, or watch a live per-hop quality report with mtr. Use to check if a host is up, measure latency, or find where on the path packets are lost.
+kind: tool
+tags: [net, ping, traceroute, mtr, latency, reachability]
+use_when: [is this host reachable, measure latency to a host, trace the network path, where are packets being lost, ping a host, traceroute, diagnose slow connection]
+danger: none
+requires: [ping]
+run: check
+provides: [check, trace, mtr, flood]
+---
+
+# ping
+
+Reachability and path diagnosis. `check` (the default) sends a fixed count and
+reports loss + round-trip time; `trace` lists the hops to the target; `mtr`
+combines ping and traceroute into a live per-hop loss/latency table — the best
+single view of *where* a path degrades. Use after @net/ip confirms you have a
+route and @net/dig confirms the name resolves: this tests the path actually
+works.
+
+| Recipe | Tool | Shows |
+|--------|------|-------|
+| `check` | `ping -c N` | loss % and min/avg/max RTT over N packets |
+| `trace` | `traceroute` | each hop (router) on the way to the host |
+| `mtr` | `mtr --report` | per-hop loss and latency in one combined report |
+| `flood` | `ping -c N -i 0.2` | rapid probes to surface intermittent loss |
+
+`check` always bounds the count (`-c`) so it terminates — a bare `ping` runs
+forever. In the RTT summary, a high *max* with a low *avg* means jitter; steady
+high *avg* means distance or congestion. `mtr` is the diagnostic of choice: the
+first hop with sustained loss that persists to the destination is the culprit
+(transient loss at a *middle* hop that clears downstream is just a router
+deprioritizing ICMP — not your problem).
+
+```just
+# loss % and round-trip time over N packets (default)
+check host count="5":
+  ping -c {{quote(count)}} -- {{quote(host)}}
+
+# list the hops on the path to a host
+trace host:
+  traceroute {{quote(host)}}
+
+# live per-hop loss and latency report (needs mtr)
+mtr host:
+  mtr --report --report-cycles 10 {{quote(host)}}
+
+# rapid probes to surface intermittent loss
+flood host count="20":
+  ping -c {{quote(count)}} -i 0.2 -- {{quote(host)}}
+```

@@ -1,0 +1,51 @@
+---
+name: proc_kill
+description: Find and signal processes by name — pgrep to list matching PIDs, pkill to signal them by name, and kill to signal a specific PID. The act half of process management after ps/top identify the target. Use to stop a process by name, find its PID, or escalate a stuck one.
+kind: tool
+tags: [proc, kill, pkill, pgrep, signal, terminate]
+use_when: [kill a process by name, find PID by name, stop a stuck process, pkill, pgrep, send a signal to a process, force kill a process]
+danger: high
+side_effects: [process-kill]
+requires: [procps]
+run: find
+provides: [find, byname, term, force]
+---
+
+# kill
+
+The acting end of process management — once @proc/ps or @proc/top names the
+target, these signal it. `find` (pgrep) lists matching PIDs without touching
+them; `byname` (pkill) signals every match by name; `term`/`force` signal a
+specific PID. Signal semantics (TERM vs KILL, why KILL is last resort) live in
+@shell/jobs — this is the name/PID-targeting surface over them.
+
+| Recipe | Tool | Does |
+|--------|------|------|
+| `find` | `pgrep -a` | list PIDs (and command) matching a name — safe, read-only |
+| `byname` | `pkill` | send a signal to every process matching a name |
+| `term` | `kill -TERM` | politely stop one PID (catchable, the default) |
+| `force` | `kill -KILL` | unconditionally kill one PID (last resort) |
+
+**Always `find` before `byname`** — pkill matches substrings and can catch more
+than you mean (`pkill ssh` may hit your own session). Confirm the PID list, then
+signal. Default to `TERM` so the process can flush and clean up; escalate to
+`KILL` (`-9`) only after `TERM` fails to land. `pkill -f` matches the full
+command line, not just the process name — powerful and easy to over-match.
+
+```just
+# list PIDs and command lines matching a name (read-only — run this first)
+find pattern:
+  pgrep -a -- {{quote(pattern)}}
+
+# send a signal (default TERM) to every process matching a name
+byname pattern signal="TERM":
+  pkill -{{signal}} -- {{quote(pattern)}}
+
+# politely stop a specific PID (catchable)
+term pid:
+  kill -TERM {{quote(pid)}}
+
+# unconditionally kill a specific PID (last resort, after TERM fails)
+force pid:
+  kill -KILL {{quote(pid)}}
+```

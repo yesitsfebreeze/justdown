@@ -1,0 +1,51 @@
+---
+name: term_tput
+description: Control the terminal portably with tput — query size, set colors and text attributes, move or hide the cursor, and clear the screen using the terminfo database instead of hardcoded escape codes. Use to colorize script output, read the terminal width, or drive the cursor without raw ANSI.
+kind: tool
+tags: [term, tput, terminal, color, cursor, terminfo]
+use_when: [colorize terminal output, get terminal width or height, set text color in a script, move or hide the cursor, clear the screen, portable escape codes, bold or underline text]
+danger: none
+requires: [ncurses]
+run: size
+provides: [size, color, attr, clear]
+---
+
+# tput
+
+Portable terminal control via the terminfo database — it emits the right escape
+sequence for `$TERM` instead of hardcoded `\033[` codes, so a script works
+across terminals. `size` reads the geometry; `color` sets foreground; `attr`
+sets bold/underline/etc; `clear` resets the screen. Always close with
+`tput sgr0` to reset attributes, or color bleeds into later output.
+
+| Recipe | Does |
+|--------|------|
+| `size` | columns and lines of the current terminal |
+| `color` | set foreground to a color number (0–7 basic, 0–255 extended) |
+| `attr` | a text attribute: bold / dim / smul (underline) / rev |
+| `clear` | clear the screen and home the cursor |
+
+Color numbers: 0 black, 1 red, 2 green, 3 yellow, 4 blue, 5 magenta, 6 cyan,
+7 white; `setab N` sets the background. Wrap text as `$(tput setaf 1)text$(tput
+sgr0)`. Other handy caps: `civis`/`cnorm` hide/show the cursor, `cup R C` moves
+it, `bold`. Guard color in pipes — check `[ -t 1 ]` so you do not emit codes when
+output is not a terminal.
+
+```just
+# columns and lines of the current terminal (default)
+size:
+  #!/usr/bin/env sh
+  printf 'cols=%s lines=%s\n' "$(tput cols)" "$(tput lines)"
+
+# set foreground to a color number (0-7 basic, up to 255 extended)
+color n:
+  tput setaf {{quote(n)}}
+
+# a text attribute: bold | dim | smul | rev (reset with: tput sgr0)
+attr name:
+  tput {{quote(name)}}
+
+# clear the screen and home the cursor
+clear:
+  tput clear
+```

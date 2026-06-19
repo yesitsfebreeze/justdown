@@ -38,12 +38,13 @@ _default:
 build:
     #!/usr/bin/env sh
     set -eu
-    lib="{{root}}/{{lib}}"
-    out="{{root}}/{{index}}"
-    [ -d "$lib" ] || { echo "jd: no library dir: $lib" >&2; exit 1; }
+    root={{quote(root)}}; lib={{quote(lib)}}; index={{quote(index)}}
+    libdir="$root/$lib"
+    out="$root/$index"
+    [ -d "$libdir" ] || { echo "jd: no library dir: $libdir" >&2; exit 1; }
     : > "$out.tmp"
-    find "$lib" -name '*.jd' | LC_ALL=C sort | while IFS= read -r f; do
-      rel=$(printf '%s' "$f" | sed "s#^{{root}}/##")
+    find "$libdir" -name '*.jd' | LC_ALL=C sort | while IFS= read -r f; do
+      rel=${f#"$root/"}
       awk -v rel="$rel" '
         function val(s){ sub(/^[^:]*:[ \t]*/,"",s); sub(/[ \t\r]+$/,"",s); return s }
         function arr(s){ sub(/^[^:]*:[ \t]*\[/,"",s); sub(/\].*/,"",s); gsub(/[ \t]/,"",s); return s }
@@ -81,11 +82,13 @@ build:
 search query kind="" num="5":
     #!/usr/bin/env sh
     set -eu
+    root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
+    query={{quote(query)}}; kind={{quote(kind)}}; num={{quote(num)}}
     idx() {
-      if [ -f "{{root}}/{{index}}" ]; then awk '{print "local\t" $0}' "{{root}}/{{index}}"; fi
-      curl -fsSL "{{raw_base}}/{{index}}" 2>/dev/null | awk '{print "online\t" $0}' || true
+      if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
+      curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
-    idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' -v q="{{query}}" -v kind="{{kind}}" -v base="{{raw_base}}" '
+    idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' -v q="$query" -v kind="$kind" -v base="$raw_base" '
       BEGIN{ nq=split(tolower(q), qt, /[^a-z0-9+]+/) }
       kind!="" && $4!=kind { next }
       {
@@ -96,7 +99,7 @@ search query kind="" num="5":
           printf "%d\t%s\t%s\t%s\t%s\n", score, $3, $4, $5, raw
         }
       }
-    ' | LC_ALL=C sort -rn | awk -F'\t' -v n="{{num}}" '
+    ' | LC_ALL=C sort -rn | awk -F'\t' -v n="$num" '
       NR>n { exit }
       { printf "%d. %s  [%s]  score %s\n   %s\n   %s\n", NR, $2, $3, $1, $4, $5 }
     '
@@ -106,19 +109,21 @@ search query kind="" num="5":
 get ref only="":
     #!/usr/bin/env sh
     set -eu
+    root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
+    ref={{quote(ref)}}; only={{quote(only)}}
     idx() {
-      if [ -f "{{root}}/{{index}}" ]; then awk '{print "local\t" $0}' "{{root}}/{{index}}"; fi
-      curl -fsSL "{{raw_base}}/{{index}}" 2>/dev/null | awk '{print "online\t" $0}' || true
+      if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
+      curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
-    row=$(idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' -v ref="{{ref}}" '
+    row=$(idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' -v ref="$ref" '
       function base(p){ sub(/\.jd$/,"",p); n=split(p,a,"/"); return a[n] }
       { r=ref; sub(/^@/,"",r); sub(/#.*$/,"",r)
         if ($3==r || $2==r || $7==r || base($7)==r){ print $1 "\t" $7; exit } }')
-    [ -n "$row" ] || { echo "jd: no file: {{ref}}" >&2; exit 1; }
+    [ -n "$row" ] || { echo "jd: no file: $ref" >&2; exit 1; }
     src=$(printf '%s' "$row" | cut -f1)
     path=$(printf '%s' "$row" | cut -f2)
-    if [ "$src" = local ]; then body() { cat "{{root}}/$path"; }; else body() { curl -fsSL "{{raw_base}}/$path"; }; fi
-    body | awk -v only="{{only}}" '
+    if [ "$src" = local ]; then body() { cat "$root/$path"; }; else body() { curl -fsSL "$raw_base/$path"; }; fi
+    body | awk -v only="$only" '
       function flush(  i,isjust,injust){
         if (bn==0) return
         isjust=0
@@ -149,9 +154,10 @@ get ref only="":
 ls:
     #!/usr/bin/env sh
     set -eu
+    root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
     idx() {
-      if [ -f "{{root}}/{{index}}" ]; then awk '{print "local\t" $0}' "{{root}}/{{index}}"; fi
-      curl -fsSL "{{raw_base}}/{{index}}" 2>/dev/null | awk '{print "online\t" $0}' || true
+      if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
+      curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
     idx | awk -F'\t' '!seen[$2]++' | awk -F'\t' '
       { split($6, t, ","); cat=(t[1]!="" ? t[1] : ($4!="" ? $4 : "misc"))
@@ -163,16 +169,18 @@ ls:
 links ref:
     #!/usr/bin/env sh
     set -eu
+    root={{quote(root)}}; index={{quote(index)}}; raw_base={{quote(raw_base)}}
+    ref={{quote(ref)}}
     idx() {
-      if [ -f "{{root}}/{{index}}" ]; then awk '{print "local\t" $0}' "{{root}}/{{index}}"; fi
-      curl -fsSL "{{raw_base}}/{{index}}" 2>/dev/null | awk '{print "online\t" $0}' || true
+      if [ -f "$root/$index" ]; then awk '{print "local\t" $0}' "$root/$index"; fi
+      curl -fsSL "$raw_base/$index" 2>/dev/null | awk '{print "online\t" $0}' || true
     }
     m=$(idx | awk -F'\t' '!seen[$2]++')
-    key=$(printf '%s\n' "$m" | awk -F'\t' -v ref="{{ref}}" '
+    key=$(printf '%s\n' "$m" | awk -F'\t' -v ref="$ref" '
       function base(p){ sub(/\.jd$/,"",p); n=split(p,a,"/"); return a[n] }
       { r=ref; sub(/^@/,"",r); sub(/#.*$/,"",r)
         if ($3==r || $2==r || $7==r || base($7)==r){ print $2; exit } }')
-    [ -n "$key" ] || { echo "jd: no file: {{ref}}" >&2; exit 1; }
+    [ -n "$key" ] || { echo "jd: no file: $ref" >&2; exit 1; }
     printf '%s\n' "$m" | awk -F'\t' -v key="$key" '
       { keys[$2]=1; row[NR]=$0 }
       END{

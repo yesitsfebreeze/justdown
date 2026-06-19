@@ -60,7 +60,9 @@ SQLite graph store ([`graph.db`](graph.db)) from `.jd` files and **queries** it,
 no `npm install`, no node, no model.
 
 ```sh
-# install: one binary
+# install: prebuilt binary (Linux/macOS) — verifies checksum, drops jd in ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.sh | sh
+# …or from source, any platform (Rust toolchain)
 cargo install --git https://github.com/yesitsfebreeze/justdown jd
 
 # use it

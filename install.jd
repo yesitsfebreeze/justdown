@@ -22,14 +22,25 @@ install, you put that one binary on `PATH` and point your agent at it.
 
 ## 1. Install the `jd` binary
 
-Build and install it from the repo with Cargo (Rust toolchain required):
+**One-liner (Linux/macOS)** — downloads the prebuilt binary for your platform from
+the latest release, verifies its checksum, and installs to `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.sh | sh
+```
+
+**Or grab a prebuilt binary** straight from the
+[releases page](https://github.com/yesitsfebreeze/justdown/releases):
+`jd-<version>-<target>.tar.gz` (`.zip` on Windows), checksummed in `SHA256SUMS`.
+
+**Or build from source** with Cargo (any platform, Rust toolchain required):
 
 ```sh
 cargo install --git https://github.com/yesitsfebreeze/justdown jd
 ```
 
-That puts `jd` on your `PATH`. The binary is self-contained — it bundles its
-SQLite store and shells out to `curl` only for the online merge. No node, no
+Any of these puts `jd` on your `PATH`. The binary is self-contained — it bundles
+its SQLite store and shells out to `curl` only for the online merge. No node, no
 `npm install`, no model. Now `jd <command>` works from anywhere.
 
 The graph store lives in a single SQLite file (`graph.db`); `jd build` writes it

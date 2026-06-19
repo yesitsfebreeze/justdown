@@ -1,0 +1,51 @@
+---
+name: http_httpie
+description: Make HTTP requests with HTTPie — a human-friendly client where JSON bodies, headers, and query params are terse key=value args and responses are colorized. Use for quick API calls when curl's flags feel heavy, or to send JSON without hand-writing it.
+kind: tool
+tags: [http, httpie, api, json, rest, client]
+use_when: [make an http request simply, send json to an api, friendlier than curl, quick api call, post form data, set a header or query param easily]
+danger: low
+side_effects: [network]
+requires: [http]
+run: get
+provides: [get, json, form, headers]
+---
+
+# httpie
+
+A friendlier front end for HTTP than @http/curl: the method defaults to GET,
+JSON is the default body type, and arguments use a compact `key=value` grammar
+instead of `-d '{"k":"v"}'`. Responses are colorized and pretty-printed. Reach
+for curl when you need raw control, edge protocols, or a dependency-free
+environment; reach for httpie for everyday API pokes.
+
+| Recipe | Does |
+|--------|------|
+| `get` | a GET request (the default method) |
+| `json` | POST a JSON body from `key=value` pairs |
+| `form` | POST form-encoded data (`--form`) |
+| `headers` | show only the response headers (`--headers`) |
+
+The argument grammar is the whole point: `key=value` is a JSON string field,
+`key:=value` a raw JSON value (number/bool/array), `key==value` a query-string
+param, and `Header:value` a request header. So `http POST :8000/api name=ada
+age:=30 admin:=true X-Token:abc` sends a typed JSON body with a header — no
+quoting gymnastics. A leading `:` is shorthand for `localhost` (`:8000/path`).
+
+```just
+# a GET request (default method)
+get url:
+  http GET {{quote(url)}}
+
+# POST a JSON body from key=value (string) / key:=value (raw) pairs
+json url +fields:
+  http POST {{quote(url)}} {{fields}}
+
+# POST form-encoded data
+form url +fields:
+  http --form POST {{quote(url)}} {{fields}}
+
+# show only the response headers
+headers url:
+  http --headers GET {{quote(url)}}
+```

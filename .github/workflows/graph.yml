@@ -8,9 +8,9 @@ name: graph
 on:
   push:
     branches: [main]
-    paths: ["library/**", ".jd/justfile", ".github/workflows/graph.yml"]
+    paths: ["library/**", "justfile", ".github/workflows/graph.yml"]
   pull_request:
-    paths: ["library/**", ".jd/justfile", ".github/workflows/graph.yml"]
+    paths: ["library/**", "justfile", ".github/workflows/graph.yml"]
 
 jobs:
   build:
@@ -23,14 +23,14 @@ jobs:
       - uses: extractions/setup-just@v2
 
       - name: Rebuild the index
-        run: just --justfile .jd/justfile build
+        run: just build
 
       # On a PR we cannot reliably push; just fail if the author forgot to rebuild.
       - name: Verify graph.tsv is in sync (pull requests)
         if: github.event_name == 'pull_request'
         run: |
           if ! git diff --exit-code -- graph.tsv; then
-            echo "::error::graph.tsv is out of date. Run 'just --justfile .jd/justfile build' and commit, or push to main to let CI rebuild it."
+            echo "::error::graph.tsv is out of date. Run 'just build' and commit, or push to main to let CI rebuild it."
             exit 1
           fi
           echo "graph.tsv is in sync."

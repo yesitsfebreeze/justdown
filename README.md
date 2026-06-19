@@ -41,12 +41,11 @@ stay thin; the entire execution glue is one parser extension that lifts
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
 - [`install.jd`](install.jd) — install and use justdown: download the one-file
   CLI, what tools it gives, and how to wire it into an agent.
-- [`.jd/justfile`](.jd/justfile) — the CLI itself: a small justfile that behaves
+- [`justfile`](justfile) — the CLI itself: a small justfile that behaves
   like a cross-platform tool (`search`, `get`, `ls`, `links`) in pure shell.
 - [`library/`](library/) — twenty `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
-  (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting; see
-  [`library/README.md`](library/README.md) for the index.
+  (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting.
 - [`graph.tsv`](graph.tsv) — the flat, tab-separated index the CLI queries
   (key, name, kind, purpose, tags, path, links). Built by `just build`; CI keeps
   it fresh on every push. No node anywhere.
@@ -54,7 +53,7 @@ stay thin; the entire execution glue is one parser extension that lifts
 ## Use it as a CLI
 
 The repo *is* the package — a CLI, a tool library, and docs, distributed as plain
-files in git. Download one file, [`.jd/justfile`](.jd/justfile), and `just`
+files in git. Download one file, [`justfile`](justfile), and `just`
 becomes your tool runner over the library. The same justfile **builds** a flat
 index ([`graph.tsv`](graph.tsv)) from `.jd` files and **queries** it in pure shell,
 **merging your local index over the online one** (local trumps by key). No clone,
@@ -62,13 +61,12 @@ no `npm install`, no node, no model.
 
 ```sh
 # install: one file
-mkdir -p .jd
-curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/.jd/justfile -o .jd/justfile
+curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/justfile -o justfile
 
 # use it
-just --justfile .jd/justfile search "cut a release"   # find a tool
-just --justfile .jd/justfile get release              # read it as sections
-just --justfile .jd/justfile get release tools        # just the runnable steps
+just search "cut a release"   # find a tool
+just get release              # read it as sections
+just get release tools        # just the runnable steps
 ```
 
 The justfile **does not define how it is used** — an agent can call the recipes

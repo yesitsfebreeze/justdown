@@ -1,4 +1,4 @@
-# .jd/justfile — the justdown CLI and the one entry point.
+# justfile — the justdown CLI and the one entry point.
 #
 # A small justfile that BEHAVES like a cross-platform CLI and also BUILDS its own
 # index — everything the old MCP server + node builder did, in pure POSIX shell +
@@ -17,12 +17,13 @@
 # build`; the online one is built in CI on every push.
 #
 # Requires: just, plus a POSIX shell with curl + awk + find on PATH (git-bash or
-# WSL on Windows). Install: download to <project>/.jd/justfile (see install.jd).
-# Configure the local library dir with JUSTDOWN_LIB (default "library").
+# WSL on Windows). Install: download to <project>/justfile (see install.jd), then
+# run `just <recipe>` from anywhere in the project. Configure the local library
+# dir with JUSTDOWN_LIB (default "library").
 
 set shell := ["sh", "-cu"]
 
-root     := justfile_directory() / ".."
+root     := justfile_directory()
 lib      := env_var_or_default("JUSTDOWN_LIB", "library")
 index    := env_var_or_default("JUSTDOWN_INDEX", "graph.tsv")
 repo     := env_var_or_default("JUSTDOWN_REPO", "yesitsfebreeze/justdown")
@@ -189,7 +190,7 @@ help:
     cat <<'EOF'
     jd — justdown CLI (pure justfile) · build, query, and merge the .jd graph
 
-    USAGE  just --justfile .jd/justfile <recipe> [args]
+    USAGE  just <recipe> [args]
 
     build                        scan <lib>/**/*.jd → write the local index (graph.tsv)
     search <query> [kind] [num]  rank library files by purpose (substring score)

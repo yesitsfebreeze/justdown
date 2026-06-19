@@ -1,11 +1,9 @@
 ---
 name: shell_fzf
 description: fzf — the fuzzy finder that turns any list into an interactive picker. Shell key-bindings (Ctrl-R, Ctrl-T, Alt-C), the **<TAB>** completion trigger, and piping any command into a live filter. Use to fuzzy-search history, files, branches, or any stdin list.
-kind: tool
+kind: knowledge
 tags: [fzf, fuzzy, finder, picker, interactive, history]
 use_when: [fuzzy find a file, fzf key bindings, ctrl-t insert file, alt-c cd into dir, pipe into fzf, fuzzy search git branch, interactive picker from stdin]
-requires: [fzf]
-provides: [pick, history, cd, kill]
 ---
 
 # fzf

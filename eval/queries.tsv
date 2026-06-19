@@ -107,3 +107,4 @@ make a thumbnail by resizing an image	image_magick
 align ragged output into neat columns	text_format
 check if a command is installed in a script	shell_which
 make a file executable	file_perms
+create a symbolic link to a file	file_link

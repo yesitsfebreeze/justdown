@@ -1,0 +1,52 @@
+---
+name: net_nc
+description: Test connectivity and move bytes with netcat — check whether a remote TCP port is open, listen on a port, and pipe data between two hosts. Use to verify a service is reachable, stand up a throwaway listener, or transfer a file over a raw socket.
+kind: tool
+tags: [net, nc, netcat, port, connectivity, socket]
+use_when: [is a port open, test if a service is reachable, check tcp connectivity to a host, listen on a port, transfer a file over the network, raw socket test, port scan a host]
+danger: medium
+side_effects: [network]
+requires: [netcat]
+run: check
+provides: [check, scan, listen, send]
+---
+
+# nc
+
+The TCP/UDP swiss army knife. `check` tests whether one remote port accepts a
+connection — the "is the service up / is the firewall blocking me" answer that
+@net/ping cannot give (ping is ICMP, not the actual port); `scan` checks a
+range; `listen` opens a port to receive; `send` pipes data to a listener. Where
+@net/ss shows *local* listening sockets, nc probes *remote* reachability.
+
+| Recipe | Flags | Does |
+|--------|-------|------|
+| `check` | `-zv` | test if a remote TCP port is open (no data sent) |
+| `scan` | `-zv range` | probe a port range on a host |
+| `listen` | `-l` | listen on a local port (prints what arrives) |
+| `send` | — | connect and pipe stdin to a host:port |
+
+`-z` is zero-I/O (just test, send nothing); `-v` reports open/closed; `-w 3`
+caps the wait so a filtered port does not hang. `nc -zv host 443` is the daily
+reachability check. A `listen` on one box plus `send` on another moves a file
+over a raw socket (`nc -l 9000 > out` ↔ `nc host 9000 < in`) — handy where
+@ssh/copy is unavailable. The `ncat`/`socat` variants add TLS and more; flags
+differ slightly between the BSD and GNU `nc`.
+
+```just
+# test if a remote TCP port is open (default; sends no data)
+check host port:
+  nc -zv -w 3 {{quote(host)}} {{quote(port)}}
+
+# probe a port range on a host (e.g. range="20-25")
+scan host range:
+  nc -zv -w 1 {{quote(host)}} {{quote(range)}}
+
+# listen on a local port and print what arrives
+listen port:
+  nc -l {{quote(port)}}
+
+# connect and pipe stdin to a host:port (e.g. < file to send it)
+send host port:
+  nc {{quote(host)}} {{quote(port)}}
+```

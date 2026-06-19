@@ -1,5 +1,5 @@
 ---
-name: auth/session
+name: scaffolds_auth
 description: Session and login flow sketch — credentials in, session out. Pull when implementing auth, login, or token refresh.
 kind: knowledge
 tags: [auth, session, login, security]

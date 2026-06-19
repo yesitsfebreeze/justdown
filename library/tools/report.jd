@@ -1,5 +1,5 @@
 ---
-name: report
+name: tools_report
 description: Generate a report file (changelog, dep audit, file tree). Use when the user asks for a written report or exported summary.
 kind: tool
 tags: [report, docs, artifact, export]

@@ -1,5 +1,5 @@
 ---
-name: errors/result
+name: scaffolds_result
 description: The Result type — success or a typed error, never both. Pull when implementing fallible operations, error mapping, or retry boundaries.
 kind: knowledge
 tags: [errors, result, retry, convention]

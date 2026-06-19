@@ -6,62 +6,62 @@
   "counts": {
     "nodes": 20,
     "edges": 9,
-    "vocab": 187,
+    "vocab": 191,
     "categories": 13
   },
   "categories": {
     "ci": [
-      "gate",
-      "release",
-      "ship"
+      "tools_gate",
+      "tools_release",
+      "workflows_ship"
     ],
     "dev": [
-      "docker",
-      "onboard",
-      "serve"
+      "tools_docker",
+      "tools_serve",
+      "workflows_onboard"
     ],
     "agent": [
-      "review",
-      "summarize"
+      "agents_review",
+      "agents_summarize"
     ],
     "artifact": [
-      "report",
-      "screenshot"
+      "tools_report",
+      "tools_screenshot"
     ],
     "pricing": [
-      "catalog/product",
-      "orders/total"
+      "knowledge_orders",
+      "knowledge_product"
     ],
     "auth": [
-      "auth/session"
+      "scaffolds_auth"
     ],
     "batch": [
-      "list/pagination"
+      "scaffolds_pagination"
     ],
     "bootstrap": [
-      "new-tool"
+      "tools_new-tool"
     ],
     "cache": [
-      "cache/invalidate"
+      "scaffolds_cache"
     ],
     "commit": [
-      "commit"
+      "tools_commit"
     ],
     "convention": [
-      "errors/result"
+      "scaffolds_result"
     ],
     "db": [
-      "db"
+      "tools_db"
     ],
     "lint": [
-      "fmt"
+      "tools_fmt"
     ]
   },
   "nodes": [
     {
       "id": "library/agents/review.jd",
       "key": "agents/review",
-      "name": "review",
+      "name": "agents_review",
       "kind": "agent",
       "tags": [
         "review",
@@ -75,6 +75,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/agents/review.jd",
       "path": "library/agents/review.jd",
       "vec": {
+        "agents": 90,
         "review": 255,
         "open": 45,
         "agent": 90,
@@ -90,7 +91,7 @@
     {
       "id": "library/agents/summarize.jd",
       "key": "agents/summarize",
-      "name": "summarize",
+      "name": "agents_summarize",
       "kind": "agent",
       "tags": [
         "summarize",
@@ -104,6 +105,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/agents/summarize.jd",
       "path": "library/agents/summarize.jd",
       "vec": {
+        "agents": 90,
         "summarize": 255,
         "diff": 51,
         "what": 51,
@@ -116,7 +118,7 @@
     {
       "id": "library/knowledge/orders.jd",
       "key": "knowledge/orders",
-      "name": "orders/total",
+      "name": "knowledge_orders",
       "kind": "knowledge",
       "tags": [
         "orders",
@@ -133,10 +135,11 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/knowledge/orders.jd",
       "path": "library/knowledge/orders.jd",
       "vec": {
+        "knowledge": 149,
         "orders": 255,
-        "total": 255,
         "how": 85,
         "order": 85,
+        "total": 85,
         "computed": 85,
         "applied": 85,
         "pull": 50,
@@ -149,7 +152,7 @@
     {
       "id": "library/knowledge/product.jd",
       "key": "knowledge/product",
-      "name": "catalog/product",
+      "name": "knowledge_product",
       "kind": "knowledge",
       "tags": [
         "catalog",
@@ -163,7 +166,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/knowledge/product.jd",
       "path": "library/knowledge/product.jd",
       "vec": {
-        "catalog": 191,
+        "knowledge": 112,
         "product": 255,
         "canonical": 64,
         "shape": 64,
@@ -175,6 +178,7 @@
         "touches": 64,
         "line": 64,
         "item": 64,
+        "catalog": 64,
         "pricing": 56,
         "schema": 64
       }
@@ -182,7 +186,7 @@
     {
       "id": "library/scaffolds/auth.jd",
       "key": "scaffolds/auth",
-      "name": "auth/session",
+      "name": "scaffolds_auth",
       "kind": "knowledge",
       "tags": [
         "auth",
@@ -200,24 +204,25 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/scaffolds/auth.jd",
       "path": "library/scaffolds/auth.jd",
       "vec": {
-        "auth": 204,
-        "session": 255,
-        "login": 153,
-        "flow": 51,
-        "sketch": 51,
-        "credentials": 51,
-        "out": 45,
-        "pull": 30,
-        "implementing": 32,
-        "token": 51,
-        "refresh": 51,
-        "security": 51
+        "scaffolds": 93,
+        "auth": 255,
+        "session": 191,
+        "login": 191,
+        "flow": 64,
+        "sketch": 64,
+        "credentials": 64,
+        "out": 56,
+        "pull": 37,
+        "implementing": 40,
+        "token": 64,
+        "refresh": 64,
+        "security": 64
       }
     },
     {
       "id": "library/scaffolds/cache.jd",
       "key": "scaffolds/cache",
-      "name": "cache/invalidate",
+      "name": "scaffolds_cache",
       "kind": "knowledge",
       "tags": [
         "cache",
@@ -235,8 +240,8 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/scaffolds/cache.jd",
       "path": "library/scaffolds/cache.jd",
       "vec": {
+        "scaffolds": 74,
         "cache": 255,
-        "invalidate": 102,
         "read": 51,
         "through": 51,
         "ttl": 102,
@@ -254,7 +259,7 @@
     {
       "id": "library/scaffolds/pagination.jd",
       "key": "scaffolds/pagination",
-      "name": "list/pagination",
+      "name": "scaffolds_pagination",
       "kind": "knowledge",
       "tags": [
         "pagination",
@@ -270,9 +275,10 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/scaffolds/pagination.jd",
       "path": "library/scaffolds/pagination.jd",
       "vec": {
-        "list": 255,
+        "scaffolds": 93,
         "pagination": 255,
         "slice": 64,
+        "list": 128,
         "pages": 64,
         "fixed": 64,
         "size": 64,
@@ -288,7 +294,7 @@
     {
       "id": "library/scaffolds/result.jd",
       "key": "scaffolds/result",
-      "name": "errors/result",
+      "name": "scaffolds_result",
       "kind": "knowledge",
       "tags": [
         "errors",
@@ -307,7 +313,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/scaffolds/result.jd",
       "path": "library/scaffolds/result.jd",
       "vec": {
-        "errors": 191,
+        "scaffolds": 93,
         "result": 255,
         "type": 56,
         "success": 64,
@@ -322,13 +328,14 @@
         "mapping": 64,
         "retry": 128,
         "boundaries": 64,
+        "errors": 64,
         "convention": 64
       }
     },
     {
       "id": "library/tools/commit.jd",
       "key": "tools/commit",
-      "name": "commit",
+      "name": "tools_commit",
       "kind": "tool",
       "tags": [
         "git",
@@ -342,6 +349,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/commit.jd",
       "path": "library/tools/commit.jd",
       "vec": {
+        "tools": 50,
         "commit": 255,
         "stage": 51,
         "scope": 51,
@@ -356,7 +364,7 @@
     {
       "id": "library/tools/db.jd",
       "key": "tools/db",
-      "name": "db",
+      "name": "tools_db",
       "kind": "tool",
       "tags": [
         "db",
@@ -377,6 +385,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/db.jd",
       "path": "library/tools/db.jd",
       "vec": {
+        "tools": 84,
         "database": 85,
         "migrations": 85,
         "local": 85,
@@ -394,7 +403,7 @@
     {
       "id": "library/tools/docker.jd",
       "key": "tools/docker",
-      "name": "docker",
+      "name": "tools_docker",
       "kind": "tool",
       "tags": [
         "docker",
@@ -414,6 +423,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/docker.jd",
       "path": "library/tools/docker.jd",
       "vec": {
+        "tools": 63,
         "docker": 255,
         "build": 128,
         "project": 56,
@@ -430,7 +440,7 @@
     {
       "id": "library/tools/fmt.jd",
       "key": "tools/fmt",
-      "name": "fmt",
+      "name": "tools_fmt",
       "kind": "tool",
       "tags": [
         "format",
@@ -447,6 +457,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/fmt.jd",
       "path": "library/tools/fmt.jd",
       "vec": {
+        "tools": 125,
         "fmt": 255,
         "format": 255,
         "source": 128,
@@ -463,7 +474,7 @@
     {
       "id": "library/tools/gate.jd",
       "key": "tools/gate",
-      "name": "gate",
+      "name": "tools_gate",
       "kind": "tool",
       "tags": [
         "ci",
@@ -478,6 +489,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/gate.jd",
       "path": "library/tools/gate.jd",
       "vec": {
+        "tools": 71,
         "gate": 255,
         "project": 64,
         "test": 145,
@@ -494,7 +506,7 @@
     {
       "id": "library/tools/new-tool.jd",
       "key": "tools/new-tool",
-      "name": "new-tool",
+      "name": "tools_new-tool",
       "kind": "tool",
       "tags": [
         "scaffold",
@@ -511,6 +523,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/new-tool.jd",
       "path": "library/tools/new-tool.jd",
       "vec": {
+        "tools": 63,
         "new": 255,
         "tool": 255,
         "scaffold": 128,
@@ -526,7 +539,7 @@
     {
       "id": "library/tools/release.jd",
       "key": "tools/release",
-      "name": "release",
+      "name": "tools_release",
       "kind": "tool",
       "tags": [
         "release",
@@ -540,6 +553,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/release.jd",
       "path": "library/tools/release.jd",
       "vec": {
+        "tools": 79,
         "release": 255,
         "cut": 80,
         "publish": 161,
@@ -553,7 +567,7 @@
     {
       "id": "library/tools/report.jd",
       "key": "tools/report",
-      "name": "report",
+      "name": "tools_report",
       "kind": "tool",
       "tags": [
         "report",
@@ -572,6 +586,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/report.jd",
       "path": "library/tools/report.jd",
       "vec": {
+        "tools": 50,
         "report": 255,
         "generate": 51,
         "changelog": 51,
@@ -589,7 +604,7 @@
     {
       "id": "library/tools/screenshot.jd",
       "key": "tools/screenshot",
-      "name": "screenshot",
+      "name": "tools_screenshot",
       "kind": "tool",
       "tags": [
         "screenshot",
@@ -608,6 +623,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/screenshot.jd",
       "path": "library/tools/screenshot.jd",
       "vec": {
+        "tools": 63,
         "screenshot": 255,
         "capture": 128,
         "url": 64,
@@ -624,7 +640,7 @@
     {
       "id": "library/tools/serve.jd",
       "key": "tools/serve",
-      "name": "serve",
+      "name": "tools_serve",
       "kind": "tool",
       "tags": [
         "dev",
@@ -644,6 +660,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/tools/serve.jd",
       "path": "library/tools/serve.jd",
       "vec": {
+        "tools": 84,
         "serve": 255,
         "start": 170,
         "dev": 135,
@@ -658,7 +675,7 @@
     {
       "id": "library/workflows/onboard.jd",
       "key": "workflows/onboard",
-      "name": "onboard",
+      "name": "workflows_onboard",
       "kind": "workflow",
       "tags": [
         "workflow",
@@ -672,6 +689,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/workflows/onboard.jd",
       "path": "library/workflows/onboard.jd",
       "vec": {
+        "workflows": 112,
         "onboard": 255,
         "set": 128,
         "fresh": 64,
@@ -688,7 +706,7 @@
     {
       "id": "library/workflows/ship.jd",
       "key": "workflows/ship",
-      "name": "ship",
+      "name": "workflows_ship",
       "kind": "workflow",
       "tags": [
         "workflow",
@@ -702,6 +720,7 @@
       "raw": "https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/library/workflows/ship.jd",
       "path": "library/workflows/ship.jd",
       "vec": {
+        "workflows": 102,
         "ship": 255,
         "end": 204,
         "workflow": 102,

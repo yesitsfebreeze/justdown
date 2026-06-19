@@ -39,23 +39,41 @@ stay thin; the entire execution glue is one parser extension that lifts
 ## Contents
 
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
-- [`HELP.md`](HELP.md) — how to author and run a `.jd` tool.
-- [`INSTALL.md`](INSTALL.md) — wire this repo into your agent as an MCP server.
+- [`install.jd`](install.jd) — install and use justdown: download the one-file
+  CLI, what tools it gives, and how to wire it into an agent.
+- [`.jd/justfile`](.jd/justfile) — the CLI itself: a small justfile that behaves
+  like a cross-platform tool (`search`, `get`, `ls`, `links`) in pure shell.
 - [`library/`](library/) — twenty `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting; see
   [`library/README.md`](library/README.md) for the index.
-- [`mcp.mjs`](mcp.mjs) — a single zero-dependency MCP server that serves the
-  library as a flat, queryable graph; also builds [`graph.json`](graph.json).
+- [`graph.mjs`](graph.mjs) — build-time only: regenerates [`graph.json`](graph.json)
+  from the library. Run by CI on every push; nobody needs it at runtime.
 
-## Use it as an MCP
+## Use it as a CLI
 
-The repo *is* the package — MCP server, tool library, docs, and plugin in one,
-distributed as plain files in git. Hand your agent the repo URL (or a local
-path) and it registers [`mcp.mjs`](mcp.mjs), then queries the library as a flat
-graph: each file is a node with its retrieval contract and a sparse quantized
-term-vector, edges are the `@`links, and the keys read back as named categories.
-No clone, no `npm install`, no model — see [`INSTALL.md`](INSTALL.md).
+The repo *is* the package — a CLI, a tool library, and docs, distributed as plain
+files in git. Download one file, [`.jd/justfile`](.jd/justfile), and `just`
+becomes your tool runner over the library: it queries [`graph.json`](graph.json)
+— each file a node with its retrieval contract, edges the `@`links, keys reading
+back as named categories — in pure shell, scraping local then online. No clone, no
+`npm install`, no node at runtime, no model.
+
+```sh
+# install: one file
+mkdir -p .jd
+curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/.jd/justfile -o .jd/justfile
+
+# use it
+just --justfile .jd/justfile search "cut a release"   # find a tool
+just --justfile .jd/justfile get release              # read it as sections
+just --justfile .jd/justfile get release tools        # just the runnable steps
+```
+
+The justfile **does not define how it is used** — an agent can call the recipes
+directly, or wrap the four verbs (`search`, `get`, `ls`, `links`) as an MCP tool
+lookup. The recipes are the contract; the wiring is yours. See
+[`install.jd`](install.jd).
 
 ## Why
 
@@ -89,7 +107,7 @@ never resolves `@`, and `@` never appears inside a `just` recipe body.
 
 ````markdown
 ---
-name: release
+name: tools_release
 description: Cut and publish a release. Use when the user asks to ship a version.
 kind: tool
 tags: [release, publish, ci]
@@ -98,12 +116,12 @@ run: release
 
 # Release
 
-Builds, gates, tags, and publishes. Runs the full check first; refuses on a red
-gate. For the gate itself see @tools/gate.
+Builds, gates, tags, and publishes. `gate` runs first as a just dependency, so a
+red gate aborts before `npm version`. The runner folds the linked file's recipe
+into the justfile, so the dependency resolves. For the gate itself see @tools/gate.
 
 ```just
-release version="patch":
-  just gate
+release version="patch": gate
   npm version {{version}}
   git push --follow-tags
 ```

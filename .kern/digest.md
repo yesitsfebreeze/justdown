@@ -1,2 +1,0 @@
-# kern memory
-

@@ -1,5 +1,5 @@
 ---
-name: docker
+name: tools_docker
 description: Build and run the project in Docker (build, up, down, logs, shell). Use when the user asks to containerize, run locally, or debug the container.
 kind: tool
 tags: [docker, container, dev]

@@ -14,3 +14,9 @@ Thumbs.db
 dist/
 node_modules/
 .vite.pid
+
+# kern runtime (local-only graph memory)
+.kern/
+
+# local Claude Code MCP wiring (kern etc.) — environment-specific
+.mcp.json

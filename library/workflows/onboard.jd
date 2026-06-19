@@ -1,5 +1,5 @@
 ---
-name: onboard
+name: workflows_onboard
 description: Set up a fresh clone for development end to end. Use when the user says "set this up", "onboard", or "get me running".
 kind: workflow
 tags: [workflow, setup, onboard, dev]
@@ -9,18 +9,19 @@ run: onboard
 # Onboard
 
 Composes the steps a new contributor runs once: install, prepare env, migrate,
-seed. Depends on @tools/db via just recipe dependencies, so ordering and
-failure-propagation are free — if install fails, the DB steps never run.
+seed. `migrate` and `seed` come from @tools/db as just recipe dependencies, so
+ordering and failure-propagation are free — if install fails, the DB steps never
+run. `install env` run first, then the body copies `.env`, then the `&&`
+post-dependencies `migrate seed` run last (the DB needs the env in place). The
+runner folds @tools/db's recipes into the justfile so those deps resolve.
 
 Deliberately does **not** run the gate — onboarding is about a working local
 environment, not a clean tree. For ongoing migrations use @tools/db directly.
 
 ```just
-# install, configure env, then migrate + seed the DB
-onboard: install env
+# install + env first, copy .env, then migrate + seed the DB last
+onboard: install env && migrate seed
   cp .env.example .env
-  just migrate
-  just seed
 
 install:
   npm ci

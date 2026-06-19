@@ -1,5 +1,5 @@
 ---
-name: orders/total
+name: knowledge_orders
 description: How an order total is computed and applied. Pull when implementing checkout, cart, or pricing.
 kind: knowledge
 tags: [orders, pricing, checkout]

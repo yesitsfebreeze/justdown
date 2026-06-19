@@ -1,5 +1,5 @@
 ---
-name: screenshot
+name: tools_screenshot
 description: Capture a URL to a PNG or PDF file. Use when the user asks to screenshot, capture, or render a page to an image.
 kind: tool
 tags: [screenshot, browser, image, artifact, binary]

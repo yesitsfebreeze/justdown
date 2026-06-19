@@ -1,5 +1,5 @@
 ---
-name: list/pagination
+name: scaffolds_pagination
 description: Slice a list into pages of fixed size. Pull when implementing pagination, cursor lists, or batched iteration.
 kind: knowledge
 tags: [pagination, list, cursor, batch]

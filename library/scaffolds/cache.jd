@@ -1,5 +1,5 @@
 ---
-name: cache/invalidate
+name: scaffolds_cache
 description: Cache read-through with TTL expiry. Pull when implementing a cache, memoization, or stale-while-revalidate.
 kind: knowledge
 tags: [cache, ttl, memoize, performance]

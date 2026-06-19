@@ -6,13 +6,13 @@ and self-documenting; read the frontmatter for the retrieval contract, the prose
 for the *why*, and the fenced blocks for the *how*.
 
 This folder is also the corpus behind [`../graph.json`](../graph.json) — the flat,
-queryable graph served by [`../mcp.mjs`](../mcp.mjs). See
-[`../INSTALL.md`](../INSTALL.md) to wire it into your agent.
+queryable graph the CLI reads, built from these files by [`../graph.mjs`](../graph.mjs).
+See [`../install.jd`](../install.jd) to download the CLI and wire it into your agent.
 
 | File | kind | Demonstrates |
 |------|------|--------------|
 | `tools/gate.jd` | tool | a plain `just` tool with one recipe and a red/green gate |
-| `tools/release.jd` | tool | a tool that links to another file (`@tools/gate`) and delegates |
+| `tools/release.jd` | tool | a tool that depends on another file's recipe (`@tools/gate`) via a just dependency |
 | `tools/fmt.jd` | tool | a tool with **multiple recipes** and a `run` default |
 | `tools/commit.jd` | tool | a thin git tool — conventional commits from typed args |
 | `tools/db.jd` | tool | a recipe family (migrate/rollback/seed/studio/reset) over a real CLI |
@@ -23,8 +23,8 @@ queryable graph served by [`../mcp.mjs`](../mcp.mjs). See
 | `tools/screenshot.jd` | tool | **`invoke: artifact`** — binary PNG/PDF output that cannot go on stdout |
 | `agents/review.jd` | agent | an agent file that delegates to a CLI (`gh`) from its recipe |
 | `agents/summarize.jd` | agent | an agent file with a required arg and a no-default usage error |
-| `workflows/ship.jd` | workflow | a workflow composing a gate + release via recipe dependencies |
-| `workflows/onboard.jd` | workflow | a workflow composing install + env + `@tools/db` migrate/seed |
+| `workflows/ship.jd` | workflow | composes `@tools/gate` + `@tools/release` via just dependencies, passing the version through (`gate (release version)`) |
+| `workflows/onboard.jd` | workflow | composes in-file `install`/`env` with `@tools/db` `migrate`/`seed` as `&&` post-dependencies |
 | `knowledge/orders.jd` | knowledge | a knowledge file with a `psaido` scaffold and `provides` |
 | `knowledge/product.jd` | knowledge | a companion knowledge file referenced via `@knowledge/product#Product` |
 | `scaffolds/auth.jd` | knowledge | scaffolds showing `!im ... as`, inline `@` links, nesting, control flow |
@@ -48,3 +48,7 @@ Conventions used across these files:
   never put `@` inside a `just` recipe body (the runner does not resolve it).
 - A `tool` file's `run` field names the default recipe; the runner calls
   `just --justfile - <recipe> <args...>` on the extracted fences.
+- Compose across files with a just **dependency** on the bare recipe name
+  (`ship: gate (release version)`), not a nested `just gate` in the body. Link
+  the other file with `@` so the runner folds its recipes into the same justfile;
+  files composed together must not reuse a recipe name.

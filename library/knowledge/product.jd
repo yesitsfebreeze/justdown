@@ -1,5 +1,5 @@
 ---
-name: catalog/product
+name: knowledge_product
 description: The canonical Product shape (id, name, price). Pull when implementing anything that touches a product line item.
 kind: knowledge
 tags: [catalog, pricing, schema]

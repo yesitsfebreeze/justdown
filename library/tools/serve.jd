@@ -1,5 +1,5 @@
 ---
-name: serve
+name: tools_serve
 description: Start the dev server (Vite) and keep it running. Use when the user asks to run, start, or serve the app locally.
 kind: tool
 tags: [dev, server, vite, sidecar]

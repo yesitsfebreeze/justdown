@@ -1,5 +1,5 @@
 ---
-name: fmt
+name: tools_fmt
 description: Format source files, or check formatting without writing. Use when the user asks to pretty-print or verify style.
 kind: tool
 tags: [format, style, lint]

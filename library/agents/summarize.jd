@@ -1,5 +1,5 @@
 ---
-name: summarize
+name: agents_summarize
 description: Summarize a file or diff for the user. Use when the user asks "what does this do", "summarize", or "explain this file".
 kind: agent
 tags: [summarize, explain, agent, docs]

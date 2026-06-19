@@ -1,5 +1,5 @@
 ---
-name: ship
+name: workflows_ship
 description: End-to-end ship workflow — gate, release, and announce. Use when the user says "ship it" and the tree should go out end to end.
 kind: workflow
 tags: [workflow, release, ci, ship]
@@ -10,18 +10,20 @@ run: ship
 
 A workflow composes tools into a named sequence. Here `ship` depends on
 @tools/gate and @tools/release via just recipe dependencies, so the runner gets
-ordering and failure-propagation for free: if `gate` exits non-zero, just stops
-and `release` never runs — the same result contract every tool shares.
+ordering and failure-propagation for free: `gate` runs first, then `release` with
+the same version (a parameterized dependency). If `gate` exits non-zero, just
+stops and `release` never runs — the same result contract every tool shares. The
+runner concatenates the linked files' recipes into one justfile, so the
+dependencies resolve natively without any nested `just` call.
 
 The body explains *when* to reach for this file: use it for a one-shot "ship
 it" where the tree is expected to be green. For a dry run of the gate alone, use
 @tools/gate directly.
 
 ```just
-# gate first, then release; both delegate to the files above
-ship version="patch": gate release
-  just gate
-  just release {{version}}
+# gate first, then release with the same version — both from the linked files
+ship version="patch": gate (release version)
+  @echo "shipped {{version}}"
 ```
 
 ## Invocation

@@ -1,5 +1,5 @@
 ---
-name: review
+name: agents_review
 description: Open an agent review of the current PR. Use when the user asks to review, critique, or sanity-check a pull request.
 kind: agent
 tags: [review, pr, agent, github]

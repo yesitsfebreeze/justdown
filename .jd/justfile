@@ -1,0 +1,168 @@
+# .jd/justfile — the justdown CLI and the one entry point.
+#
+# A small justfile that BEHAVES like a cross-platform CLI: it does everything the
+# old MCP server did — search, get (as ordered sections), list, walk links —
+# in pure POSIX shell + awk over graph.json. No node, no extra binary at runtime.
+#
+# Source resolves OFFLINE-FIRST (offline overrides online): a local graph.json and
+# local .jd bodies (under the project root) win; otherwise both are fetched from
+# the raw repo. No clone, no install. Override the repo with JUSTDOWN_REPO /
+# JUSTDOWN_BRANCH, or the base with JUSTDOWN_RAW_BASE.
+#
+# Requires: just, plus a POSIX shell with curl + awk on PATH (git-bash or WSL on
+# Windows). Install: download to <project>/.jd/justfile (see install.jd), then
+# `just --justfile .jd/justfile <recipe>` or add `import '.jd/justfile'` to a root
+# justfile to lift the recipes to top level.
+
+set shell := ["sh", "-cu"]
+
+root     := justfile_directory() / ".."
+repo     := env_var_or_default("JUSTDOWN_REPO", "yesitsfebreeze/justdown")
+branch   := env_var_or_default("JUSTDOWN_BRANCH", "main")
+raw_base := env_var_or_default("JUSTDOWN_RAW_BASE", "https://raw.githubusercontent.com/" + repo + "/" + branch)
+
+# default: show what the CLI can do
+_default:
+    @just --justfile "{{justfile()}}" help
+
+# rank library files by a natural-language need (optional: <kind> <num>)
+search query kind="" num="5":
+    #!/usr/bin/env sh
+    set -eu
+    graph() { if [ -f "{{root}}/graph.json" ]; then cat "{{root}}/graph.json"; else curl -fsSL "{{raw_base}}/graph.json"; fi; }
+    graph | awk -v q="{{query}}" -v kind="{{kind}}" '
+      function val(s){ sub(/^[^:]*:[ \t]*"/,"",s); sub(/",?[ \t]*$/,"",s); return s }
+      function flush(  i,hay){
+        if (name=="") return
+        if (kind!="" && k!=kind) { name=""; return }
+        hay=tolower(name " " purpose)
+        score=0
+        for (i=1;i<=nq;i++) if (qt[i]!="" && index(hay,qt[i])) score++
+        if (score>0) printf "%d\t%s\t%s\t%s\t%s\n", score, name, k, purpose, raw
+        name=""
+      }
+      BEGIN{ nq=split(tolower(q), qt, /[^a-z0-9+]+/) }
+      /"id":/      { flush(); name=""; k=""; purpose=""; raw=""; invec=0 }
+      /"vec":/     { invec=1 }
+      !invec && /"name":/    { name=val($0) }
+      !invec && /"kind":/    { k=val($0) }
+      !invec && /"purpose":/ { purpose=val($0) }
+      !invec && /"raw":/     { raw=val($0) }
+      END{ flush() }
+    ' | sort -rn | awk -F'\t' -v n="{{num}}" '
+      NR>n{exit}
+      { printf "%d. %s  [%s]  score %s\n   %s\n   %s\n", NR, $2, $3, $1, $4, $5 }
+    '
+
+# pull one file as ordered sections: [0] frontmatter, then prose | tools
+# (optional <only>: frontmatter | prose | tools)
+get ref only="":
+    #!/usr/bin/env sh
+    set -eu
+    graph() { if [ -f "{{root}}/graph.json" ]; then cat "{{root}}/graph.json"; else curl -fsSL "{{raw_base}}/graph.json"; fi; }
+    path=$(graph | awk -v ref="{{ref}}" '
+      function val(s){ sub(/^[^:]*:[ \t]*"/,"",s); sub(/",?[ \t]*$/,"",s); return s }
+      function base(p){ sub(/\.jd$/,"",p); n=split(p,a,"/"); return a[n] }
+      function flush(  r){
+        if (path=="" || done) return
+        r=ref; sub(/^@/,"",r); sub(/#.*$/,"",r)
+        if (name==r||key==r||path==r||base(path)==r){ print path; done=1 }
+      }
+      /"id":/   { flush(); name=""; key=""; path=""; invec=0 }
+      /"vec":/  { invec=1 }
+      !invec && /"name":/ { name=val($0) }
+      !invec && /"key":/  { key=val($0) }
+      !invec && /"path":/ { path=val($0) }
+      END{ flush() }
+    ')
+    [ -n "$path" ] || { echo "jd: no file: {{ref}}" >&2; exit 1; }
+    if [ -f "{{root}}/$path" ]; then body() { cat "{{root}}/$path"; }; else body() { curl -fsSL "{{raw_base}}/$path"; }; fi
+    body | awk -v only="{{only}}" '
+      function flush(  i,isjust,injust){
+        if (bn==0) return
+        isjust=0
+        for (i=1;i<=bn;i++) if (blk[i] ~ /^```just/) isjust=1
+        if (isjust && (only=="" || only=="tools")) {
+          print "# tools"; injust=0
+          for (i=1;i<=bn;i++){
+            if (blk[i] ~ /^```just/){ injust=1; continue }
+            if (injust && blk[i] ~ /^```/){ injust=0; continue }
+            if (injust) print blk[i]
+          }
+          print ""
+        } else if (!isjust && (only=="" || only=="prose")) {
+          print "# prose"; for (i=1;i<=bn;i++) print blk[i]; print ""
+        }
+        bn=0; delete blk
+      }
+      NR==1 && $0=="---" { infm=1; if (only==""||only=="frontmatter") print "# frontmatter"; next }
+      infm==1 && $0=="---" { infm=2; if (only==""||only=="frontmatter") print ""; next }
+      infm==1 { if (only==""||only=="frontmatter") print; next }
+      { if ($0 ~ /^```/) fence=!fence
+        if (!fence && $0=="---"){ flush(); next }
+        if (bn>0 || $0!="") blk[++bn]=$0 }
+      END{ flush() }
+    '
+
+# list categories and their member files
+ls:
+    #!/usr/bin/env sh
+    set -eu
+    graph() { if [ -f "{{root}}/graph.json" ]; then cat "{{root}}/graph.json"; else curl -fsSL "{{raw_base}}/graph.json"; fi; }
+    graph | awk '
+      function printcat(){ if (cat!="") print cat ":" mem; cat=""; mem="" }
+      /"categories": \{/ { inc=1; next }
+      inc && /^  \},?[ \t]*$/ { printcat(); inc=0 }
+      inc {
+        if ($0 ~ /^    "[^"]+": \[/){ printcat(); cat=$0; sub(/^[ \t]*"/,"",cat); sub(/":.*/,"",cat); next }
+        if ($0 ~ /^      "/){ v=$0; sub(/^[ \t]*"/,"",v); sub(/",?[ \t]*$/,"",v); mem=mem " " v }
+      }
+    '
+
+# inbound + outbound @links of a file
+links ref:
+    #!/usr/bin/env sh
+    set -eu
+    graph() { if [ -f "{{root}}/graph.json" ]; then cat "{{root}}/graph.json"; else curl -fsSL "{{raw_base}}/graph.json"; fi; }
+    g=$(graph)
+    path=$(printf '%s' "$g" | awk -v ref="{{ref}}" '
+      function val(s){ sub(/^[^:]*:[ \t]*"/,"",s); sub(/",?[ \t]*$/,"",s); return s }
+      function base(p){ sub(/\.jd$/,"",p); n=split(p,a,"/"); return a[n] }
+      function flush(  r){ if (path==""||done) return; r=ref; sub(/^@/,"",r); sub(/#.*$/,"",r)
+        if (name==r||key==r||path==r||base(path)==r){ print path; done=1 } }
+      /"id":/  { flush(); name=""; key=""; path=""; invec=0 }
+      /"vec":/ { invec=1 }
+      !invec && /"name":/ { name=val($0) }
+      !invec && /"key":/  { key=val($0) }
+      !invec && /"path":/ { path=val($0) }
+      END{ flush() }
+    ')
+    [ -n "$path" ] || { echo "jd: no file: {{ref}}" >&2; exit 1; }
+    printf '%s' "$g" | awk -v p="$path" '
+      function val(s){ sub(/^[^:]*:[ \t]*"/,"",s); sub(/",?[ \t]*$/,"",s); return s }
+      /"from":/ { from=val($0) }
+      /"to":/   { to=val($0) }
+      /"ref":/  { ref=val($0)
+        if (from==p) print "out  " ref
+        if (to==p)   print "in   " ref }
+    '
+
+# print this CLI'\''s usage
+help:
+    #!/usr/bin/env sh
+    cat <<'EOF'
+    jd — justdown CLI (pure justfile) · query the .jd graph, pull files as sections
+
+    USAGE  just --justfile .jd/justfile <recipe> [args]
+
+    search <query> [kind] [num]   rank library files by purpose (substring score)
+    get    <ref> [only]           file as ordered sections: [0] frontmatter,
+                                    then prose | tools  (only: frontmatter|prose|tools)
+    ls                            categories and their member files
+    links  <ref>                  inbound + outbound @links of a file
+    help                         this
+
+    REF   name · path · key(dir/name) · @dir/name
+    ENV   JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_RAW_BASE
+    SRC   offline overrides online: local graph.json + .jd win, else raw repo
+    EOF

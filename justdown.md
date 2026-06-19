@@ -66,7 +66,7 @@ It is the match surface that decides *when* the file is pulled.
 
 | Field | Required | Meaning |
 |-------|----------|---------|
-| `name` | yes | File identity; also the just module name when relevant. |
+| `name` | yes | File identity: the file's library path with `/` replaced by `_` (e.g. `tools_release`, `knowledge_orders`), so names stay unique across folders and never collide. |
 | `description` | yes | One or two lines: what it is and when to use it. **This is the contract** — the agent retrieves on it. |
 | `kind` | yes | `tool` \| `agent` \| `knowledge` \| `workflow` \| `hook`. A `hook` file subscribes to engine events — see [Hooks](#hooks-dynamic-edges). |
 | `tags` | no | Free-form labels for grouping and retrieval. |
@@ -140,6 +140,16 @@ extract ```just fences  →  feed to `just --justfile - <recipe> <args>`
 That extractor — one small parser extension — is the entire execution glue.
 ```` ```psaido ```` blocks are never extracted or run.
 
+**Cross-file composition.** A recipe composes another file's recipe through a
+**just dependency** (`ship version="patch": gate (release version)`), never a
+nested `just <recipe>` in the body — a child `just` cannot see a justfile fed on
+stdin. So the runner makes the justfile self-contained: it follows the file's
+`@`links and folds the linked files' fences into the same justfile before running.
+The dependency then resolves natively, with just's ordering and
+failure-propagation. (Linked files in one closure must not define the same recipe
+name twice.) This is the executable counterpart to `@`link hydration for prose:
+the same edge that pulls a file's *context* also pulls its *recipes*.
+
 ## Invocation modes
 
 `invoke` (default `run`) tells the runner **how to spawn and read back**. The
@@ -158,8 +168,7 @@ Result is **stdout + exit code**; non-zero is failure. The runner captures
 stdout and returns it.
 
 ```just
-release version="patch":
-  just gate
+release version="patch": gate
   npm version {{version}}
   git push --follow-tags
 ```
@@ -478,7 +487,7 @@ hosts; the format is the contract, not the host.
 
 ````markdown
 ---
-name: release
+name: tools_release
 description: Cut and publish a release. Use when the user asks to ship a version.
 kind: tool
 tags: [release, publish, ci]
@@ -487,12 +496,11 @@ run: release
 
 # Release
 
-Builds, gates, tags, and publishes. Runs the full check first; refuses on a red
-gate. For the gate itself see @tools/gate.
+Builds, gates, tags, and publishes. `gate` runs first as a just dependency;
+a red gate aborts before `npm version`. For the gate itself see @tools/gate.
 
 ```just
-release version="patch":
-  just gate
+release version="patch": gate
   npm version {{version}}
   git push --follow-tags
 ```
@@ -500,14 +508,14 @@ release version="patch":
 
 - An index ingests the frontmatter, keyed by the file's path.
 - The agent, on a "ship it" query, pulls the file and reads the body.
-- The runner shells `just --justfile - release <version>` from the extracted
-  block.
+- The runner folds @tools/gate's recipe into the justfile (the `gate` dependency)
+  and shells `just --justfile - release <version>` from the extracted blocks.
 
 ## Example: a knowledge file with a scaffold
 
 ````markdown
 ---
-name: orders/total
+name: knowledge_orders
 description: How an order total is computed and applied. Pull when implementing checkout.
 kind: knowledge
 tags: [orders, pricing]

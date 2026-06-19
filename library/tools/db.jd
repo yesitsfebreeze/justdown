@@ -1,5 +1,5 @@
 ---
-name: db
+name: tools_db
 description: Run database migrations and local DB tooling (migrate, rollback, seed, studio, reset). Use when the user asks to migrate, seed, or open the DB.
 kind: tool
 tags: [db, migrate, prisma, sql]

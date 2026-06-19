@@ -1,5 +1,5 @@
 ---
-name: commit
+name: tools_commit
 description: Stage a scope and write a conventional commit. Use when the user asks to commit changes with a message.
 kind: tool
 tags: [git, commit, vcs]

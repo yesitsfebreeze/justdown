@@ -1,0 +1,50 @@
+---
+name: disk_du
+description: Measure directory sizes with du — the total for a tree, the biggest immediate children, the largest entries anywhere beneath, and a single path's size. Use to find what is eating a disk after df points at the full mount.
+kind: tool
+tags: [disk, du, size, directories, largest, usage]
+use_when: [what is using disk space, biggest directories, find large files, size of a folder, du sort by size, what is filling the disk]
+danger: none
+requires: [du]
+run: top
+provides: [top, total, biggest, here]
+---
+
+# du
+
+Disk usage *per path* — the drill-down that follows @disk/df. `top` ranks the
+immediate children so you can descend toward the bloat one level at a time;
+`biggest` finds the largest entries anywhere in the tree; `total` is the single
+summed size. du counts blocks actually used, so it can differ from apparent file
+size (sparse files, filesystem overhead) — add the recipes' `-b`/`--apparent`
+mentally if you need byte-exact.
+
+| Recipe | Flags | Shows |
+|--------|-------|-------|
+| `top` | `-h -d1 \| sort` | immediate children, largest first |
+| `total` | `-sh` | one summed total for the path |
+| `biggest` | `-h \| sort \| tail` | the N largest entries at any depth |
+| `here` | `-sh *` | size of each entry in the current dir |
+
+The daily move is `top` on `/` (with sudo), then `cd` into the fattest child
+and repeat — a binary-search down to the offender. `-x` keeps du on one
+filesystem so it does not wander into mounted volumes; `-d1` (`--max-depth=1`)
+is what stops it printing every nested file.
+
+```just
+# immediate children of a dir, largest first (default)
+top dir=".":
+  du -h -d1 -- {{quote(dir)}} | sort -rh
+
+# one summed total for a path
+total dir=".":
+  du -sh -- {{quote(dir)}}
+
+# the N largest entries anywhere beneath a dir
+biggest dir="." n="20":
+  du -h -- {{quote(dir)}} | sort -rh | head -n {{quote(n)}}
+
+# size of each entry in the current directory
+here:
+  du -sh -- * | sort -rh
+```

@@ -1,0 +1,49 @@
+---
+name: disk_df
+description: Report filesystem space with df — free and used space per mount, human-readable sizes, the filesystem holding a given path, and inode exhaustion. Use to find a full disk, see what mount a path lives on, or diagnose "no space left" with inodes free.
+kind: tool
+tags: [disk, df, filesystem, space, mounts, inodes]
+use_when: [check free disk space, which mount is full, what filesystem holds this path, no space left on device, inode usage, disk usage per mount]
+danger: none
+requires: [df]
+run: human
+provides: [human, path, inodes, local]
+---
+
+# df
+
+Free space *per filesystem* — the mount-level view. `human` is the default
+readable listing; `path` reveals which mount a directory actually lives on
+(useful when symlinks or bind mounts hide it); `inodes` catches the sneaky
+"no space left" that has free bytes but no free inodes. Once df names the full
+mount, switch to @disk/du to find *what* is filling it.
+
+| Recipe | Flag | Shows |
+|--------|------|-------|
+| `human` | `-h` | size/used/avail/use% per mount, readable units |
+| `path` | `-h <dir>` | just the filesystem holding a path |
+| `inodes` | `-i` | inode totals and free count per mount |
+| `local` | `-hl` | local filesystems only (skip network mounts) |
+
+"No space left on device" with `df -h` showing free space means inodes are
+exhausted — check `df -i`. `local` (`-l`) skips NFS/SMB mounts that can hang or
+mislead. The `Use%` column is the at-a-glance number; anything near 100% on
+`/`, `/var`, or `/tmp` is the usual culprit.
+
+```just
+# space per mount in readable units (default)
+human:
+  df -h
+
+# the filesystem that actually holds a given path
+path dir=".":
+  df -h -- {{quote(dir)}}
+
+# inode usage per mount (diagnoses "no space" with bytes free)
+inodes:
+  df -i
+
+# local filesystems only, skipping network mounts
+local:
+  df -hl
+```

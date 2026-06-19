@@ -77,3 +77,4 @@ auto-run tests when a file is saved	watch_entr
 check when a TLS certificate expires	cert_openssl
 pull a value out of a yaml config file	search_yq
 compare the speed of two commands	bench_hyperfine
+convert a unix timestamp to a readable date	date_date

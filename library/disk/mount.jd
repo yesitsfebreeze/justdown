@@ -1,0 +1,51 @@
+---
+name: disk_mount
+description: Attach and detach filesystems with mount and umount — list what is mounted, mount a device at a path, unmount it, and bind-mount a directory elsewhere. Use to see current mounts, attach a disk or share, or free a busy mount point.
+kind: tool
+tags: [disk, mount, umount, filesystem, bind, mounts]
+use_when: [what is mounted, mount a device, unmount a filesystem, attach a disk, bind mount a directory, target is busy unmount, list mount points]
+danger: high
+side_effects: [system-state]
+requires: [util-linux]
+run: list
+provides: [list, attach, detach, bind]
+---
+
+# mount
+
+Attach a filesystem to a directory in the tree, or detach it. `list` shows
+what is mounted; `attach` mounts a device at a path; `detach` unmounts; `bind`
+makes a directory appear at a second path. Once @disk/df shows a full or odd
+mount, this is how you inspect or change it. Mounting and unmounting need root.
+
+| Recipe | Does |
+|--------|------|
+| `list` | current mounts as a readable tree (`findmnt`) |
+| `attach` | mount a device at a directory |
+| `detach` | unmount a filesystem |
+| `bind` | mount an existing directory at a second location |
+
+`findmnt` (the `list` recipe) is far more readable than bare `mount` with no
+args — a real tree with source, target, fstype, and options. "target is busy"
+on `detach` means a process holds a file open there — find it with @proc/lsof
+(`lsof +D /mnt`) and stop it, or `umount -l` for a lazy detach that completes
+once it is free. A bind mount (`--bind`) exposes the same files at two paths
+without copying — handy for containers and chroots.
+
+```just
+# current mounts as a readable tree (default)
+list:
+  findmnt
+
+# mount a device at a directory (needs root; fstype usually auto-detected)
+attach device dir:
+  sudo mount {{quote(device)}} {{quote(dir)}}
+
+# unmount a filesystem by path or device
+detach target:
+  sudo umount {{quote(target)}}
+
+# bind-mount an existing directory at a second path
+bind src dst:
+  sudo mount --bind {{quote(src)}} {{quote(dst)}}
+```

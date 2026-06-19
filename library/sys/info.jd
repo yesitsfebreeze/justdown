@@ -1,0 +1,55 @@
+---
+name: sys_info
+description: Identify the system — kernel and architecture, the Linux distro and version, CPU count and model, and memory totals. Use to find out what OS, arch, distro, or hardware you are on, especially in a script that must branch per platform.
+kind: tool
+tags: [sys, uname, os-release, arch, cpu, memory]
+use_when: [what os am I on, what is the kernel version, which linux distro, cpu count and model, how much memory, system architecture, detect platform in a script]
+danger: none
+requires: [coreutils]
+run: os
+provides: [os, distro, cpu, mem]
+---
+
+# sys info
+
+The "what am I running on" answers a portable script needs before it branches.
+`os` is kernel + architecture (`uname`); `distro` reads the Linux release name
+and version; `cpu` counts and names the cores; `mem` shows memory totals. The
+sources differ per platform — `uname` is universal, `/etc/os-release` is Linux,
+`free`/`lscpu` are Linux (macOS uses `sysctl`), noted below.
+
+| Recipe | Source | Shows |
+|--------|--------|-------|
+| `os` | `uname -srm` | kernel name, version, machine arch |
+| `distro` | `/etc/os-release` | distro id, name, and version |
+| `cpu` | `nproc` + `lscpu` | core count and model |
+| `mem` | `free -h` | total / used / available memory |
+
+For portable scripting, branch on `uname -s` (`Linux`, `Darwin`, …) and
+`uname -m` (`x86_64`, `aarch64`) — these exist everywhere. `/etc/os-release` is
+the modern, machine-parseable distro source (`ID=ubuntu`, `VERSION_ID="22.04"`)
+that replaced the old per-distro `*-release` files. On macOS the Linux-only
+recipes have `sysctl` equivalents: `sysctl -n hw.ncpu` for cores, `hw.memsize`
+for RAM, `sw_vers` for the OS version.
+
+```just
+# kernel name, version, and machine architecture (default)
+os:
+  uname -srm
+
+# Linux distro id, name, and version
+distro:
+  #!/usr/bin/env sh
+  set -eu
+  . /etc/os-release && printf '%s %s (%s)\n' "$NAME" "$VERSION_ID" "$ID"
+
+# CPU core count and model
+cpu:
+  #!/usr/bin/env sh
+  set -eu
+  printf 'cores=%s\n' "$(nproc)"; lscpu | grep -E '^Model name'
+
+# memory totals (total / used / available)
+mem:
+  free -h
+```

@@ -34,22 +34,51 @@ for RAM, `sw_vers` for the OS version.
 
 ```just
 # kernel name, version, and machine architecture (default)
+[unix, macos, wsl]
 os:
   uname -srm
+[windows]
+os:
+  systeminfo | findstr /B /C:"OS Name" /C:"OS Version" /C:"System Type"
 
-# Linux distro id, name, and version
+# OS release name and version
+[unix, wsl]
 distro:
   #!/usr/bin/env sh
   set -eu
   . /etc/os-release && printf '%s %s (%s)\n' "$NAME" "$VERSION_ID" "$ID"
+[macos]
+distro:
+  sw_vers
+[windows]
+distro:
+  cmd /c ver
 
 # CPU core count and model
+[unix, wsl]
 cpu:
   #!/usr/bin/env sh
   set -eu
   printf 'cores=%s\n' "$(nproc)"; lscpu | grep -E '^Model name'
+[macos]
+cpu:
+  #!/usr/bin/env sh
+  set -eu
+  printf 'cores=%s\n' "$(sysctl -n hw.ncpu)"; sysctl -n machdep.cpu.brand_string
+[windows]
+cpu:
+  cmd /c echo cores=%NUMBER_OF_PROCESSORS%
 
-# memory totals (total / used / available)
+# memory totals
+[unix, wsl]
 mem:
   free -h
+[macos]
+mem:
+  #!/usr/bin/env sh
+  set -eu
+  printf 'total=%s GiB\n' "$(( $(sysctl -n hw.memsize) / 1024 / 1024 / 1024 ))"
+[windows]
+mem:
+  systeminfo | findstr /C:"Total Physical Memory"
 ```

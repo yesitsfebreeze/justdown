@@ -1,0 +1,38 @@
+---
+name: file_open
+description: Open a file, folder, or URL in the host's default application. Use when the user asks to open something in the GUI, reveal a path, or launch a link in the browser.
+kind: tool
+tags: [open, xdg-open, launch, default-app, url, cross-platform]
+use_when: [open this file, open in the browser, launch the default app, reveal in finder, open a url]
+not_when: [edit in the terminal, open in vim, read the file contents]
+danger: low
+side_effects: [gui]
+run: open
+---
+
+# Open
+
+Hand a path or URL to whatever the OS calls the default handler. One recipe, four
+hosts — the launcher differs per platform, so each is a guarded variant and the
+runner emits only the one matching the host (see @jd/authoring for the
+`[unix]`/`[macos]`/`[windows]`/`[wsl]` convention). On WSL, `wslview` (from
+`wslu`) bridges to the Windows shell so a Linux path or URL opens on the Windows
+side.
+
+```just
+[unix]
+open target:
+  xdg-open {{target}}
+
+[macos]
+open target:
+  open {{target}}
+
+[windows]
+open target:
+  cmd /c start "" {{target}}
+
+[wsl]
+open target:
+  wslview {{target}}
+```

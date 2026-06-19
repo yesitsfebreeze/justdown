@@ -15,6 +15,12 @@ dist/
 node_modules/
 .vite.pid
 
+# rust cli build output + the local graph store (a build artifact)
+cli/target/
+graph.db
+graph.db-journal
+graph.db-wal
+
 # kern runtime (local-only graph memory)
 .kern/
 

@@ -35,18 +35,40 @@ deprioritizing ICMP — not your problem).
 
 ```just
 # loss % and round-trip time over N packets (default)
+[unix, wsl]
 check host count="5":
   ping -c {{quote(count)}} -- {{quote(host)}}
+[macos]
+check host count="5":
+  ping -c {{quote(count)}} {{quote(host)}}
+[windows]
+check host count="5":
+  ping -n {{quote(count)}} {{quote(host)}}
 
 # list the hops on the path to a host
+[unix, macos, wsl]
 trace host:
   traceroute {{quote(host)}}
+[windows]
+trace host:
+  tracert {{quote(host)}}
 
-# live per-hop loss and latency report (needs mtr)
+# live per-hop loss and latency report (mtr on unix/macOS, pathping on Windows)
+[unix, macos, wsl]
 mtr host:
   mtr --report --report-cycles 10 {{quote(host)}}
+[windows]
+mtr host:
+  pathping {{quote(host)}}
 
 # rapid probes to surface intermittent loss
+[unix, wsl]
 flood host count="20":
   ping -c {{quote(count)}} -i 0.2 -- {{quote(host)}}
+[macos]
+flood host count="20":
+  ping -c {{quote(count)}} -i 0.2 {{quote(host)}}
+[windows]
+flood host count="20":
+  ping -n {{quote(count)}} {{quote(host)}}
 ```

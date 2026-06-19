@@ -1,0 +1,18 @@
+[package]
+name = "jd"
+version = "0.2.0"
+edition = "2021"
+description = "justdown CLI — build, query, and merge the .jd library graph"
+license = "MIT"
+
+[[bin]]
+name = "jd"
+path = "src/main.rs"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

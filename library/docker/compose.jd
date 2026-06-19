@@ -1,0 +1,51 @@
+---
+name: docker_compose
+description: Run multi-container apps with Docker Compose — bring the stack up or down, follow service logs, and list running services from a compose file. Use to start a defined stack, tear it down, or watch what a service is doing.
+kind: tool
+tags: [docker, compose, stack, services, orchestration, multi-container]
+use_when: [start a docker compose stack, bring up the services, tear down containers, follow compose logs, list compose services, docker compose up, restart a stack]
+danger: medium
+side_effects: [process, network]
+requires: [docker]
+run: up
+provides: [up, down, logs, ps]
+---
+
+# docker compose
+
+Drive a whole stack defined in `compose.yaml` rather than single containers
+(@docker/container). `up` starts every service (detached); `down` stops and
+removes them; `logs` follows the combined output; `ps` lists what is running.
+Modern Docker ships this as `docker compose` (a subcommand); the standalone
+`docker-compose` is the legacy v1 binary with the same verbs.
+
+| Recipe | Does |
+|--------|------|
+| `up` | build (if needed) and start the stack, detached |
+| `down` | stop and remove the stack's containers and network |
+| `logs` | follow the combined logs of all (or one) service |
+| `ps` | list the stack's services and their state |
+
+`up -d` runs detached; `up --build` forces a rebuild when an image is stale;
+`down -v` also removes named volumes (data loss — deliberate). Pass a service
+name to `logs`/`up`/`down` to scope to one. `down` only removes what *this*
+compose project created, so it is safe next to unrelated containers. Edit the
+@search/yq way for compose-file tweaks.
+
+```just
+# build if needed and start the whole stack, detached (default)
+up service="":
+  docker compose up -d {{service}}
+
+# stop and remove the stack's containers and network
+down:
+  docker compose down
+
+# follow the combined logs (pass a service name to scope)
+logs service="":
+  docker compose logs -f {{service}}
+
+# list the stack's services and their state
+ps:
+  docker compose ps
+```

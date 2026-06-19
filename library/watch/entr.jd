@@ -1,0 +1,48 @@
+---
+name: watch_entr
+description: Run a command when files change with entr — rebuild on save, restart a server on edit, or clear-and-rerun tests. Takes the file list on stdin (from find, fd, or git). The event-driven re-run loop. Use to auto-rebuild, auto-test, or auto-reload on file changes.
+kind: tool
+tags: [watch, entr, file-change, rebuild, autoreload, tdd]
+use_when: [run command on file change, rebuild on save, auto-run tests on edit, restart server when files change, watch files and rerun, hot reload from the terminal]
+danger: none
+requires: [entr]
+run: run
+provides: [run, clear, restart]
+---
+
+# entr
+
+The event-driven counterpart to @watch/watch: instead of a timer, it re-runs a
+command **when a watched file changes**. It reads the file list on stdin — so
+you compose it with @search/find, @search/fd, or `git ls-files` to choose what
+to watch. The TDD/dev-loop staple: save a file, the command fires.
+
+| Recipe | Flag | Behavior |
+|--------|------|----------|
+| `run` | — | run the command once per change |
+| `clear` | `-c` | clear the screen before each run (clean test output) |
+| `restart` | `-r` | for long-running procs: kill and restart on change |
+
+The two modes are distinct: plain entr *runs to completion* each change (tests,
+builds); `-r` is for a **persistent** process (a dev server) — it kills the old
+one and starts fresh. `/_` in the command expands to the changed file. Pass
+`-d` to also fire when a new file appears in a watched directory (entr exits so
+the wrapper can re-glob). Feed it a NUL-safe list with `-0` when names have
+spaces.
+
+```just
+# run a command once each time a watched file changes (files on stdin)
+run +command:
+  entr -- {{command}}
+
+# clear the screen before each run (clean test output)
+clear +command:
+  entr -c -- {{command}}
+
+# restart a long-running process on change (dev server)
+restart +command:
+  entr -r -- {{command}}
+```
+
+Compose: `fd -e rs | entr -c cargo test` re-runs the tests on any Rust file
+save; `git ls-files | entr -r ./serve` restarts the server on any tracked edit.

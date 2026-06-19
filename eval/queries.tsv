@@ -84,3 +84,4 @@ colorize output in a shell script portably	term_tput
 watch a log file grow in real time	text_tail
 unstage a file without losing my edits	git_stage
 grep for a string when ripgrep is not installed	search_grep
+trace the system calls a command makes	proc_strace

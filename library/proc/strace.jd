@@ -1,0 +1,52 @@
+---
+name: proc_strace
+description: Trace system calls and signals with strace — see what a command does at the kernel boundary, attach to a running process, filter to file or network calls, and count syscall time. Use to find which file or config a program opens, why it hangs, or where it spends kernel time.
+kind: tool
+tags: [proc, strace, syscall, trace, debug, attach]
+use_when: [what files does this program open, why is the process hanging, trace system calls, attach to a running process, what is this command doing, debug a failing exec, count syscalls]
+danger: medium
+side_effects: [process-attach]
+requires: [strace]
+run: run
+provides: [run, attach, files, summary]
+---
+
+# strace
+
+Watch a program at the syscall boundary — the answer to "what file/socket is it
+actually touching" and "where is it stuck". `run` traces a command from launch;
+`attach` hooks a running PID (from @proc/ps); `files` filters to file-opening
+calls (the daily driver for "which config did it read"); `summary` profiles
+syscall time. Tracing pauses the target slightly, so prefer it on a reproducible
+case, not a hot production process.
+
+| Recipe | Flags | Shows |
+|--------|-------|-------|
+| `run` | — | every syscall a command makes |
+| `attach` | `-p` | syscalls of an already-running PID |
+| `files` | `-e trace=open,openat,stat` | just the file-access calls |
+| `summary` | `-c` | a per-syscall count/time profile on exit |
+
+`files` is what finds the config a program silently reads or the missing file
+behind an obscure error. A hang usually shows a syscall it is blocked in (a
+`read` on a socket, a `futex`) as the last line. `-f` follows forked children;
+`-e trace=network` narrows to sockets; `-s 200` shows longer string args.
+Attaching needs matching privileges (often `sudo`), and detaches on Ctrl-C.
+
+```just
+# trace every syscall a command makes from launch (default)
+run +command:
+  strace -f {{command}}
+
+# attach to an already-running process by PID
+attach pid:
+  sudo strace -f -p {{quote(pid)}}
+
+# only file-access syscalls (which files does it open?)
+files +command:
+  strace -f -e trace=open,openat,stat,access {{command}}
+
+# a per-syscall count and time profile, printed on exit
+summary +command:
+  strace -f -c {{command}}
+```

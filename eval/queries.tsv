@@ -102,3 +102,4 @@ stop being asked for my ssh key passphrase every time	ssh_agent
 resume an interrupted file download	http_wget
 unmount a filesystem that says target is busy	disk_mount
 read a password in a script without echoing it	term_stty
+extract the audio track from a video	media_ffmpeg

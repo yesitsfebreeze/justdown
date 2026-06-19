@@ -2,6 +2,7 @@
 // the original justfile used (JUSTDOWN_*). `index` is now a SQLite store path
 // rather than a flat tsv.
 
+use crate::render::Vars;
 use std::path::PathBuf;
 
 pub struct Config {
@@ -59,6 +60,24 @@ impl Config {
             raw_base,
             format,
         }
+    }
+
+    /// Host-injected `<<var>>` values drawn from the environment: every
+    /// `JUSTDOWN_VAR_<name>` becomes the variable `<name>`. This keeps with
+    /// justdown's `JUSTDOWN_*`-from-env convention; `get` layers per-call
+    /// `--var name=value` flags on top (flags win — see `query::get`).
+    /// The `<name>` is lowercased to match the `[A-Za-z0-9_]+` escape grammar
+    /// authors write (env keys are conventionally upper-case).
+    pub fn env_vars() -> Vars {
+        let mut vars = Vars::new();
+        for (k, v) in std::env::vars() {
+            if let Some(name) = k.strip_prefix("JUSTDOWN_VAR_") {
+                if !name.is_empty() {
+                    vars.insert(name.to_lowercase(), v);
+                }
+            }
+        }
+        vars
     }
 
     pub fn lib_dir(&self) -> PathBuf {

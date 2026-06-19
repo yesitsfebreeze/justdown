@@ -1,9 +1,11 @@
 name: release
 
-# Cut prebuilt `jd` binaries on a version tag. Each target is built on a NATIVE
-# runner (no cross-compiling) so rusqlite's bundled SQLite compiles with the
-# platform's own C toolchain. Artifacts are packaged, checksummed, and attached
-# to a GitHub Release.
+# Cut prebuilt `jd` binaries on a version tag. Each target is built with an
+# explicit --target so we never depend on a retired runner image: the Intel
+# macOS binary (x86_64-apple-darwin) cross-compiles on the Apple-Silicon
+# macos-14 runner, since GitHub no longer offers Intel (macos-13) runners.
+# rusqlite's bundled SQLite compiles fine cross-arch via the universal macOS SDK.
+# Artifacts are packaged, checksummed, and attached to a GitHub Release.
 
 on:
   push:
@@ -27,13 +29,15 @@ jobs:
         include:
           - { os: ubuntu-latest,    target: x86_64-unknown-linux-gnu }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-          - { os: macos-13,         target: x86_64-apple-darwin }
+          - { os: macos-14,         target: x86_64-apple-darwin }
           - { os: macos-14,         target: aarch64-apple-darwin }
           - { os: windows-latest,   target: x86_64-pc-windows-msvc }
     steps:
       - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -41,7 +45,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --locked --manifest-path cli/Cargo.toml
+        run: cargo build --release --locked --target ${{ matrix.target }} --manifest-path cli/Cargo.toml
 
       - name: Package (unix)
         if: runner.os != 'Windows'
@@ -50,7 +54,7 @@ jobs:
           tag="${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
           name="jd-${tag}-${{ matrix.target }}"
           mkdir -p dist
-          tar -czf "dist/${name}.tar.gz" -C cli/target/release jd
+          tar -czf "dist/${name}.tar.gz" -C "cli/target/${{ matrix.target }}/release" jd
 
       - name: Package (windows)
         if: runner.os == 'Windows'
@@ -59,7 +63,7 @@ jobs:
           $tag = "${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
           $name = "jd-$tag-${{ matrix.target }}"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path cli/target/release/jd.exe -DestinationPath "dist/$name.zip"
+          Compress-Archive -Path "cli/target/${{ matrix.target }}/release/jd.exe" -DestinationPath "dist/$name.zip"
 
       - uses: actions/upload-artifact@v4
         with:

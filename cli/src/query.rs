@@ -158,9 +158,28 @@ struct Scored<'a> {
     row: &'a Row,
 }
 
+/// Inbound+outbound @link degree per node key — the graph-connectivity signal.
+/// A tool that composes (or is composed by) many others is more central.
+fn degree_map(rows: &[Row]) -> std::collections::HashMap<String, usize> {
+    let mut indeg: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for row in rows {
+        for l in &row.links {
+            *indeg.entry(l.as_str()).or_insert(0) += 1;
+        }
+    }
+    let mut deg = std::collections::HashMap::new();
+    for row in rows {
+        let d = row.links.len() + indeg.get(row.key.as_str()).copied().unwrap_or(0);
+        deg.insert(row.key.clone(), d);
+    }
+    deg
+}
+
 /// Field-weighted ranking, shared by `search` and `eval`. Filters by kind /
 /// category, applies the not_when veto, scores name/use_when (3) > tags (2) >
-/// purpose (1), and sorts score-desc then name-asc.
+/// purpose (1). Sorts score-desc, then by graph connectivity (a well-connected
+/// tool outranks an isolated one on a tie — the smart-graph signal), then
+/// name-asc as the final deterministic tie-break.
 fn rank<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Scored<'a>> {
     let q = query.to_lowercase();
     let terms: Vec<String> = words(&q)
@@ -169,6 +188,7 @@ fn rank<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Sco
         .map(|t| t.to_string())
         .collect();
 
+    let deg = degree_map(rows);
     let mut scored: Vec<Scored> = Vec::new();
     for row in rows {
         if !kind.is_empty() && row.kind != kind {
@@ -205,7 +225,13 @@ fn rank<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Sco
         }
         scored.push(Scored { score, row });
     }
-    scored.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.row.name.cmp(&b.row.name)));
+    let dg = |k: &str| deg.get(k).copied().unwrap_or(0);
+    scored.sort_by(|a, b| {
+        b.score
+            .cmp(&a.score)
+            .then_with(|| dg(&b.row.key).cmp(&dg(&a.row.key)))
+            .then_with(|| a.row.name.cmp(&b.row.name))
+    });
     scored
 }
 
@@ -806,4 +832,141 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
         }
     }
     0
+}
+
+// ---------------------------------------------------------------------------
+// path — shortest connection between two tools through the @link graph
+// ---------------------------------------------------------------------------
+
+/// Resolve a ref (name | key | path | basename, with optional `@`/`#section`)
+/// to a row.
+fn resolve<'a>(rows: &'a [Row], refr: &str) -> Option<&'a Row> {
+    let mut needle = refr.to_string();
+    if let Some(s) = needle.strip_prefix('@') {
+        needle = s.to_string();
+    }
+    if let Some(i) = needle.find('#') {
+        needle.truncate(i);
+    }
+    rows.iter()
+        .find(|r| r.name == needle || r.key == needle || r.path == needle || basename(&r.path) == needle)
+}
+
+/// `jd path <a> <b>` — the shortest chain of @links connecting two files,
+/// treating links as undirected (the "best connection between tooling"). BFS
+/// over the link graph; neighbours visited in sorted order for determinism.
+/// Exit 0 with a path, 2 if the two are unconnected, 2 (with an error) if an
+/// endpoint doesn't resolve, 3 on bad args.
+pub fn path(cfg: &Config, args: &[String]) -> i32 {
+    if !Config::format_valid() {
+        emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
+        return 3;
+    }
+    let (a, b) = match (args.first(), args.get(1)) {
+        (Some(a), Some(b)) if !a.is_empty() && !b.is_empty() => (a.clone(), b.clone()),
+        _ => {
+            emit_err(cfg, "bad-args", "path needs two refs: jd path <a> <b>");
+            return 3;
+        }
+    };
+    let rows = match gather(cfg) {
+        Ok(r) => r,
+        Err(c) => return c,
+    };
+
+    let src = match resolve(&rows, &a) {
+        Some(r) => r.key.clone(),
+        None => {
+            emit_err(cfg, "not-found", &format!("no file: {a}"));
+            return 2;
+        }
+    };
+    let dst = match resolve(&rows, &b) {
+        Some(r) => r.key.clone(),
+        None => {
+            emit_err(cfg, "not-found", &format!("no file: {b}"));
+            return 2;
+        }
+    };
+
+    // undirected adjacency among known keys (sorted for deterministic BFS)
+    let known: std::collections::HashSet<&str> = rows.iter().map(|r| r.key.as_str()).collect();
+    let mut adj: std::collections::HashMap<&str, std::collections::BTreeSet<&str>> =
+        std::collections::HashMap::new();
+    for r in &rows {
+        for l in &r.links {
+            if l.as_str() != r.key && known.contains(l.as_str()) {
+                adj.entry(r.key.as_str()).or_default().insert(l.as_str());
+                adj.entry(l.as_str()).or_default().insert(r.key.as_str());
+            }
+        }
+    }
+
+    // BFS from src to dst
+    let chain: Option<Vec<String>> = {
+        let mut prev: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut queue: std::collections::VecDeque<&str> = std::collections::VecDeque::new();
+        let s: &str = &src;
+        let d: &str = &dst;
+        seen.insert(s);
+        queue.push_back(s);
+        let mut hit = s == d;
+        while let Some(cur) = queue.pop_front() {
+            if cur == d {
+                hit = true;
+                break;
+            }
+            if let Some(ns) = adj.get(cur) {
+                for &n in ns {
+                    if seen.insert(n) {
+                        prev.insert(n, cur);
+                        queue.push_back(n);
+                    }
+                }
+            }
+        }
+        if hit {
+            let mut path = vec![d.to_string()];
+            let mut cur = d;
+            while cur != s {
+                let p = prev[cur];
+                path.push(p.to_string());
+                cur = p;
+            }
+            path.reverse();
+            Some(path)
+        } else {
+            None
+        }
+    };
+
+    match cfg.format {
+        Format::Json => {
+            let (arr, len) = match &chain {
+                Some(p) => (
+                    p.iter().map(|k| json_str(k)).collect::<Vec<_>>().join(","),
+                    p.len() as i64 - 1,
+                ),
+                None => (String::new(), -1),
+            };
+            println!(
+                "{{\"schema\":\"justdown.path/1\",\"from\":{},\"to\":{},\"path\":[{}],\"length\":{}}}",
+                json_str(&src),
+                json_str(&dst),
+                arr,
+                len
+            );
+        }
+        Format::Text => {
+            if let Some(p) = &chain {
+                println!("{}", p.join(" → "));
+            }
+        }
+    }
+
+    match chain {
+        Some(_) => 0,
+        None => 2,
+    }
 }

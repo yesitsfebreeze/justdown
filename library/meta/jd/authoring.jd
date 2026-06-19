@@ -59,7 +59,7 @@ directory.
 
 ## Before you push
 
-Run @jd/cli `lint` (`just lint`) and read the `N error(s)` line — never bury it
+Run @jd/cli `lint` (`jd lint`) and read the `N error(s)` line — never bury it
 in a pipe whose tail succeeds. Zero errors, then commit. The two recurring
 gotchas: a `kind: tool` missing its recipe, and a literal `@`-prefixed
 `dir/name` token in prose that the linter reads as a broken link (describe the

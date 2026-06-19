@@ -1,7 +1,7 @@
 # justdown retrieval eval set — query<TAB>expected-tool-name (the `name` field).
 # Queries are deliberately paraphrased (synonyms, intent, not the description
 # verbatim) so this measures real ranking quality, not echo overlap.
-# Run with `just eval`. Lines starting with # are ignored.
+# Run with `jd eval`. Lines starting with # are ignored.
 #
 # query	expected
 publish a new version to npm	tools_release

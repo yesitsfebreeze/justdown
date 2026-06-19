@@ -1,0 +1,47 @@
+---
+name: shell_redirect
+description: Redirect input and output across bash, zsh, fish, and nu — send stdout to a file, capture or merge stderr, append, discard, and feed a here-doc. The streams differ most between POSIX shells and fish/nu, so translate here. Use to log output, separate or merge stderr, or silence a command.
+kind: knowledge
+tags: [shell, redirect, stdout, stderr, pipe, heredoc]
+use_when: [redirect output to a file, capture stderr, merge stderr into stdout, silence a command, append to a file, redirect in fish or nu, here document, discard output]
+---
+
+# Redirect
+
+Where each shell sends a command's streams. bash and zsh share the POSIX
+`N>` grammar; **fish and nu diverge** — that is the row to look up. Pairs with
+@shell/bash (the POSIX detail) and the cross-shell map in @shell/rosetta. The
+three streams are stdin (0), stdout (1), stderr (2).
+
+## The common operations
+
+| Operation | bash / zsh | fish | nu |
+|-----------|-----------|------|-----|
+| stdout → file | `> f` | `> f` | `o> f` (or `\| save f`) |
+| append stdout | `>> f` | `>> f` | `o>> f` |
+| stderr → file | `2> f` | `2> f` | `e> f` |
+| merge stderr into stdout | `2>&1` | `2>&1` | `o+e> f` |
+| both → file | `&> f` | `&> f` | `o+e> f` |
+| discard (to null) | `> /dev/null 2>&1` | `&> /dev/null` | `o+e> (null)` |
+| stdin ← file | `< f` | `< f` | `open f \| …` |
+
+## Order matters in POSIX shells
+
+`cmd > f 2>&1` and `cmd 2>&1 > f` are **not** the same. Redirections apply
+left to right: the first sends stdout to `f` then points stderr at "wherever
+stdout now goes" (the file) — both land in `f`. The second points stderr at the
+*terminal* (where stdout still is), then moves stdout to `f` — so stderr stays on
+screen. Always put `2>&1` **after** the `> f`.
+
+## Here-docs and here-strings (bash/zsh)
+
+| Form | Feeds |
+|------|-------|
+| `cmd <<EOF … EOF` | the lines until `EOF` as stdin |
+| `cmd <<-EOF` | same, but strips leading **tabs** (for indented heredocs) |
+| `cmd <<'EOF'` | quoted delimiter = **no** variable expansion inside |
+| `cmd <<< "str"` | a single here-string as stdin |
+
+fish has no here-doc — use `printf '%s\n' a b | cmd` or `string collect`. nu uses
+a raw string (`"...\n..." | cmd`) or `open`. To capture output into a *variable*
+instead of a file, see the command-substitution row in @shell/rosetta.

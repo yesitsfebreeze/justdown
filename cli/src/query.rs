@@ -1,34 +1,17 @@
 // The query surface: search / get / ls / links. A faithful port of the
 // original justfile awk — same field-weighted scoring, not_when veto, kind &
-// category narrowing, local⊕online merge (local shadows online by key),
-// degrade-not-fail, text + JSON output, and exit codes (0/2/3/4).
+// category narrowing, degrade-not-fail, text + JSON output, exit codes (0/2/3/4).
+// Merge is now three tiers: repo-LOCAL ⊕ machine-GLOBAL ⊕ ONLINE belt, nearer
+// scope shadowing farther by key (local > global > online).
 
 use crate::config::{Config, Format};
-use crate::render::{self, Vars};
-use crate::store::{Row, Source, Store};
+use justdown::render::{self, Vars};
+use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
+use justdown::store::{Row, Source, Store};
 
 // ---------------------------------------------------------------------------
 // shared helpers
 // ---------------------------------------------------------------------------
-
-const STOPWORDS: &[&str] = &[
-    "a", "an", "and", "or", "the", "of", "to", "in", "on", "at", "is", "it", "its", "be", "as",
-    "do", "for", "my", "our", "your", "this", "that", "with", "from", "by",
-];
-
-/// Split on runs of characters that are not [a-z0-9+] (lowercase assumed by
-/// caller). Mirrors the awk `split(s, w, /[^a-z0-9+]+/)`.
-fn words(s: &str) -> Vec<&str> {
-    s.split(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '+'))
-        .filter(|w| !w.is_empty())
-        .collect()
-}
-
-/// A term hits a field if any whole token in the field contains it. Mirrors
-/// awk `fhit`.
-fn fhit(field: &str, term: &str) -> bool {
-    words(field).iter().any(|w| w.contains(term))
-}
 
 fn json_str(s: &str) -> String {
     let mut o = String::with_capacity(s.len() + 2);
@@ -98,51 +81,98 @@ fn curl_to_string(url: &str) -> Option<String> {
     }
 }
 
-/// Download the online store to a temp file and load its rows. Best-effort:
-/// any failure (unreachable, 404, unreadable) yields None so callers degrade.
-fn fetch_online(cfg: &Config) -> Option<Vec<Row>> {
-    let url = format!("{}/{}", cfg.raw_base, cfg.index);
-    let tmp = std::env::temp_dir().join(format!("jd-online-{}.db", std::process::id()));
-    if !curl_to_file(&url, &tmp) {
+/// Download one online store at `url` to a temp file (tagged `n` so concurrent
+/// belt fetches don't collide) and load its rows as Online. Best-effort: any
+/// failure (unreachable, 404, unreadable) yields None so callers degrade.
+fn fetch_store(url: &str, n: usize) -> Option<Vec<Row>> {
+    let tmp = std::env::temp_dir().join(format!("jd-online-{}-{n}.db", std::process::id()));
+    if !curl_to_file(url, &tmp) {
         return None;
     }
-    let rows = Store::open(&tmp).ok().and_then(|s| s.load_rows(Source::Online).ok());
+    let rows = Store::open(&tmp)
+        .ok()
+        .and_then(|s| s.load_rows(Source::Online).ok());
     let _ = std::fs::remove_file(&tmp);
     rows
 }
 
-/// Gather the merged, deduped row set. Local shadows online by key. On the
+/// Fetch the whole online belt: every remote's published `.bombshell/jd/graph.db`
+/// (the contract location), in belt order, each row tagged with its remote's raw
+/// base so `get` fetches files from the right repo. Remotes that are non-GitHub,
+/// unreachable, or index-less are silently skipped.
+fn fetch_online_belt(cfg: &Config) -> Vec<Row> {
+    // Walk the belt last→first so that, with `gather`'s keep-first dedup, a later
+    // belt entry shadows an earlier one — matching `build_roots`' later-root-wins
+    // rule, so online and built-graph precedence agree ("later entries win").
+    let mut out = Vec::new();
+    for (i, r) in cfg.remotes().iter().enumerate().rev() {
+        let Some(raw) = r.raw_base() else { continue };
+        let url = format!("{raw}/.bombshell/jd/graph.db");
+        if let Some(mut rows) = fetch_store(&url, i) {
+            for row in &mut rows {
+                row.origin = raw.clone();
+            }
+            out.extend(rows);
+        }
+    }
+    out
+}
+
+/// The raw base a given online row's files hang off — its remote's, or the
+/// configured default when untagged (single-repo / legacy).
+fn online_base<'a>(cfg: &'a Config, r: &'a Row) -> &'a str {
+    if r.origin.is_empty() {
+        &cfg.raw_base
+    } else {
+        &r.origin
+    }
+}
+
+/// Load a store's rows from `path`, tagged `source`. None if the file is
+/// absent, unopenable, or unreadable — callers treat each tier as best-effort.
+fn load_store(path: &std::path::Path, source: Source) -> Option<Vec<Row>> {
+    if !path.exists() {
+        return None;
+    }
+    Store::open(path).ok().and_then(|s| s.load_rows(source).ok())
+}
+
+/// Gather the merged, deduped row set across the three tiers — repo-LOCAL
+/// (`<root>/.bombshell/jd`), machine-GLOBAL (`~/.bombshell/jd`), and ONLINE.
+/// Nearer scope shadows farther by key (local > global > online). On the
 /// degrade path (no online) a note goes to stderr; only a total absence of
 /// sources is a hard error (exit 4).
 fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
-    let local: Option<Vec<Row>> = if cfg.index_path().exists() {
-        Store::open(&cfg.index_path())
-            .ok()
-            .and_then(|s| s.load_rows(Source::Local).ok())
-    } else {
-        None
-    };
-    let online = fetch_online(cfg);
+    let local = load_store(&cfg.index_path(), Source::Local);
+    let global = cfg
+        .home_index_path()
+        .as_deref()
+        .and_then(|p| load_store(p, Source::Global));
+    let online = fetch_online_belt(cfg);
 
-    if local.is_none() && online.is_none() {
+    if local.is_none() && global.is_none() && online.is_empty() {
         emit_err(
             cfg,
             "source-unreachable",
-            &format!(
-                "no local store and online store unreachable ({}/{})",
-                cfg.raw_base, cfg.index
-            ),
+            "no local or global store and online belt unreachable",
         );
         return Err(4);
     }
-    if online.is_none() && local.is_some() {
-        eprintln!("jd: note: online store unreachable; using local only");
+    if online.is_empty() && (local.is_some() || global.is_some()) {
+        eprintln!("jd: note: online belt unreachable; using local/global only");
     }
 
-    // local first, then online; dedup by key keeps the local entry.
+    // Merge order = precedence: local, then global, then the online belt. Dedup
+    // by key keeps the first (nearest) tier seen, so local shadows global shadows
+    // online — the same rule the old local⊕online merge used, two tiers deeper.
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for row in local.into_iter().flatten().chain(online.into_iter().flatten()) {
+    for row in local
+        .into_iter()
+        .flatten()
+        .chain(global.into_iter().flatten())
+        .chain(online)
+    {
         if seen.insert(row.key.clone()) {
             out.push(row);
         }
@@ -154,40 +184,119 @@ fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
 // search
 // ---------------------------------------------------------------------------
 
-struct Scored<'a> {
-    score: i64,
-    row: &'a Row,
-}
+// ---------------------------------------------------------------------------
+// semantic-lite ranking (--mode semantic)
+//
+// No model, no deps — `jd` stays a self-contained binary. Three pure-Rust
+// signals approximate meaning: a small synonym map widens the query
+// ("smaller" → resize/scale/compress), a light suffix stemmer collapses
+// inflections ("logs" → "log"), and character-trigram cosine rewards near
+// wording. Recall-boosting, NOT true embeddings — regex/fuzzy stay on the pipe.
+// ---------------------------------------------------------------------------
 
-/// Inbound+outbound @link degree per node key — the graph-connectivity signal.
-/// A tool that composes (or is composed by) many others is more central.
-fn degree_map(rows: &[Row]) -> std::collections::HashMap<String, usize> {
-    let mut indeg: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for row in rows {
-        for l in &row.links {
-            *indeg.entry(l.as_str()).or_insert(0) += 1;
+/// Light suffix-stripping stemmer (not full Porter): collapses common plural /
+/// verb inflections so their forms share a stem. Longest suffix wins; a 2-char
+/// floor keeps short stems from being gutted.
+fn stem(w: &str) -> String {
+    const SUF: &[&str] = &[
+        "izations", "ization", "ations", "ation", "ings", "ing", "ers", "er", "ed", "es", "ly", "s",
+    ];
+    for suf in SUF {
+        if w.len() >= suf.len() + 2 && w.ends_with(suf) {
+            return w[..w.len() - suf.len()].to_string();
         }
     }
-    let mut deg = std::collections::HashMap::new();
-    for row in rows {
-        let d = row.links.len() + indeg.get(row.key.as_str()).copied().unwrap_or(0);
-        deg.insert(row.key.clone(), d);
-    }
-    deg
+    w.to_string()
 }
 
-/// Field-weighted ranking, used by `search`. Filters by kind /
-/// category, applies the not_when veto, scores name/use_when (3) > tags (2) >
-/// purpose (1). Sorts score-desc, then by graph connectivity (a well-connected
-/// tool outranks an isolated one on a tie — the smart-graph signal), then
-/// name-asc as the final deterministic tie-break.
-fn rank<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Scored<'a>> {
+/// Hand-curated synonym widening for the intent verbs/nouns common in tool
+/// queries. Returns related terms (including the input's neighbours) or an empty
+/// slice. Small on purpose — a lexicon, not a thesaurus.
+fn synonyms(term: &str) -> &'static [&'static str] {
+    match term {
+        "smaller" | "shrink" | "compress" | "reduce" | "size" => {
+            &["resize", "scale", "compress", "smaller", "shrink"]
+        }
+        "bigger" | "enlarge" | "grow" | "upscale" => &["resize", "scale", "bigger", "enlarge"],
+        "make" | "create" | "new" | "generate" | "init" => {
+            &["create", "make", "build", "init", "generate"]
+        }
+        "remove" | "delete" | "erase" | "clean" | "purge" => {
+            &["remove", "delete", "prune", "clean", "rm"]
+        }
+        "find" | "locate" | "lookup" | "grep" => &["search", "find", "grep", "locate"],
+        "show" | "display" | "view" | "print" => &["show", "list", "display", "print"],
+        "convert" | "transform" | "change" | "transcode" => {
+            &["convert", "transform", "transcode", "change"]
+        }
+        "video" | "movie" | "clip" | "film" => &["video", "media", "ffmpeg", "movie"],
+        "image" | "picture" | "photo" | "img" => &["image", "picture", "magick", "photo"],
+        "folder" | "directory" | "dir" => &["directory", "folder", "dir"],
+        "fast" | "speed" | "quick" | "benchmark" => &["fast", "speed", "bench", "benchmark"],
+        "secret" | "password" | "credential" | "key" => &["secret", "credential", "key", "token"],
+        _ => &[],
+    }
+}
+
+/// Character-trigram bag of a string, padded so word edges form trigrams.
+fn trigrams(s: &str) -> std::collections::HashMap<[char; 3], f64> {
+    let chars: Vec<char> = format!("  {s}  ").chars().collect();
+    let mut m = std::collections::HashMap::new();
+    for w in chars.windows(3) {
+        *m.entry([w[0], w[1], w[2]]).or_insert(0.0) += 1.0;
+    }
+    m
+}
+
+/// Cosine similarity of two trigram bags, in [0, 1].
+fn cosine(
+    a: &std::collections::HashMap<[char; 3], f64>,
+    b: &std::collections::HashMap<[char; 3], f64>,
+) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let dot: f64 = a
+        .iter()
+        .map(|(k, va)| b.get(k).map_or(0.0, |vb| va * vb))
+        .sum();
+    let na: f64 = a.values().map(|v| v * v).sum::<f64>().sqrt();
+    let nb: f64 = b.values().map(|v| v * v).sum::<f64>().sqrt();
+    if na == 0.0 || nb == 0.0 {
+        0.0
+    } else {
+        dot / (na * nb)
+    }
+}
+
+/// Stemmed token set of a field.
+fn stem_tokens(field: &str) -> std::collections::HashSet<String> {
+    words(field).into_iter().map(stem).collect()
+}
+
+/// Semantic-lite rank. Same field weights and tie-breaks as `rank`, but matches
+/// on synonym-widened, stemmed terms and adds a trigram-cosine bonus (0..=6)
+/// over the row's combined text — so a meaning-shaped query can surface the
+/// right tool even with no shared surface word.
+fn rank_semantic<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Scored<'a>> {
     let q = query.to_lowercase();
-    let terms: Vec<String> = words(&q)
+    let base: Vec<String> = words(&q)
         .into_iter()
         .filter(|t| !STOPWORDS.contains(t))
         .map(|t| t.to_string())
         .collect();
+
+    // widen with synonyms, stem the lot, dedup preserving order
+    let mut expanded: Vec<String> = Vec::new();
+    for t in &base {
+        for cand in std::iter::once(t.as_str()).chain(synonyms(t).iter().copied()) {
+            let s = stem(cand);
+            if !expanded.contains(&s) {
+                expanded.push(s);
+            }
+        }
+    }
+    let qtri = trigrams(&q);
 
     let deg = degree_map(rows);
     let mut scored: Vec<Scored> = Vec::new();
@@ -198,30 +307,33 @@ fn rank<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -> Vec<Sco
         if !category.is_empty() && row.category != category {
             continue;
         }
-        let name = row.name.to_lowercase();
-        let purpose = row.purpose.to_lowercase();
-        let tags = row.tags.to_lowercase();
-        let usew = row.use_when.to_lowercase();
-        let notw = row.not_when.to_lowercase();
+        // veto on stemmed not_when against the original query terms
+        let notw = stem_tokens(&row.not_when.to_lowercase());
+        if base.iter().any(|t| notw.contains(&stem(t))) {
+            continue;
+        }
+        let name = stem_tokens(&row.name.to_lowercase());
+        let usew = stem_tokens(&row.use_when.to_lowercase());
+        let tags = stem_tokens(&row.tags.to_lowercase());
+        let purpose = stem_tokens(&row.purpose.to_lowercase());
 
         let mut score = 0i64;
-        let mut vetoed = false;
-        for t in &terms {
-            if !notw.is_empty() && fhit(&notw, t) {
-                vetoed = true;
-                break;
-            }
-            if fhit(&name, t) {
+        for t in &expanded {
+            if name.contains(t) || usew.contains(t) {
                 score += 3;
-            } else if fhit(&usew, t) {
-                score += 3;
-            } else if fhit(&tags, t) {
+            } else if tags.contains(t) {
                 score += 2;
-            } else if fhit(&purpose, t) {
+            } else if purpose.contains(t) {
                 score += 1;
             }
         }
-        if vetoed || score <= 0 {
+        // trigram-cosine bonus over the row's combined text
+        let doc =
+            format!("{} {} {} {}", row.name, row.tags, row.use_when, row.purpose).to_lowercase();
+        let sim = cosine(&qtri, &trigrams(&doc));
+        score += (sim * 6.0).round() as i64;
+
+        if score <= 0 {
             continue;
         }
         scored.push(Scored { score, row });
@@ -241,23 +353,69 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
         emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
         return 3;
     }
-    let query = match args.first() {
+    // Pull the optional `--mode <exact|semantic>` flag out of the positionals.
+    // exact (default) is the field-weighted substring rank; semantic widens the
+    // query with synonyms + stemming and adds a trigram-cosine signal for
+    // meaning-shaped queries ("make video smaller"). regex/fuzzy are
+    // deliberately NOT modes — pipe the JSON to rg/fzf instead.
+    let mut mode = String::new();
+    let mut pos: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--mode" {
+            i += 1;
+            match args.get(i) {
+                Some(m) => mode = m.clone(),
+                None => {
+                    emit_err(cfg, "bad-args", "--mode needs a value");
+                    return 3;
+                }
+            }
+        } else if let Some(m) = a.strip_prefix("--mode=") {
+            mode = m.to_string();
+        } else {
+            pos.push(a.clone());
+        }
+        i += 1;
+    }
+    if mode.is_empty() {
+        mode = "exact".to_string();
+    }
+    if !matches!(mode.as_str(), "exact" | "semantic") {
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!("unknown mode: {mode} (want exact|semantic)"),
+        );
+        return 3;
+    }
+
+    let query = match pos.first() {
         Some(q) if !q.is_empty() => q.clone(),
         _ => {
             emit_err(cfg, "bad-args", "search needs a query");
             return 3;
         }
     };
-    let kind = args.get(1).cloned().unwrap_or_default();
-    let num_s = args.get(2).cloned().unwrap_or_else(|| "5".to_string());
-    let category = args.get(3).cloned().unwrap_or_default();
+    let kind = pos.get(1).cloned().unwrap_or_default();
+    let num_s = pos.get(2).cloned().unwrap_or_else(|| "5".to_string());
+    let category = pos.get(3).cloned().unwrap_or_default();
 
     if !kind.is_empty() && !matches!(kind.as_str(), "tool" | "agent" | "knowledge" | "workflow") {
-        emit_err(cfg, "bad-args", &format!("unknown kind: {kind} (want tool|agent|knowledge|workflow)"));
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!("unknown kind: {kind} (want tool|agent|knowledge|workflow)"),
+        );
         return 3;
     }
     if num_s.is_empty() || !num_s.bytes().all(|b| b.is_ascii_digit()) {
-        emit_err(cfg, "bad-args", &format!("num must be a positive integer: {num_s}"));
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!("num must be a positive integer: {num_s}"),
+        );
         return 3;
     }
     let mut num: i64 = num_s.parse().unwrap_or(5);
@@ -270,10 +428,22 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    let scored = rank(&rows, &query, &kind, &category);
+    let scored = if mode == "semantic" {
+        rank_semantic(&rows, &query, &kind, &category)
+    } else {
+        rank(&rows, &query, &kind, &category)
+    };
 
     let take = scored.len().min(num as usize);
     let shown = &scored[..take];
+
+    // Universal fallback: the curated graph matched nothing, so point at the
+    // cht.sh cheat-sheet tool — it answers for any command or language live.
+    // Advisory only: exit stays 2 (the library itself had no hit) so callers
+    // can still tell a real graph hit from the fallback.
+    if shown.is_empty() {
+        return emit_fallback(cfg, &query, &rows);
+    }
 
     match cfg.format {
         Format::Json => {
@@ -290,9 +460,13 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
                 let raw = if r.source.is_local() {
                     r.path.clone()
                 } else {
-                    format!("{}/{}", cfg.raw_base, r.path)
+                    format!("{}/{}", online_base(cfg, r), r.path)
                 };
-                let danger = if r.danger.is_empty() { "none" } else { &r.danger };
+                let danger = if r.danger.is_empty() {
+                    "none"
+                } else {
+                    &r.danger
+                };
                 out.push_str(&format!(
                     "{{\"name\":{},\"kind\":{},\"score\":{},\"purpose\":{},\"raw\":{},\"source\":{},\"danger\":{},\"side_effects\":{},\"requires\":{}}}",
                     json_str(&r.name),
@@ -300,7 +474,7 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
                     s.score,
                     json_str(&r.purpose),
                     json_str(&raw),
-                    json_str(if r.source.is_local() { "local" } else { "online" }),
+                    json_str(r.source.label()),
                     json_str(danger),
                     json_arr(&r.side_effects),
                     json_arr(&r.requires),
@@ -315,15 +489,30 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
                 let mut raw = if r.source.is_local() {
                     r.path.clone()
                 } else {
-                    format!("{}/{}", cfg.raw_base, r.path)
+                    format!("{}/{}", online_base(cfg, r), r.path)
                 };
                 if r.source.is_local() {
-                    raw.push_str(" (local)");
+                    raw.push_str(&format!(" ({})", r.source.label()));
                 }
-                println!("{}. {}  [{}]  score {}\n   {}\n   {}", i + 1, r.name, r.kind, s.score, r.purpose, raw);
+                println!(
+                    "{}. {}  [{}]  score {}\n   {}\n   {}",
+                    i + 1,
+                    r.name,
+                    r.kind,
+                    s.score,
+                    r.purpose,
+                    raw
+                );
                 // surface safety only when it matters
                 if r.danger == "high" || r.danger == "medium" || !r.side_effects.is_empty() {
-                    let mut line = format!("   ⚠ danger={}", if r.danger.is_empty() { "none" } else { &r.danger });
+                    let mut line = format!(
+                        "   ⚠ danger={}",
+                        if r.danger.is_empty() {
+                            "none"
+                        } else {
+                            &r.danger
+                        }
+                    );
                     if !r.side_effects.is_empty() {
                         line.push_str(&format!("  effects={}", r.side_effects));
                     }
@@ -336,11 +525,55 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
         }
     }
 
-    if shown.is_empty() {
-        2
-    } else {
-        0
+    0
+}
+
+/// The graph node surfaced when a search matches nothing in the curated
+/// library: the cht.sh cheat-sheet tool, which answers for any command or
+/// language. Key is `<category>/<name>` per `key_and_category`.
+const FALLBACK_KEY: &str = "help/cht";
+
+/// Emit the cht.sh fallback pointer on a zero-hit search. Keeps the JSON
+/// envelope (empty `results`, plus a `fallback` object) and prints a one-line
+/// pointer in text mode. Returns exit 2 — the library had no match; the
+/// fallback is advisory, not a graph hit. If the fallback node isn't present
+/// (a library without it), behaves like the old empty result.
+fn emit_fallback(cfg: &Config, query: &str, rows: &[Row]) -> i32 {
+    let row = rows.iter().find(|r| r.key == FALLBACK_KEY);
+    match (row, cfg.format) {
+        (Some(r), Format::Json) => {
+            let raw = if r.source.is_local() {
+                r.path.clone()
+            } else {
+                format!("{}/{}", online_base(cfg, r), r.path)
+            };
+            println!(
+                "{{\"schema\":\"justdown.search/1\",\"query\":{},\"results\":[],\"fallback\":{{\"reason\":\"no-match\",\"name\":{},\"kind\":{},\"purpose\":{},\"raw\":{}}}}}",
+                json_str(query),
+                json_str(&r.name),
+                json_str(&r.kind),
+                json_str(&r.purpose),
+                json_str(&raw),
+            );
+        }
+        (Some(r), Format::Text) => {
+            eprintln!(
+                "jd: no library file matched '{query}'; cht.sh covers any command or language"
+            );
+            println!(
+                "↳ fallback: {}  [{}]\n   {}\n   get @{} — then run its lang/sheet recipe via just",
+                r.name, r.kind, r.purpose, r.key
+            );
+        }
+        (None, Format::Json) => {
+            println!(
+                "{{\"schema\":\"justdown.search/1\",\"query\":{},\"results\":[]}}",
+                json_str(query)
+            );
+        }
+        (None, Format::Text) => {}
     }
+    2
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +636,11 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
     };
     let only = positional.get(1).map(|s| (*s).clone()).unwrap_or_default();
     if !matches!(only.as_str(), "" | "frontmatter" | "prose" | "tools") {
-        emit_err(cfg, "bad-args", &format!("unknown only: {only} (want frontmatter|prose|tools)"));
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!("unknown only: {only} (want frontmatter|prose|tools)"),
+        );
         return 3;
     }
 
@@ -434,20 +671,39 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
 
     // refuse suspicious paths (absolute or traversal)
     if row.path.starts_with('/') || row.path.contains("..") {
-        emit_err(cfg, "bad-args", &format!("refusing suspicious path: {}", row.path));
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!("refusing suspicious path: {}", row.path),
+        );
         return 3;
     }
 
     let body = if row.source.is_local() {
-        match std::fs::read_to_string(cfg.root.join(&row.path)) {
-            Ok(b) => b,
-            Err(_) => {
-                emit_err(cfg, "source-unreachable", &format!("cannot read local file: {}", row.path));
+        // Resolve the path against each plausible base for the tier. Repo-local
+        // files may be authored (<root>/library/…) or vendored by `jd pull`
+        // (<root>/.bombshell/jd/lib/…); machine-global files live under
+        // ~/.bombshell/jd. First readable wins.
+        let bases: Vec<std::path::PathBuf> = match row.source {
+            Source::Global => Config::home_cache_dir().into_iter().collect(),
+            _ => vec![cfg.root.clone(), cfg.cache_dir()],
+        };
+        match bases
+            .iter()
+            .find_map(|b| std::fs::read_to_string(b.join(&row.path)).ok())
+        {
+            Some(b) => b,
+            None => {
+                emit_err(
+                    cfg,
+                    "source-unreachable",
+                    &format!("cannot read {} file: {}", row.source.label(), row.path),
+                );
                 return 4;
             }
         }
     } else {
-        let url = format!("{}/{}", cfg.raw_base, row.path);
+        let url = format!("{}/{}", online_base(cfg, row), row.path);
         match curl_to_string(&url) {
             Some(b) => b,
             None => {
@@ -465,12 +721,19 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
     match cfg.format {
         Format::Json => {
             let mut out = String::new();
-            out.push_str(&format!("{{\"schema\":\"justdown.get/1\",\"ref\":{},\"sections\":[", json_str(&refr)));
+            out.push_str(&format!(
+                "{{\"schema\":\"justdown.get/1\",\"ref\":{},\"sections\":[",
+                json_str(&refr)
+            ));
             for (i, (kind, content)) in sections.iter().enumerate() {
                 if i > 0 {
                     out.push(',');
                 }
-                out.push_str(&format!("{{\"kind\":{},\"content\":{}}}", json_str(kind), json_str(content)));
+                out.push_str(&format!(
+                    "{{\"kind\":{},\"content\":{}}}",
+                    json_str(kind),
+                    json_str(content)
+                ));
             }
             out.push_str("]}");
             println!("{out}");
@@ -620,11 +883,17 @@ fn host_platform() -> String {
         "macos" => "macos".to_string(),
         "windows" => "windows".to_string(),
         "linux" => {
-            let wsl = std::env::var("WSL_DISTRO_NAME").map(|v| !v.is_empty()).unwrap_or(false)
+            let wsl = std::env::var("WSL_DISTRO_NAME")
+                .map(|v| !v.is_empty())
+                .unwrap_or(false)
                 || std::fs::read_to_string("/proc/version")
                     .map(|s| s.to_lowercase().contains("microsoft"))
                     .unwrap_or(false);
-            if wsl { "wsl".to_string() } else { "unix".to_string() }
+            if wsl {
+                "wsl".to_string()
+            } else {
+                "unix".to_string()
+            }
         }
         _ => "unix".to_string(),
     }
@@ -643,7 +912,11 @@ pub(crate) fn parse_platform_attr(line: &str) -> Option<Vec<String>> {
             _ => return None,
         }
     }
-    if tags.is_empty() { None } else { Some(tags) }
+    if tags.is_empty() {
+        None
+    } else {
+        Some(tags)
+    }
 }
 
 #[cfg(test)]
@@ -689,7 +962,10 @@ mod platform_tests {
 
     #[test]
     fn parses_tag_lists() {
-        assert_eq!(parse_platform_attr("[unix]"), Some(vec!["unix".to_string()]));
+        assert_eq!(
+            parse_platform_attr("[unix]"),
+            Some(vec!["unix".to_string()])
+        );
         assert_eq!(
             parse_platform_attr("[ unix , wsl ]"),
             Some(vec!["unix".to_string(), "wsl".to_string()])
@@ -729,6 +1005,40 @@ mod inject_tests {
     }
 }
 
+#[cfg(test)]
+mod semantic_tests {
+    use super::{cosine, stem, synonyms, trigrams};
+
+    #[test]
+    fn stemmer_collapses_simple_inflections() {
+        assert_eq!(stem("logs"), stem("log"));
+        assert_eq!(stem("converts"), stem("convert"));
+        assert_eq!(stem("removing"), "remov");
+        // 2-char floor: short words are left intact
+        assert_eq!(stem("id"), "id");
+        assert_eq!(stem("is"), "is");
+    }
+
+    #[test]
+    fn synonyms_widen_intent() {
+        assert!(synonyms("smaller").contains(&"resize"));
+        assert!(synonyms("delete").contains(&"prune"));
+        assert!(synonyms("video").contains(&"ffmpeg"));
+        assert!(synonyms("zzz").is_empty());
+    }
+
+    #[test]
+    fn cosine_is_bounded() {
+        let a = trigrams("docker compose");
+        assert!((cosine(&a, &a) - 1.0).abs() < 1e-9);
+        // no shared trigrams → orthogonal
+        assert_eq!(cosine(&trigrams("abc"), &trigrams("xyz")), 0.0);
+        // near wording scores between 0 and 1
+        let sim = cosine(&trigrams("resize image"), &trigrams("resizing images"));
+        assert!(sim > 0.3 && sim < 1.0);
+    }
+}
+
 /// Select the recipe variants matching `plat` and strip the attribute lines.
 /// A `[os]` attr guards the recipe header that follows it and that recipe's
 /// indented body; untagged lines always pass. `darwin` is an alias for `macos`.
@@ -741,7 +1051,9 @@ pub(crate) fn platsel(lines: &[&str], plat: &str) -> Vec<String> {
     let mut keep = true; // emit the current guarded block?
     for &line in lines {
         if let Some(tags) = parse_platform_attr(line) {
-            keep = tags.iter().any(|t| (if t == "darwin" { "macos" } else { t.as_str() }) == plat);
+            keep = tags
+                .iter()
+                .any(|t| (if t == "darwin" { "macos" } else { t.as_str() }) == plat);
             pend = true;
             guarded = false;
             continue;
@@ -786,7 +1098,8 @@ pub fn ls(cfg: &Config) -> i32 {
 
     // group by category, fall back to kind, then "misc"; preserve member order
     let mut order: Vec<String> = Vec::new();
-    let mut members: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut members: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     for r in &rows {
         let cat = if !r.category.is_empty() {
             r.category.clone()
@@ -811,7 +1124,11 @@ pub fn ls(cfg: &Config) -> i32 {
                 }
                 let ms = &members[c];
                 let arr: Vec<String> = ms.iter().map(|m| json_str(m)).collect();
-                out.push_str(&format!("{{\"name\":{},\"members\":[{}]}}", json_str(c), arr.join(",")));
+                out.push_str(&format!(
+                    "{{\"name\":{},\"members\":[{}]}}",
+                    json_str(c),
+                    arr.join(",")
+                ));
             }
             out.push_str("]}");
             println!("{out}");
@@ -921,8 +1238,9 @@ fn resolve<'a>(rows: &'a [Row], refr: &str) -> Option<&'a Row> {
     if let Some(i) = needle.find('#') {
         needle.truncate(i);
     }
-    rows.iter()
-        .find(|r| r.name == needle || r.key == needle || r.path == needle || basename(&r.path) == needle)
+    rows.iter().find(|r| {
+        r.name == needle || r.key == needle || r.path == needle || basename(&r.path) == needle
+    })
 }
 
 /// `jd path <a> <b>` — the shortest chain of @links connecting two files,

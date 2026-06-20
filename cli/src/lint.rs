@@ -10,8 +10,8 @@
 // that is a lint error.
 
 use crate::config::Config;
-use crate::jd::{self, Node};
 use crate::query::{self, PLATFORMS};
+use justdown::jd::{self, Node};
 use std::collections::HashMap;
 
 /// The recipe name a just-block line declares as a header, if any. A header is
@@ -23,7 +23,11 @@ fn recipe_name(line: &str) -> Option<String> {
     }
     let head = &line[..line.find(':')?];
     let nm = head.split_whitespace().next()?;
-    if !nm.is_empty() && nm.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+    if !nm.is_empty()
+        && nm
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
         Some(nm.to_string())
     } else {
         None
@@ -48,7 +52,11 @@ fn platform_errors(body: &str) -> Vec<String> {
                 *counts.entry(n).or_insert(0) += 1;
             }
         }
-        let mut dups: Vec<&String> = counts.iter().filter(|(_, &c)| c > 1).map(|(n, _)| n).collect();
+        let mut dups: Vec<&String> = counts
+            .iter()
+            .filter(|(_, &c)| c > 1)
+            .map(|(n, _)| n)
+            .collect();
         dups.sort();
         for n in dups {
             errs.push(format!(
@@ -70,13 +78,21 @@ pub fn run(cfg: &Config) -> i32 {
     }
 
     let mut files = Vec::new();
-    crate::build::collect_jd(&libdir, &mut files);
-    files.sort_by(|a, b| a.as_os_str().as_encoded_bytes().cmp(b.as_os_str().as_encoded_bytes()));
+    justdown::graph::collect_jd(&libdir, &mut files);
+    files.sort_by(|a, b| {
+        a.as_os_str()
+            .as_encoded_bytes()
+            .cmp(b.as_os_str().as_encoded_bytes())
+    });
 
     let mut nodes: Vec<Node> = Vec::new();
     let mut bodies: Vec<String> = Vec::new();
     for f in &files {
-        let rel = f.strip_prefix(&cfg.root).unwrap_or(f).to_string_lossy().replace('\\', "/");
+        let rel = f
+            .strip_prefix(&cfg.root)
+            .unwrap_or(f)
+            .to_string_lossy()
+            .replace('\\', "/");
         if let Ok(c) = std::fs::read_to_string(f) {
             nodes.push(jd::parse(&rel, &c));
             bodies.push(c);
@@ -111,13 +127,19 @@ pub fn run(cfg: &Config) -> i32 {
             if n.kind.is_empty() {
                 msgs.push("  error: missing required field: kind".to_string());
             } else if !KINDS.contains(&n.kind.as_str()) {
-                msgs.push(format!("  error: invalid kind: {} (want tool|agent|knowledge|workflow)", n.kind));
+                msgs.push(format!(
+                    "  error: invalid kind: {} (want tool|agent|knowledge|workflow)",
+                    n.kind
+                ));
             }
             if n.kind == "tool" && n.run.is_empty() {
                 msgs.push("  error: tool has no `run:` recipe".to_string());
             }
             if !n.danger.is_empty() && !DANGERS.contains(&n.danger.as_str()) {
-                msgs.push(format!("  error: invalid danger: {} (want none|low|medium|high)", n.danger));
+                msgs.push(format!(
+                    "  error: invalid danger: {} (want none|low|medium|high)",
+                    n.danger
+                ));
             }
             if n.name_given && namecount.get(n.name.as_str()).copied().unwrap_or(0) > 1 {
                 msgs.push(format!("  error: duplicate name: {}", n.name));
@@ -130,7 +152,9 @@ pub fn run(cfg: &Config) -> i32 {
                     // knowledge files legitimately reference the user's own
                     // modules; only flag real .jd composition as an error.
                     if n.kind == "knowledge" {
-                        msgs.push(format!("  warn: unresolved @link: {l} (external reference?)"));
+                        msgs.push(format!(
+                            "  warn: unresolved @link: {l} (external reference?)"
+                        ));
                     } else {
                         msgs.push(format!("  error: broken @link: {l}"));
                     }
@@ -154,7 +178,12 @@ pub fn run(cfg: &Config) -> i32 {
         }
     }
 
-    println!("\n{} error(s), {} warning(s) across {} file(s)", errs, warns, nodes.len());
+    println!(
+        "\n{} error(s), {} warning(s) across {} file(s)",
+        errs,
+        warns,
+        nodes.len()
+    );
     if errs > 0 {
         1
     } else {
@@ -180,7 +209,9 @@ mod tests {
 
     #[test]
     fn accepts_mutually_exclusive_variants() {
-        let errs = platform_errors(&block("[unix, wsl]\nr:\n  a\n[macos]\nr:\n  b\n[windows]\nr:\n  c"));
+        let errs = platform_errors(&block(
+            "[unix, wsl]\nr:\n  a\n[macos]\nr:\n  b\n[windows]\nr:\n  c",
+        ));
         assert!(errs.is_empty(), "{errs:?}");
     }
 
@@ -192,7 +223,10 @@ mod tests {
     #[test]
     fn recipe_name_detects_headers_only() {
         assert_eq!(recipe_name("open target:").as_deref(), Some("open"));
-        assert_eq!(recipe_name("check host count=\"5\":").as_deref(), Some("check"));
+        assert_eq!(
+            recipe_name("check host count=\"5\":").as_deref(),
+            Some("check")
+        );
         assert_eq!(recipe_name("  xdg-open x"), None); // indented body
         assert_eq!(recipe_name("# comment"), None);
         assert_eq!(recipe_name("[unix]"), None);

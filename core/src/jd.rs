@@ -107,7 +107,10 @@ pub fn key_and_category(rel: &str) -> (String, String) {
     let parts: Vec<&str> = p.split('/').collect();
     let n = parts.len();
     if n >= 2 {
-        (format!("{}/{}", parts[n - 2], parts[n - 1]), parts[n - 2].to_string())
+        (
+            format!("{}/{}", parts[n - 2], parts[n - 1]),
+            parts[n - 2].to_string(),
+        )
     } else {
         (parts[n - 1].to_string(), String::new())
     }

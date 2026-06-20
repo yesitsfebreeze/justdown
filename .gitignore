@@ -15,13 +15,24 @@ dist/
 node_modules/
 .vite.pid
 
-# rust cli build output (graph.db itself is committed — the published index)
+# rust cli build output
 cli/target/
-graph.db-journal
-graph.db-wal
+
+# .bombshell is the per-repo derived layer (vendored clones, vectors/ratings
+# cache) — ignore by default…
+.bombshell/*
+.bombshell/jd/*
+# …but a toolbelt repo PUBLISHES two things consumers fetch over raw, so keep
+# them committed: the belt manifest and the built index at the contract path.
+!.bombshell/.jdconfig
+!.bombshell/jd/
+!.bombshell/jd/graph.db
 
 # kern runtime (local-only graph memory)
 .kern/
 
 # local Claude Code MCP wiring (kern etc.) — environment-specific
 .mcp.json
+
+# cargo workspace build output
+/target/

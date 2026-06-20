@@ -3,7 +3,7 @@ name: shell_nu
 description: Nushell — the structured-data shell. Pipelines carry typed tables and records, not raw text, so you filter/sort/select with where/get/sort-by instead of awk/grep/cut. Use to query command output as data, parse files into tables, or write nu scripts.
 kind: knowledge
 tags: [shell, nushell, nu, structured-data, pipeline, table]
-use_when: [how do I filter in nushell, nu where vs grep, parse output into a table, nushell variables, nu records and lists, convert json in nu, nushell script syntax]
+use_when: [how do I filter in nushell, nu where vs grep, parse output into a table, nushell variables, nu records and lists, convert json in nu, nushell script syntax, command not found in nu, nu external command failed, that command does not exist, call a nu def or alias from a script, invoke a nushell function from sh or a just recipe, run a user command that is not on PATH, how do I reach a launcher defined in my nu config, make a justfile use my nu commands, set shell nu in a justfile, just recipe cannot find my nu def, keep one recipe posix while the rest use nu]
 ---
 
 # Nushell
@@ -63,6 +63,32 @@ back. `^cmd` forces the external over a built-in of the same name.
 | `"a,b" | split row ","` | text → list |
 | `$"hello ($name)"` | string interpolation |
 | `cmd \| complete` | capture `{stdout, stderr, exit_code}` |
+
+## Calling a command that isn't found
+
+If a name errors with *command not found* / *External command failed*, the cause
+is almost always **context, not a missing tool**: nu `def`s and aliases live in
+`config.nu`, which only an interactive nu loads.
+
+- **Inside interactive nu** (config loaded — e.g. a host that spawned
+  `nu --login --interactive`): every `def`, alias, and `$env` from your config is
+  live. Call it directly — `cl my task` resolves and renders in place.
+- **The trap:** `nu -c '<cmd>'`, another shell, or a `just`/jd recipe body (which
+  runs under `sh -cu`, a fresh child) does **not** load `config.nu`. Your defs and
+  aliases are invisible there even when nu is your login shell — owning the
+  terminal doesn't share a function table with a subprocess.
+
+Two reliable ways to reach the command anyway:
+
+| Want | Do | Cost |
+|------|----|------|
+| call a nu `def`/alias from outside interactive nu | `nu --login -c '<cmd>'` — `--login` is **mandatory**; bare `nu -c` skips config | ~80ms (loads config each call) |
+| make a tool reachable from *any* shell/recipe/cron | ship it as a real file on `$PATH` (a thin launcher), not a nu `def` | ~0 — preferred for anything called often |
+| make a whole justfile reach your nu `def`s | `set shell := ['nu', '-l', '-c']` at the top — every recipe then runs under login nu with config loaded; keep a POSIX recipe by giving it a `#!/usr/bin/env sh` shebang (a recipe shebang overrides `set shell`) | per-recipe nu startup |
+
+Probe before you guess: `command -v <name>` (see @shell/which) reports the path,
+def, or alias a name resolves to — or exits non-zero if nothing does. `^name`
+forces the external binary over a nu builtin of the same name.
 
 ## Gotchas vs POSIX shells
 

@@ -99,23 +99,31 @@ That reflex — *check justdown first, on every query* — is the whole point of
 wiring it in. `jd` is always the entry point; everything else is a way of calling
 it.
 
-### Install a startup prompt that loads the spec
+### Install a startup prompt — the hook
 
 Wiring the tool is not enough — an agent that has never read the spec will misuse
 it. Every harness has a **startup prompt**: the text it loads at the start of a
 session, before it sees any task — a system prompt, a `CLAUDE.md` / `AGENTS.md`, a
-preamble, a memory file. Whatever yours is, install a line into it that points at
-the **live spec and tells you to read it on start**:
+preamble, a memory file. That prompt is the **hook**: install one line into it,
+and it sets the agent's frontmatter for every session that follows. The line
+points at the live spec, makes `jd` the first tool, and teaches the one concept
+that makes everything else self-evident — **piping**:
 
 > On startup, fetch and read the live justdown spec at
-> <https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/justdown.md>,
-> then treat the justdown library as your first tool on every query — `jd search`
-> before reaching for your own.
+> <https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/justdown.md>.
+> Treat the justdown library as your first tool on every query — `jd search`
+> before reaching for your own — and remember `jd` is a **pipeable data source**:
+> `JUSTDOWN_FORMAT=json jd … | jq/rg/fzf` gives you regex, fuzzy, filtering, and
+> ranking for free, so reach for a pipe, not a missing flag.
 
-Pull it **live** rather than pinning a copy: the spec evolves, and you want the
+Pull the spec **live** rather than pinning a copy: it evolves, and you want the
 current contract, not a stale snapshot — the same reason queries merge the online
-store fresh. Reading it on every start is what turns *"the `jd` binary is on
-`PATH`"* into *"the agent reflexively reaches for the library first."*
+store fresh. Teaching *piping* up front is the leverage: it collapses "how do I
+regex / fuzzy / filter the library?" into a noop, because the answer is already on
+`PATH`. The rest the agent discovers on its own — `jd search "pipe jd output"`
+returns [`jd_piping`](library/meta/jd/piping.jd), the concept in full. That one
+line is what turns *"the `jd` binary is on `PATH`"* into *"the agent reflexively
+reaches for the library, and composes it."*
 
 ## Authoring `.jd` files
 

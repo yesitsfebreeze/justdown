@@ -11,8 +11,4 @@ path = "src/main.rs"
 
 [dependencies]
 rusqlite = { version = "0.32", features = ["bundled"] }
-
-[profile.release]
-opt-level = 3
-lto = true
-strip = true
+justdown = { path = "../core" }

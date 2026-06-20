@@ -1,0 +1,13 @@
+[package]
+name = "justdown"
+version = "0.3.0"
+edition = "2021"
+description = "justdown — the .jd spec as a library: parser + <<var>> context injection (the library graph moves here next)"
+license = "MIT"
+
+[lib]
+name = "justdown"
+path = "src/lib.rs"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }

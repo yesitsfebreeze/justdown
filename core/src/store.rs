@@ -4,7 +4,8 @@
 // stamps the schema version so a consumer can detect a format it predates.
 
 use crate::jd::Node;
-use crate::STORE_SCHEMA;
+/// Graph store format version (lib-owned; was the CLI const).
+pub const STORE_SCHEMA: i64 = 3;
 use rusqlite::{params, Connection};
 use std::path::Path;
 
@@ -14,13 +15,28 @@ pub struct Store {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Source {
+    /// repo-scoped cache: <root>/.bombshell/jd
     Local,
+    /// machine-scoped cache: ~/.bombshell/jd (shared across repos)
+    Global,
+    /// the published index fetched over the network
     Online,
 }
 
 impl Source {
+    /// On-disk tiers (repo Local + machine Global) are read from the filesystem
+    /// and share `get`'s read path; only Online is fetched.
     pub fn is_local(self) -> bool {
-        self == Source::Local
+        matches!(self, Source::Local | Source::Global)
+    }
+
+    /// Stable tier name for output envelopes.
+    pub fn label(self) -> &'static str {
+        match self {
+            Source::Local => "local",
+            Source::Global => "global",
+            Source::Online => "online",
+        }
     }
 }
 
@@ -29,6 +45,10 @@ impl Source {
 /// outbound link targets.
 pub struct Row {
     pub source: Source,
+    /// For online rows, the raw base URL of the remote this row was loaded from
+    /// (so `get` fetches the file from the right belt repo). Empty for on-disk
+    /// tiers and single-repo online, where the default raw base applies.
+    pub origin: String,
     pub key: String,
     pub name: String,
     pub kind: String,
@@ -92,11 +112,9 @@ impl Store {
             return None;
         }
         let conn = Connection::open(path).ok()?;
-        conn.query_row(
-            "SELECT value FROM meta WHERE key = 'schema'",
-            [],
-            |r| r.get::<_, String>(0),
-        )
+        conn.query_row("SELECT value FROM meta WHERE key = 'schema'", [], |r| {
+            r.get::<_, String>(0)
+        })
         .ok()?
         .parse::<i64>()
         .ok()
@@ -113,8 +131,11 @@ impl Store {
     /// Each row carries its outbound link targets (from the edge table).
     pub fn load_rows(&self, source: Source) -> rusqlite::Result<Vec<Row>> {
         // outbound links per node, in insertion (first-seen) order
-        let mut links: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-        let mut estmt = self.conn.prepare("SELECT src,dst FROM edge ORDER BY rowid")?;
+        let mut links: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        let mut estmt = self
+            .conn
+            .prepare("SELECT src,dst FROM edge ORDER BY rowid")?;
         let mut erows = estmt.query([])?;
         while let Some(r) = erows.next()? {
             let src: String = r.get(0)?;
@@ -132,6 +153,7 @@ impl Store {
                 let outbound = links.get(&key).cloned().unwrap_or_default();
                 Ok(Row {
                     source,
+                    origin: String::new(),
                     key,
                     name: r.get(1)?,
                     kind: r.get(2)?,
@@ -156,7 +178,7 @@ impl Store {
 
     /// Build a fresh store at `path` from the given nodes, replacing any
     /// existing file. Writes nodes, resolved edges, and stamps meta.
-    pub fn build(path: &Path, nodes: &[Node]) -> rusqlite::Result<()> {
+    pub fn build(path: &Path, nodes: &[Node], producer: &str) -> rusqlite::Result<()> {
         let _ = std::fs::remove_file(path);
         let mut conn = Connection::open(path)?;
         conn.execute_batch(SCHEMA_SQL)?;
@@ -192,9 +214,10 @@ impl Store {
                     ins_edge.execute(params![n.key, dst])?;
                 }
             }
-            let mut ins_meta = tx.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES (?1,?2)")?;
+            let mut ins_meta =
+                tx.prepare("INSERT OR REPLACE INTO meta (key,value) VALUES (?1,?2)")?;
             ins_meta.execute(params!["schema", STORE_SCHEMA.to_string()])?;
-            ins_meta.execute(params!["cli_version", crate::CLI_VERSION])?;
+            ins_meta.execute(params!["producer", producer])?;
             ins_meta.execute(params!["node_count", nodes.len().to_string()])?;
         }
         tx.commit()?;

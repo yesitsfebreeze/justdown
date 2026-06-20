@@ -58,7 +58,10 @@ pub fn run(cfg: &Config, args: &[String]) -> i32 {
     }
 
     if roots.is_empty() {
-        eprintln!("jd: pull: no libraries found across {} remote(s)", remotes.len());
+        eprintln!(
+            "jd: pull: no libraries found across {} remote(s)",
+            remotes.len()
+        );
         return 1;
     }
     build::build_roots(&scope.join(&cfg.index), &roots)
@@ -73,9 +76,23 @@ fn sync_repo(lib: &Path, url: &str, git_ref: &str) -> Result<(), i32> {
     }
     if lib.join(".git").is_dir() {
         eprintln!("jd: pull: refreshing {}", lib.display());
-        run_git(&["-C", &lib.to_string_lossy(), "fetch", "--depth", "1", "origin", git_ref])?;
+        run_git(&[
+            "-C",
+            &lib.to_string_lossy(),
+            "fetch",
+            "--depth",
+            "1",
+            "origin",
+            git_ref,
+        ])?;
         // reset to the fetched tip so a moved ref / force-push still applies
-        run_git(&["-C", &lib.to_string_lossy(), "reset", "--hard", "FETCH_HEAD"])?;
+        run_git(&[
+            "-C",
+            &lib.to_string_lossy(),
+            "reset",
+            "--hard",
+            "FETCH_HEAD",
+        ])?;
     } else {
         if let Some(parent) = lib.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
@@ -110,7 +127,10 @@ fn run_git(args: &[&str]) -> Result<(), i32> {
     match Command::new("git").args(args).status() {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => {
-            eprintln!("jd: git {} failed ({s})", args.first().copied().unwrap_or(""));
+            eprintln!(
+                "jd: git {} failed ({s})",
+                args.first().copied().unwrap_or("")
+            );
             Err(4)
         }
         Err(e) => {

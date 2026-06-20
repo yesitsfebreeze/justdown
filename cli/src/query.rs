@@ -134,7 +134,9 @@ fn load_store(path: &std::path::Path, source: Source) -> Option<Vec<Row>> {
     if !path.exists() {
         return None;
     }
-    Store::open(path).ok().and_then(|s| s.load_rows(source).ok())
+    Store::open(path)
+        .ok()
+        .and_then(|s| s.load_rows(source).ok())
 }
 
 /// Gather the merged, deduped row set across the three tiers — repo-LOCAL

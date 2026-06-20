@@ -36,7 +36,11 @@ impl Remote {
     /// index lives at `<raw_base>/.bombshell/jd/graph.db`.
     pub fn raw_base(&self) -> Option<String> {
         // strip scheme, require a github.com host, take owner/repo
-        let rest = self.url.split_once("://").map(|(_, r)| r).unwrap_or(&self.url);
+        let rest = self
+            .url
+            .split_once("://")
+            .map(|(_, r)| r)
+            .unwrap_or(&self.url);
         let (host, path) = rest.split_once('/')?;
         if host != "github.com" {
             return None;
@@ -227,7 +231,9 @@ impl Config {
             if let Some(h) = Self::home_bombshell() {
                 v.extend(read_jdconfig(&h.join(".jdconfig")));
             }
-            v.extend(read_jdconfig(&self.root.join(".bombshell").join(".jdconfig")));
+            v.extend(read_jdconfig(
+                &self.root.join(".bombshell").join(".jdconfig"),
+            ));
             v
         };
 

@@ -5,7 +5,8 @@
 //   jd build          index <lib>/**/*.jd into the graph store
 //   jd pull           clone/refresh the online library into a cache scope
 //   jd search <q>     rank files by purpose (graph-aware)
-//   jd get <ref>      a file as ordered sections: frontmatter, then prose|tools
+//   jd get <ref>      a file as ordered sections, or one output profile
+//                     (--human|--agent|--frontmatter|--justfile)
 //   jd ls             categories and their members
 //   jd links <ref>    inbound + outbound @links of a file (graph traversal)
 //   jd lint           validate library .jd frontmatter (CI-gateable)
@@ -20,16 +21,23 @@ mod lint;
 mod pull;
 mod query;
 
+use config::Format;
 use justdown::store::STORE_SCHEMA;
 use std::process::exit;
 
 pub const CLI_VERSION: &str = "0.3.0";
 
 fn main() {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
+    // `--json` is a global wire-format switch valid on every command; pull it out
+    // of argv before dispatch so subcommands see only their own args. It replaces
+    // the old JUSTDOWN_FORMAT env var.
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    let json = raw.iter().any(|a| a == "--json");
+    let argv: Vec<String> = raw.into_iter().filter(|a| a != "--json").collect();
     let cmd = argv.first().map(String::as_str).unwrap_or("help");
     let rest: &[String] = if argv.is_empty() { &[] } else { &argv[1..] };
-    let cfg = config::Config::from_env();
+    let mut cfg = config::Config::from_env();
+    cfg.format = if json { Format::Json } else { Format::Text };
 
     let code = match cmd {
         "build" => build::run(&cfg, rest),
@@ -83,9 +91,16 @@ USAGE  jd <command> [args]
   search <query> [kind] [num] [category]
                                rank library files by need (graph-aware:
                                name/use_when > tags > prose; not_when vetoes)
-  get    <ref> [only] [--var name=value ...]
-                               file as ordered sections: frontmatter,
-                               then prose | tools  (only: frontmatter|prose|tools).
+  get    <ref> [profile] [--var name=value ...]
+                               file as ordered sections (default), or one output
+                               profile selected by the file's kind:
+                                 --frontmatter  the retrieval contract only
+                                 --human        prose + fenced blocks, no yaml
+                                 --agent        contract + prose, no raw recipe
+                                 --justfile     vanilla just recipes, host-resolved
+                               --justfile needs kind tool|workflow; on any other
+                               kind (agent/knowledge/types) it refuses (exit 3) —
+                               those .jd files are not executable as scripts.
                                Resolves <<var>> context injection before output:
                                values come from JUSTDOWN_VAR_<NAME> env and
                                --var flags (flags win). One pass, non-recursive.
@@ -100,7 +115,7 @@ REF    name · path · key(dir/name) · @dir/name
 MERGE  queries union three tiers — repo-LOCAL (<root>/.bombshell/jd) ⊕
        machine-GLOBAL (~/.bombshell/jd) ⊕ ONLINE; nearer scope trumps by key
        (local > global > online). Build the local store with `jd build`.
-OUTPUT text (default) or machine JSON via JUSTDOWN_FORMAT=json (versioned
+OUTPUT text (default) or machine JSON via the global --json flag (versioned
        schema, e.g. justdown.search/1; errors as justdown.error/1 on stderr).
 EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable
 ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default
@@ -108,8 +123,9 @@ ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default
        JUSTDOWN_ROOT  JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_REF
        JUSTDOWN_REPOS (pull belt override; else read from .bombshell/.jdconfig —
        one owner/repo[@ref] or URL per line, ~/.bombshell then <root>/.bombshell)
-       JUSTDOWN_RAW_BASE  JUSTDOWN_FORMAT (text|json)
+       JUSTDOWN_RAW_BASE
        JUSTDOWN_VAR_<NAME>  host value for the <<name>> escape (lower-cased)
+GLOBAL --json  machine JSON on any command (replaces JUSTDOWN_FORMAT)
 "#
     );
 }

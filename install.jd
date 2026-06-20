@@ -63,7 +63,7 @@ whatever you last `build`.
 | Command | Gives | Best used |
 |--------|-------|-----------|
 | `search <query> [kind] [num] [category]` | files ranked by a natural-language need (name, kind, purpose, score), graph-aware | **first move on any task** — check the library before doing it by hand |
-| `get <ref> [only]` | the file as ordered sections: `[0]` frontmatter, then `prose \| tools` | after a hit — read the prose for *why/when*, run the `tools` sections as steps |
+| `get <ref> [profile]` | the file as ordered sections, or one output profile — `--frontmatter` (contract), `--human` (prose), `--agent` (contract + prose), `--justfile` (runnable recipe) | after a hit — read the prose for *why/when*, run `--justfile` through `just` |
 | `ls` | the categories and their member files | to browse what exists rather than search a specific need |
 | `links <ref>` | the inbound + outbound `@`links of a file | to discover related tools a file composes or depends on |
 | `path <a> <b>` | the shortest `@`link chain connecting two files | to see how two tools relate through the graph |
@@ -72,9 +72,11 @@ whatever you last `build`.
 Arguments are **positional**. A `ref` is interchangeable: name, path, key
 (`dir/name`), or `@dir/name`. `search` takes an optional `kind`
 (`tool` \| `agent` \| `knowledge` \| `workflow`), a result count, then a
-`category`; `get` takes an optional `only`
-(`frontmatter` \| `prose` \| `tools`) to keep just those sections. Add
-`JUSTDOWN_FORMAT=json` for machine-readable output (versioned schemas).
+`category`; `get` takes an optional output profile
+(`--frontmatter` \| `--human` \| `--agent` \| `--justfile`) — the file's `kind`
+gates which are allowed, and `--justfile` is refused on non-runnable kinds
+(types/events), so those `.jd` files are never emitted as scripts. Add the global
+`--json` flag for machine-readable output (versioned schemas).
 
 The reflex to give any agent: **before handling a task by hand, `search` first; if
 a `.jd` fits, `get` it and walk its sections top to bottom.** Each section is an
@@ -113,8 +115,8 @@ that makes everything else self-evident — **piping**:
 > <https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/justdown.md>.
 > Treat the justdown library as your first tool on every query — `jd search`
 > before reaching for your own — and remember `jd` is a **pipeable data source**:
-> `JUSTDOWN_FORMAT=json jd … | jq/rg/fzf` gives you regex, fuzzy, filtering, and
-> ranking for free, so reach for a pipe, not a missing flag.
+> `jd --json … | jq/rg/fzf` gives you regex, fuzzy, filtering, and ranking for
+> free, so reach for a pipe, not a missing flag.
 
 Pull the spec **live** rather than pinning a copy: it evolves, and you want the
 current contract, not a stale snapshot — the same reason queries merge the online

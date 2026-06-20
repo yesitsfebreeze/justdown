@@ -21,7 +21,7 @@ like any other. The CLI is the **`jd`** binary; these recipes shell out to it.
 | Recipe | CLI verb | Does |
 |--------|----------|------|
 | `search` | `search <q> [kind] [num] [cat]` | rank shards by need (name/use_when > tags > prose), graph-aware |
-| `get` | `get <ref> [only]` | a file as ordered sections: `[0]` frontmatter, then prose / tools |
+| `get` | `get <ref> [profile]` | a file as ordered sections, or one profile: `--frontmatter` / `--human` / `--agent` / `--justfile` |
 | `ls` | `ls` | categories and their member files |
 | `links` | `links <ref>` | inbound + outbound `@links` of a file |
 | `path` | `path <a> <b>` | the shortest `@link` chain connecting two files |
@@ -34,12 +34,13 @@ A **REF** is any of: a bare `name`, a `path`, a `key` of the form `dir/name`, or
 that same key with an `@` prefix.
 `search` ranks field-weighted — `name` and `use_when` outweigh `tags`, which
 outweigh prose, and a `not_when` match vetoes a hit; ties break by graph
-connectivity. `get`'s `only` filter is `frontmatter` | `prose` | `tools` when you
-want just one region.
+connectivity. `get`'s output profile is `--frontmatter` | `--human` | `--agent`
+| `--justfile`; the file's `kind` decides which are allowed — a types/events
+shard refuses `--justfile` (exit 3), so it is never emitted as a script.
 
 Queries **merge** the LOCAL store over the ONLINE one — local entries trump
 online ones by key, so your `jd build` output shadows the published graph
-without a clone. Set `JUSTDOWN_FORMAT=json` for a versioned machine schema
+without a clone. Pass the global `--json` flag for a versioned machine schema
 (`justdown.search/1`); errors come back as `justdown.error/1` on stderr.
 
 **Exit codes:** `0` ok · `2` no matches · `3` bad args · `4` sources unreachable.
@@ -51,9 +52,10 @@ wrong" from "the network is down" — branch on them, don't parse the text.
 search query kind="" num="5":
   jd search {{quote(query)}} {{quote(kind)}} {{quote(num)}}
 
-# a file as ordered sections; only = frontmatter | prose | tools
-get ref only="":
-  jd get {{quote(ref)}} {{quote(only)}}
+# a file as ordered sections, or one profile flag:
+# --frontmatter | --human | --agent | --justfile
+get ref profile="":
+  jd get {{quote(ref)}} {{profile}}
 
 # categories and their member files
 ls:

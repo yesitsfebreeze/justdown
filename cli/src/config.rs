@@ -36,7 +36,11 @@ impl Remote {
     /// index lives at `<raw_base>/.bombshell/jd/graph.db`.
     pub fn raw_base(&self) -> Option<String> {
         // strip scheme, require a github.com host, take owner/repo
-        let rest = self.url.split_once("://").map(|(_, r)| r).unwrap_or(&self.url);
+        let rest = self
+            .url
+            .split_once("://")
+            .map(|(_, r)| r)
+            .unwrap_or(&self.url);
         let (host, path) = rest.split_once('/')?;
         if host != "github.com" {
             return None;
@@ -137,10 +141,8 @@ impl Config {
             "JUSTDOWN_RAW_BASE",
             &format!("https://raw.githubusercontent.com/{repo}/{ref_}"),
         );
-        let format = match env_or("JUSTDOWN_FORMAT", "text").as_str() {
-            "json" => Format::Json,
-            _ => Format::Text,
-        };
+        // Wire format is set by the global `--json` flag (parsed in `main`), not
+        // the environment. Default to text; `main` overrides after flag parse.
         Config {
             root,
             lib,
@@ -148,7 +150,7 @@ impl Config {
             repo,
             git_ref: ref_,
             raw_base,
-            format,
+            format: Format::Text,
         }
     }
 
@@ -227,7 +229,9 @@ impl Config {
             if let Some(h) = Self::home_bombshell() {
                 v.extend(read_jdconfig(&h.join(".jdconfig")));
             }
-            v.extend(read_jdconfig(&self.root.join(".bombshell").join(".jdconfig")));
+            v.extend(read_jdconfig(
+                &self.root.join(".bombshell").join(".jdconfig"),
+            ));
             v
         };
 
@@ -246,14 +250,5 @@ impl Config {
             });
         }
         belt
-    }
-
-    /// True when JUSTDOWN_FORMAT held an unknown value (anything but text/json).
-    /// We resolve to Text but a strict caller can still reject it.
-    pub fn format_valid() -> bool {
-        match std::env::var("JUSTDOWN_FORMAT") {
-            Ok(v) if !v.is_empty() => matches!(v.as_str(), "text" | "json"),
-            _ => true,
-        }
     }
 }

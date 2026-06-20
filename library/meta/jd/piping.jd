@@ -1,6 +1,6 @@
 ---
 name: jd_piping
-description: The one concept that makes jd composable — its output is a data source you pipe into the unix toolbox. With JUSTDOWN_FORMAT=json it emits a versioned schema; pipe to jq/ripgrep/fzf/sort to get regex, fuzzy, filtering, projection, and ranking for free. Learn this and every "search mode" is just a pipe — nothing else needs explaining.
+description: The one concept that makes jd composable — its output is a data source you pipe into the unix toolbox. With the --json flag it emits a versioned schema; pipe to jq/ripgrep/fzf/sort to get regex, fuzzy, filtering, projection, and ranking for free. Learn this and every "search mode" is just a pipe — nothing else needs explaining.
 kind: knowledge
 tags: [jd, piping, compose, json, jq, ripgrep, fzf, unix, search]
 use_when: [regex search the library, fuzzy find a tool, filter or project jd results, sort or limit search hits, post-process jd output, combine jd with other commands, why is there no --regex flag]
@@ -10,7 +10,7 @@ use_when: [regex search the library, fuzzy find a tool, filter or project jd res
 
 `jd` does not grow a flag for every way you might want to slice its output. It
 emits **structured data** and stops there — the rest is the unix toolbox. Text
-mode is for eyes; `JUSTDOWN_FORMAT=json` is for pipes, a versioned schema
+mode is for eyes; the `--json` flag is for pipes, a versioned schema
 (`justdown.search/1`) you feed to @search/jq, @search/rg, @shell/fzf, or
 anything that reads a stream. Internalize this one idea and there is nothing
 left to explain: **`jd` finds, pipes shape.**
@@ -33,11 +33,11 @@ is a noop to bolt on, because it's already on `PATH`.
 ```just
 # names of hits, regex-filtered (the "regex search" people ask jd for)
 regex query pattern:
-  JUSTDOWN_FORMAT=json jd search {{quote(query)}} 50 | jq -r '.results[].name' | rg {{quote(pattern)}}
+  jd --json search {{quote(query)}} 50 | jq -r '.results[].name' | rg {{quote(pattern)}}
 
 # fuzzy-filter the hits without an interactive prompt
 fuzzy query needle:
-  JUSTDOWN_FORMAT=json jd search {{quote(query)}} 50 | jq -r '.results[].name' | fzf -f {{quote(needle)}}
+  jd --json search {{quote(query)}} 50 | jq -r '.results[].name' | fzf -f {{quote(needle)}}
 
 # meaning-shaped lookup — the one job pipes cannot do, so jd owns it
 semantic query:

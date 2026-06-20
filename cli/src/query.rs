@@ -134,7 +134,9 @@ fn load_store(path: &std::path::Path, source: Source) -> Option<Vec<Row>> {
     if !path.exists() {
         return None;
     }
-    Store::open(path).ok().and_then(|s| s.load_rows(source).ok())
+    Store::open(path)
+        .ok()
+        .and_then(|s| s.load_rows(source).ok())
 }
 
 /// Gather the merged, deduped row set across the three tiers — repo-LOCAL
@@ -349,10 +351,6 @@ fn rank_semantic<'a>(rows: &'a [Row], query: &str, kind: &str, category: &str) -
 }
 
 pub fn search(cfg: &Config, args: &[String]) -> i32 {
-    if !Config::format_valid() {
-        emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
-        return 3;
-    }
     // Pull the optional `--mode <exact|semantic>` flag out of the positionals.
     // exact (default) is the field-weighted substring rank; semantic widens the
     // query with synonyms + stemming and adds a trigram-cosine signal for
@@ -586,16 +584,12 @@ fn basename(path: &str) -> String {
 }
 
 pub fn get(cfg: &Config, args: &[String]) -> i32 {
-    if !Config::format_valid() {
-        emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
-        return 3;
-    }
-
-    // Split `--var name=value` flags (host-injected `<<var>>` values) from the
-    // positional ref/only args. Env-sourced vars seed the map; --var flags layer
-    // on top so a per-call flag overrides the environment.
+    // Split args into: `--var name=value` host vars, `--<profile>` output flags,
+    // and the single positional ref. Env-sourced vars seed the map; --var flags
+    // layer on top so a per-call flag overrides the environment.
     let mut vars = Config::env_vars();
     let mut positional: Vec<&String> = Vec::new();
+    let mut flags: Vec<&str> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         let a = &args[i];
@@ -610,6 +604,10 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
             }
         } else if let Some(p) = a.strip_prefix("--var=") {
             p
+        } else if a.starts_with("--") {
+            flags.push(a.as_str());
+            i += 1;
+            continue;
         } else {
             positional.push(a);
             i += 1;
@@ -627,6 +625,14 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         i += 1;
     }
 
+    let profile = match parse_profile(&flags) {
+        Ok(p) => p,
+        Err(msg) => {
+            emit_err(cfg, "bad-args", &msg);
+            return 3;
+        }
+    };
+
     let refr = match positional.first() {
         Some(r) if !r.is_empty() => (*r).clone(),
         _ => {
@@ -634,12 +640,11 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
             return 3;
         }
     };
-    let only = positional.get(1).map(|s| (*s).clone()).unwrap_or_default();
-    if !matches!(only.as_str(), "" | "frontmatter" | "prose" | "tools") {
+    if positional.len() > 1 {
         emit_err(
             cfg,
             "bad-args",
-            &format!("unknown only: {only} (want frontmatter|prose|tools)"),
+            "get takes one ref; select output with --human|--agent|--frontmatter|--justfile",
         );
         return 3;
     }
@@ -713,11 +718,52 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         }
     };
 
+    // Resolve the requested profile to the sections it emits, gating --justfile
+    // on the file's kind: only runnable kinds (tool|workflow) yield an executable
+    // justfile — agent/knowledge/type/event .jd files are not scripts (exit 3).
+    // `headers` is false for the raw single-payload views (justfile, human),
+    // which emit their content verbatim with no `# kind` banner.
+    let (sections, headers): (Vec<(String, String)>, bool) = match profile {
+        Profile::Justfile => {
+            if !justfile_kind(&row.kind) {
+                emit_err(
+                    cfg,
+                    "bad-args",
+                    &format!(
+                        "no executable payload: kind '{}' defines types/events, not a recipe — --justfile needs kind tool|workflow",
+                        row.kind
+                    ),
+                );
+                return 3;
+            }
+            let joined = split_sections(&body, "tools")
+                .into_iter()
+                .map(|(_, c)| c)
+                .collect::<Vec<_>>()
+                .join("\n");
+            (vec![("justfile".to_string(), joined)], false)
+        }
+        Profile::Human => (vec![("human".to_string(), strip_frontmatter(&body))], false),
+        Profile::Frontmatter => (split_sections(&body, "frontmatter"), true),
+        Profile::Agent => {
+            // Contract + prose, no raw recipe. `split_sections` folds prose into
+            // a recipe-bearing block, so build prose directly (fences stripped)
+            // rather than filtering its sections.
+            let mut secs = split_sections(&body, "frontmatter");
+            let prose = prose_only(&body);
+            if !prose.is_empty() {
+                secs.push(("prose".to_string(), prose));
+            }
+            (secs, true)
+        }
+        Profile::Default => (split_sections(&body, ""), true),
+    };
+
     // Context injection: resolve `<<var>>` escapes against host-supplied values
-    // (env + --var) just before the sections are emitted downstream — the
-    // consume point the jd spec names ("before a file is consumed"). One pass,
-    // non-recursive, so a spliced value can't smuggle in further escapes.
-    let sections: Vec<(String, String)> = inject_vars(split_sections(&body, &only), &vars);
+    // (env + --var) just before output — the consume point the jd spec names
+    // ("before a file is consumed"). One pass, non-recursive, so a spliced value
+    // can't smuggle in further escapes.
+    let sections = inject_vars(sections, &vars);
     match cfg.format {
         Format::Json => {
             let mut out = String::new();
@@ -740,13 +786,120 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         }
         Format::Text => {
             for (kind, content) in &sections {
-                println!("# {kind}");
-                println!("{content}");
-                println!();
+                if headers {
+                    println!("# {kind}");
+                    println!("{content}");
+                    println!();
+                } else {
+                    println!("{content}");
+                }
             }
         }
     }
     0
+}
+
+/// Output profile for `get`: a kind-gated view of one `.jd` file, selected by a
+/// single `--<profile>` flag. With no flag the default emits all sections.
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum Profile {
+    /// All sections in document order (frontmatter, prose, tools) — the default.
+    Default,
+    /// The retrieval contract only (frontmatter / yaml).
+    Frontmatter,
+    /// What a person reads: prose + fenced blocks, no yaml.
+    Human,
+    /// What an agent reasons over: the contract + prose, no raw recipe.
+    Agent,
+    /// Vanilla just recipes only, host-resolved — ready for `just --justfile -`.
+    /// Refused unless the file's kind is executable (see [`justfile_kind`]).
+    Justfile,
+}
+
+/// Map the `--<profile>` output flags to a single [`Profile`]. At most one
+/// profile flag is allowed; an unknown `--flag` or a second profile flag is an
+/// error (the caller maps it to exit 3). `--var`/`--json` are handled elsewhere
+/// and never reach here.
+fn parse_profile(flags: &[&str]) -> Result<Profile, String> {
+    let mut prof = Profile::Default;
+    for f in flags {
+        let p = match *f {
+            "--frontmatter" => Profile::Frontmatter,
+            "--human" => Profile::Human,
+            "--agent" => Profile::Agent,
+            "--justfile" => Profile::Justfile,
+            other => return Err(format!("unknown flag: {other}")),
+        };
+        if prof != Profile::Default {
+            return Err(
+                "only one output profile (--human|--agent|--frontmatter|--justfile)".to_string(),
+            );
+        }
+        prof = p;
+    }
+    Ok(prof)
+}
+
+/// Whether a file of the given `kind` may emit an executable `--justfile`. Only
+/// runnable kinds qualify; agent/knowledge/type/event `.jd` files are not
+/// scripts and are refused. The contract is an allowlist, so any future
+/// non-runnable kind is refused by default.
+fn justfile_kind(kind: &str) -> bool {
+    matches!(kind, "tool" | "workflow")
+}
+
+/// The body with its leading `---`…`---` frontmatter block removed — what a
+/// human reads (the rendered markdown, yaml stripped). No frontmatter, or an
+/// unterminated one, returns the text verbatim. Blank lines immediately after
+/// the block are trimmed.
+fn strip_frontmatter(body: &str) -> String {
+    let mut lines = body.lines();
+    if lines.next() != Some("---") {
+        return body.to_string();
+    }
+    let mut closed = false;
+    let mut out: Vec<&str> = Vec::new();
+    for l in lines.by_ref() {
+        if !closed {
+            if l == "---" {
+                closed = true;
+            }
+            continue;
+        }
+        out.push(l);
+    }
+    if !closed {
+        return body.to_string();
+    }
+    while out.first() == Some(&"") {
+        out.remove(0);
+    }
+    out.join("\n")
+}
+
+/// The body's prose only — frontmatter and every fenced block (```just /
+/// ```psaido / any ```) removed — what an agent reasons over without the raw
+/// recipe. Leading and trailing blank lines are trimmed.
+fn prose_only(body: &str) -> String {
+    let stripped = strip_frontmatter(body);
+    let mut out: Vec<&str> = Vec::new();
+    let mut fence = false;
+    for l in stripped.lines() {
+        if l.starts_with("```") {
+            fence = !fence;
+            continue;
+        }
+        if !fence {
+            out.push(l);
+        }
+    }
+    while out.first() == Some(&"") {
+        out.remove(0);
+    }
+    while out.last() == Some(&"") {
+        out.pop();
+    }
+    out.join("\n")
 }
 
 /// Apply the `<<var>>` render pass to every section's content. Frontmatter,
@@ -1087,10 +1240,6 @@ pub(crate) fn platsel(lines: &[&str], plat: &str) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 pub fn ls(cfg: &Config) -> i32 {
-    if !Config::format_valid() {
-        emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
-        return 3;
-    }
     let rows = match gather(cfg) {
         Ok(r) => r,
         Err(c) => return c,
@@ -1149,10 +1298,6 @@ pub fn ls(cfg: &Config) -> i32 {
 // ---------------------------------------------------------------------------
 
 pub fn links(cfg: &Config, args: &[String]) -> i32 {
-    if !Config::format_valid() {
-        emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
-        return 3;
-    }
     let refr = match args.first() {
         Some(r) if !r.is_empty() => r.clone(),
         _ => {
@@ -1249,10 +1394,6 @@ fn resolve<'a>(rows: &'a [Row], refr: &str) -> Option<&'a Row> {
 /// Exit 0 with a path, 2 if the two are unconnected, 2 (with an error) if an
 /// endpoint doesn't resolve, 3 on bad args.
 pub fn path(cfg: &Config, args: &[String]) -> i32 {
-    if !Config::format_valid() {
-        emit_err(cfg, "bad-args", "unknown JUSTDOWN_FORMAT (want text|json)");
-        return 3;
-    }
     let (a, b) = match (args.first(), args.get(1)) {
         (Some(a), Some(b)) if !a.is_empty() && !b.is_empty() => (a.clone(), b.clone()),
         _ => {
@@ -1359,5 +1500,89 @@ pub fn path(cfg: &Config, args: &[String]) -> i32 {
     match chain {
         Some(_) => 0,
         None => 2,
+    }
+}
+
+#[cfg(test)]
+mod get_profile_tests {
+    use super::{
+        justfile_kind, parse_profile, prose_only, split_sections, strip_frontmatter, Profile,
+    };
+
+    const DOC: &str = "---\nname: demo\nkind: tool\n---\n\n# Demo\n\nprose line\n\n```just\nrun:\n  echo hi\n```\n";
+
+    #[test]
+    fn no_flag_is_default() {
+        assert_eq!(parse_profile(&[]), Ok(Profile::Default));
+    }
+
+    #[test]
+    fn each_flag_maps_to_its_profile() {
+        assert_eq!(parse_profile(&["--frontmatter"]), Ok(Profile::Frontmatter));
+        assert_eq!(parse_profile(&["--human"]), Ok(Profile::Human));
+        assert_eq!(parse_profile(&["--agent"]), Ok(Profile::Agent));
+        assert_eq!(parse_profile(&["--justfile"]), Ok(Profile::Justfile));
+    }
+
+    #[test]
+    fn two_profiles_is_an_error() {
+        assert!(parse_profile(&["--human", "--justfile"]).is_err());
+    }
+
+    #[test]
+    fn unknown_flag_is_an_error() {
+        assert!(parse_profile(&["--nope"]).is_err());
+    }
+
+    #[test]
+    fn justfile_kind_allowlist() {
+        assert!(justfile_kind("tool"));
+        assert!(justfile_kind("workflow"));
+        // non-runnable kinds — and any future type/event kind — are refused.
+        assert!(!justfile_kind("agent"));
+        assert!(!justfile_kind("knowledge"));
+        assert!(!justfile_kind("type"));
+        assert!(!justfile_kind("event"));
+        assert!(!justfile_kind(""));
+    }
+
+    #[test]
+    fn strip_frontmatter_drops_yaml_and_leading_blanks() {
+        let out = strip_frontmatter(DOC);
+        assert!(!out.contains("name: demo"), "yaml must be gone: {out:?}");
+        assert!(out.starts_with("# Demo"), "leading blanks trimmed: {out:?}");
+        assert!(out.contains("```just"), "fenced blocks kept for human view");
+    }
+
+    #[test]
+    fn strip_frontmatter_passthrough_without_block() {
+        let plain = "# Title\n\nbody";
+        assert_eq!(strip_frontmatter(plain), plain);
+    }
+
+    #[test]
+    fn agent_prose_keeps_prose_drops_recipe() {
+        // The agent view is contract + prose with the raw recipe removed —
+        // prose survives even when it shares a block with a ```just recipe.
+        let prose = prose_only(DOC);
+        assert!(prose.contains("# Demo"), "heading kept: {prose:?}");
+        assert!(prose.contains("prose line"), "prose kept: {prose:?}");
+        assert!(!prose.contains("echo hi"), "recipe body dropped: {prose:?}");
+        assert!(!prose.contains("```"), "fence markers dropped: {prose:?}");
+        assert!(!prose.contains("name: demo"), "yaml dropped: {prose:?}");
+    }
+
+    #[test]
+    fn justfile_selection_emits_recipe_only() {
+        let joined = split_sections(DOC, "tools")
+            .into_iter()
+            .map(|(_, c)| c)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(joined.contains("run:"));
+        assert!(joined.contains("echo hi"));
+        // raw recipe — no fence markers, no yaml.
+        assert!(!joined.contains("```"));
+        assert!(!joined.contains("name: demo"));
     }
 }

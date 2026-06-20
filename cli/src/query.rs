@@ -56,22 +56,45 @@ fn emit_err(cfg: &Config, code: &str, msg: &str) {
 // loading + merge
 // ---------------------------------------------------------------------------
 
+/// Network deadline for an online-merge fetch: connect in ≤5s, finish in ≤15s.
+/// The online tier is best-effort — queries degrade to local/global when it's
+/// unreachable — so no fetch may block the tool indefinitely. Without this, a
+/// slow or black-holed host hangs every `jd search`/`get`/`ls`/`links`/`path`.
+const NET_MAX_TIME: &str = "15";
+const NET_CONNECT_TIMEOUT: &str = "5";
+
 /// Fetch a URL to a file with curl. Best-effort: returns false on any failure
-/// (curl absent, unreachable, 404). justdown already requires curl on PATH;
-/// the online merge degrades to local-only when it isn't there.
+/// (curl absent, unreachable, 404, or a network timeout). justdown already
+/// requires curl on PATH; the online merge degrades to local-only when it
+/// isn't there or can't answer in time.
 fn curl_to_file(url: &str, dest: &std::path::Path) -> bool {
     std::process::Command::new("curl")
-        .args(["-fsSL", url, "-o"])
+        .args([
+            "-fsSL",
+            "--connect-timeout",
+            NET_CONNECT_TIMEOUT,
+            "--max-time",
+            NET_MAX_TIME,
+            url,
+            "-o",
+        ])
         .arg(dest)
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
 }
 
-/// Fetch a URL to a string with curl. None on any failure.
+/// Fetch a URL to a string with curl. None on any failure (incl. timeout).
 fn curl_to_string(url: &str) -> Option<String> {
     let out = std::process::Command::new("curl")
-        .args(["-fsSL", url])
+        .args([
+            "-fsSL",
+            "--connect-timeout",
+            NET_CONNECT_TIMEOUT,
+            "--max-time",
+            NET_MAX_TIME,
+            url,
+        ])
         .output()
         .ok()?;
     if out.status.success() {

@@ -28,11 +28,20 @@ cli/target/
 !.bombshell/jd/
 !.bombshell/jd/graph.db
 
+# A stray `jd build` against a stale binary or wrong JUSTDOWN_INDEX can drop an
+# index at the repo root. Only .bombshell/jd/graph.db (the contract path above)
+# is ever published — a root /graph.db is never legitimate, so ignore it.
+/graph.db
+
 # kern runtime (local-only graph memory)
 .kern/
 
 # local Claude Code MCP wiring (kern etc.) — environment-specific
 .mcp.json
+
+# Claude Code session state (local settings, history, plans, task scratch) —
+# harness-local, never part of the project.
+.claude/
 
 # cargo workspace build output
 /target/

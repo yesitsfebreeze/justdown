@@ -1,0 +1,11 @@
+# Pin the workspace build output to the top-level ./target dir.
+#
+# justdown is a Cargo workspace (root Cargo.toml → [workspace] members =
+# ["core", "cli"]). With no override, `cargo build --manifest-path cli/Cargo.toml`
+# already writes to ./target/, but that is implicit and fragile — CI used to
+# reference ./cli/target/release/jd (the path a *non*-workspace member crate
+# would use), which never exists here, so every clean CI run failed to find the
+# binary. Making the target dir explicit removes the ambiguity: there is exactly
+# one ./target, and both local devs and CI point at ./target/release/jd.
+[build]
+target-dir = "target"

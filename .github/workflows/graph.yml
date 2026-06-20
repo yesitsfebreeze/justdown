@@ -1,10 +1,11 @@
 name: graph
 
-# Keep the committed index (graph.db) in sync with the library/ files. The index
-# is BUILT BY THE jd BINARY (cli/) — the same `jd build` you run locally. On push
-# to main it is rebuilt and committed back; on pull requests (where pushing to the
-# source branch may not be possible) it only verifies. graph.db is a SQLite file
-# that `jd build` produces deterministically, so a byte-diff is a valid check.
+# Keep the committed index (.bombshell/jd/graph.db — the contract path consumers
+# fetch over raw) in sync with the library/ files. The index is BUILT BY THE jd
+# BINARY (cli/) — the same `jd build` you run locally. `jd build` writes
+# .bombshell/jd/graph.db (not a root ./graph.db); on push to main it is rebuilt
+# and committed back, on pull requests it only verifies. graph.db is a SQLite
+# file that `jd build` produces deterministically, so a byte-diff is a valid check.
 
 on:
   push:
@@ -24,21 +25,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: cli
 
       - name: Build jd
         run: cargo build --release --manifest-path cli/Cargo.toml
 
       - name: Rebuild the index
-        run: ./cli/target/release/jd build
+        # justdown is a Cargo workspace, so the build output lands in the
+        # top-level ./target dir (pinned by .cargo/config.toml), not
+        # ./cli/target. Reference the path cargo actually writes.
+        run: ./target/release/jd build
 
       # On a PR we cannot reliably push; just fail if the author forgot to rebuild.
       - name: Verify graph.db is in sync (pull requests)
         if: github.event_name == 'pull_request'
         run: |
-          if ! git diff --exit-code -- graph.db; then
-            echo "::error::graph.db is out of date. Run 'jd build' and commit, or push to main to let CI rebuild it."
+          if ! git diff --exit-code -- .bombshell/jd/graph.db; then
+            echo "::error::.bombshell/jd/graph.db is out of date. Run 'jd build' and commit, or push to main to let CI rebuild it."
             exit 1
           fi
           echo "graph.db is in sync."
@@ -47,12 +49,12 @@ jobs:
       - name: Commit refreshed graph.db (push to main)
         if: github.event_name == 'push'
         run: |
-          if git diff --quiet -- graph.db; then
+          if git diff --quiet -- .bombshell/jd/graph.db; then
             echo "graph.db already in sync."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add graph.db
+          git add .bombshell/jd/graph.db
           git commit -m "ci: rebuild graph.db"
           git push

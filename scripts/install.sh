@@ -33,7 +33,8 @@ target="${arch_t}-${os_t}"
 # resolve the version tag (latest unless pinned)
 tag="${JD_VERSION:-}"
 if [ -z "$tag" ]; then
-  tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+  tag=$(curl -fsSL --connect-timeout 10 --max-time 30 \
+        "https://api.github.com/repos/$REPO/releases/latest" \
         | grep -m1 '"tag_name"' | cut -d'"' -f4)
   [ -n "$tag" ] || err "could not resolve the latest release tag"
 fi
@@ -44,11 +45,12 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 echo "install: fetching $archive ($tag)"
-curl -fSL "$base/$archive" -o "$tmp/$archive" || err "download failed: $base/$archive"
+curl -fSL --connect-timeout 10 --max-time 120 "$base/$archive" -o "$tmp/$archive" \
+  || err "download failed: $base/$archive"
 
 # verify the checksum against the release's SHA256SUMS (best-effort: skip with a
 # warning only if neither a checksum tool nor the sums file is available)
-if curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS" 2>/dev/null; then
+if curl -fsSL --connect-timeout 10 --max-time 30 "$base/SHA256SUMS" -o "$tmp/SHA256SUMS" 2>/dev/null; then
   want=$(grep " $archive\$" "$tmp/SHA256SUMS" | awk '{print $1}')
   if [ -n "$want" ]; then
     if command -v sha256sum >/dev/null 2>&1; then

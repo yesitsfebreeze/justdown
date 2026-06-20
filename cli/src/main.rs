@@ -28,6 +28,20 @@ use std::process::exit;
 pub const CLI_VERSION: &str = "0.3.0";
 
 fn main() {
+    // Restore the default SIGPIPE disposition. The Rust runtime sets SIGPIPE to
+    // SIG_IGN, so a write to a pipe whose reader has exited (e.g. `jd ls | head`)
+    // returns EPIPE and `println!` panics with "failed printing to stdout:
+    // Broken pipe" plus a backtrace. `jd` is a pipeable data source — `--json`
+    // output is meant to feed `jq`/`rg`/`fzf`/`head`, which routinely close early
+    // — so a closed downstream pipe must terminate the process cleanly, not
+    // crash it. Resetting to SIG_DFL makes the kernel kill us on the next write
+    // to the dead pipe (exit 141, the conventional `| head` status). Windows
+    // has no SIGPIPE and is unaffected.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     // `--json` is a global wire-format switch valid on every command; pull it out
     // of argv before dispatch so subcommands see only their own args. It replaces
     // the old JUSTDOWN_FORMAT env var.

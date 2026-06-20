@@ -41,7 +41,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: cli
           key: ${{ matrix.target }}
 
       - name: Build
@@ -54,7 +53,9 @@ jobs:
           tag="${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
           name="jd-${tag}-${{ matrix.target }}"
           mkdir -p dist
-          tar -czf "dist/${name}.tar.gz" -C "cli/target/${{ matrix.target }}/release" jd
+          # justdown is a Cargo workspace, so --target output lands in the
+          # top-level ./target dir (pinned by .cargo/config.toml), not cli/target.
+          tar -czf "dist/${name}.tar.gz" -C "target/${{ matrix.target }}/release" jd
 
       - name: Package (windows)
         if: runner.os == 'Windows'
@@ -63,7 +64,7 @@ jobs:
           $tag = "${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
           $name = "jd-$tag-${{ matrix.target }}"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path "cli/target/${{ matrix.target }}/release/jd.exe" -DestinationPath "dist/$name.zip"
+          Compress-Archive -Path "target/${{ matrix.target }}/release/jd.exe" -DestinationPath "dist/$name.zip"
 
       - uses: actions/upload-artifact@v4
         with:

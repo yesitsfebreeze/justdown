@@ -14,6 +14,7 @@
 //! The graph engine (build/store/query over a set of source roots) moves into
 //! this crate next, so bombshell can build a project-local graph spanning repos.
 
+pub mod cycle;
 pub mod graph;
 pub mod jd;
 pub mod render;

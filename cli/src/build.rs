@@ -20,7 +20,10 @@ pub fn build_into(out: &Path, libdir: &Path, base: &Path) -> i32 {
         eprintln!("jd: no library dir: {}", libdir.display());
         return 1;
     }
-    build_roots(out, &[Root::with_base(libdir.to_path_buf(), base.to_path_buf())])
+    build_roots(
+        out,
+        &[Root::with_base(libdir.to_path_buf(), base.to_path_buf())],
+    )
 }
 
 /// Build one index at `out` from many roots — the multi-remote merge. Later
@@ -35,7 +38,10 @@ pub fn build_roots(out: &Path, roots: &[Root]) -> i32 {
     }
     match graph::build_index(out, roots, crate::CLI_VERSION) {
         Ok(n) => {
-            eprintln!("built {}: {n} entries (schema {STORE_SCHEMA})", out.display());
+            eprintln!(
+                "built {}: {n} entries (schema {STORE_SCHEMA})",
+                out.display()
+            );
             0
         }
         Err(e) => {

@@ -1,0 +1,108 @@
+---
+name: watch_monitor
+description: Watch paths and run a different command per event kind — create, modify, delete, move. A native (inotify/fswatch) file monitor that routes each change to a caller-supplied handler with the changed file in $FILE and the kind in $KIND. Use to react to file events by kind, build a custom watch reaction, or run distinct commands on create vs delete.
+kind: tool
+tags: [watch, monitor, file-change, inotify, dispatch]
+use_when: [run different commands on create vs delete, react to file events by kind, build a custom file-watch reaction, dispatch a handler per file event, watch paths and route by event kind, get the changed file in a watch handler]
+danger: low
+requires: [inotifywait]
+run: run
+provides: [run]
+---
+
+# monitor
+
+The kind-aware counterpart to @watch/entr. Where entr re-runs **one fixed
+command** on **any** change (and never tells you which file moved), `monitor`
+routes by **event kind** and hands the handler the **changed file**: a separate
+command for create, modify, delete, and move, each invoked once per event with
+the path in `$FILE` and the kind in `$KIND`. An empty handler means that kind is
+ignored. For a timer instead of file events use @watch/watch; for the simple
+re-run-on-any-change loop use @watch/entr — `monitor` is the one that *branches*
+on what happened.
+
+| Kind | inotify events (linux) | fswatch flags (macos) |
+|--------|------------------------|-----------------------|
+| `create` | `CREATE` | `--event Created` |
+| `modify` | `MODIFY`, `CLOSE_WRITE` | `--event Updated` |
+| `delete` | `DELETE` | `--event Removed` |
+| `move` | `MOVED_FROM`, `MOVED_TO`, `MOVE` | `--event Renamed` |
+
+Handlers fire **per event** — many handlers may run over the watcher's life.
+Each runs as `env FILE=... KIND=... sh -c "$handler"`: the path and kind reach
+the handler through the **environment**, never spliced into the command string,
+so paths with spaces and shell-meta characters are safe and a handler can't be
+injection-tricked by a filename. `move` reports both sides — `MOVED_FROM` (old
+name) and `MOVED_TO` (new name) each fire the `on_move` handler, so `$FILE` is
+the path that the move touched. There is **no debounce**: one dispatch per
+emitted event (a single editor save can emit `MODIFY` then `CLOSE_WRITE`). If
+you need coalescing, debounce inside your handler or reach for @watch/entr
+(future work: an optional debounce window).
+
+```just
+# watch paths; run a per-kind handler on each event ($FILE = changed file, $KIND = kind)
+run paths on_create='' on_modify='' on_delete='' on_move='':
+  #!/usr/bin/env sh
+  set -eu
+  dispatch() {
+    # $1 = KIND, $2 = FILE, $3 = handler ('' => ignore this kind)
+    [ -n "$3" ] && env FILE="$2" KIND="$1" sh -c "$3" || :
+  }
+  case "{{os()}}" in
+  macos)
+    fswatch -r --event Created --event Updated --event Removed --event Renamed \
+            --event-flags --format '%f %p' {{paths}} \
+    | while IFS=' ' read -r flags file; do
+        case "$flags" in
+          *Created*)  dispatch create "$file" '{{on_create}}' ;;
+          *Updated*)  dispatch modify "$file" '{{on_modify}}' ;;
+          *Removed*)  dispatch delete "$file" '{{on_delete}}' ;;
+          *Renamed*)  dispatch move   "$file" '{{on_move}}'   ;;
+        esac
+      done
+    ;;
+  *)
+    inotifywait -m -r -q \
+      -e create,modify,close_write,delete,moved_from,moved_to \
+      --format '%e	%w%f' {{paths}} \
+    | while IFS='	' read -r event file; do
+        case "$event" in
+          CREATE*)                kind=create ;;
+          MODIFY*|CLOSE_WRITE*)   kind=modify ;;
+          DELETE*)                kind=delete ;;
+          MOVED_FROM*|MOVED_TO*|MOVE*) kind=move ;;
+          *) continue ;;
+        esac
+        case "$kind" in
+          create) dispatch create "$file" '{{on_create}}' ;;
+          modify) dispatch modify "$file" '{{on_modify}}' ;;
+          delete) dispatch delete "$file" '{{on_delete}}' ;;
+          move)   dispatch move   "$file" '{{on_move}}'   ;;
+        esac
+      done
+    ;;
+  esac
+```
+
+Compose: keep a changelog of every edit under a tree —
+
+```
+monitor . --on-modify 'printf "- [%s] MODIFY %s\n" "$(date -Iseconds)" "$FILE" >> .bombshell/changelog.md'
+```
+
+react only to lifecycle (ignore plain edits) —
+
+```
+monitor src --on-create 'echo "new: $FILE"' --on-delete 'echo "gone: $FILE"'
+```
+
+distinct reactions per kind —
+
+```
+monitor build/ \
+  --on-create 'notify-send "built $FILE"' \
+  --on-delete 'echo "$(date) removed $FILE" >> build.log'
+```
+
+An omitted handler (e.g. no `--on-move`) silently drops that kind. Cross-links:
+@watch/entr (fixed re-run on any change), @watch/watch (timer-driven repaint).

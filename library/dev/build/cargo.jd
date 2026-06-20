@@ -1,0 +1,72 @@
+---
+name: build_cargo
+description: Drive a Rust project with cargo — build, test, run, check, lint with clippy, and format. Use to compile a Rust crate, run its tests, run a binary, or enforce the fmt/clippy/test/build quality gate.
+kind: tool
+tags: [build, cargo, rust, test, clippy, fmt, check, gate]
+use_when: [build a rust project, run cargo test, run the crate, cargo check, run clippy, format rust code, check rust formatting, run the rust quality gate, is the rust tree green]
+danger: medium
+side_effects: [file-write, network]
+requires: [cargo]
+run: build
+provides: [build, test, run, check, clippy, fmt, fmtcheck, gate]
+---
+
+# cargo
+
+Cargo is Rust's build tool and package manager. `build` compiles the crate;
+`test` runs the test suite; `run` runs the default (or a named) binary; `check`
+type-checks without producing artifacts (fast); `clippy` is the linter; `fmt`
+rewrites formatting and `fmtcheck` verifies it without writing; `gate` is the
+full pre-merge quality gate (fmt-check → clippy-deny → test → build), exiting
+non-zero on the first failure. For a Makefile project see @build/make.
+
+| Recipe | Does |
+|--------|------|
+| `build` | compile the crate (default) |
+| `test` | run the test suite (optional name filter) |
+| `run` | run a binary (optional `bin` name, optional args) |
+| `check` | type-check only, no codegen (fast feedback) |
+| `clippy` | lint all targets, warnings denied |
+| `fmt` | rewrite source to canonical formatting |
+| `fmtcheck` | verify formatting without writing (CI/pre-commit) |
+| `gate` | full gate: fmtcheck → clippy → test → build |
+
+`clippy` uses `--all-targets -- -D warnings` so a warning is an error (matching a
+`[lints.rust] warnings = "deny"` crate). `fmtcheck` is the non-mutating fmt
+variant. `gate` chains the four with `&&` so a red step aborts the rest. `release`
+builds are not a separate recipe — pass `--release` is out of scope here; add it
+later if needed.
+
+```just
+# compile the crate (default)
+build:
+  cargo build
+
+# run the test suite (optional substring filter, e.g. test="wrap")
+test filter="":
+  cargo test {{filter}}
+
+# run a binary (optional bin name + trailing args)
+run bin="" args="":
+  cargo run {{ if bin != "" { "--bin " + bin } else { "" } }} {{ if args != "" { "-- " + args } else { "" } }}
+
+# type-check without producing artifacts (fast)
+check:
+  cargo check
+
+# lint all targets with warnings denied (matches the project gate)
+clippy:
+  cargo clippy --all-targets -- -D warnings
+
+# rewrite source to canonical formatting
+fmt:
+  cargo fmt
+
+# verify formatting without writing (exits non-zero if anything would change)
+fmtcheck:
+  cargo fmt --check
+
+# full quality gate: fmt-check → clippy (deny) → test → build
+gate:
+  cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo build
+```

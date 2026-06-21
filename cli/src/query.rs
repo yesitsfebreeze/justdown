@@ -677,24 +677,9 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    // normalize ref: drop leading @, drop #section
-    let mut needle = refr.clone();
-    if let Some(s) = needle.strip_prefix('@') {
-        needle = s.to_string();
-    }
-    if let Some(i) = needle.find('#') {
-        needle.truncate(i);
-    }
-
-    let found = rows.iter().find(|r| {
-        r.name == needle || r.key == needle || r.path == needle || basename(&r.path) == needle
-    });
-    let row = match found {
-        Some(r) => r,
-        None => {
-            emit_err(cfg, "not-found", &format!("no file: {refr}"));
-            return 2;
-        }
+    let row = match resolved_or_err(cfg, &rows, &refr) {
+        Ok(r) => r,
+        Err(c) => return c,
     };
 
     // refuse suspicious paths (absolute or traversal)
@@ -1333,23 +1318,9 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    let mut needle = refr.clone();
-    if let Some(s) = needle.strip_prefix('@') {
-        needle = s.to_string();
-    }
-    if let Some(i) = needle.find('#') {
-        needle.truncate(i);
-    }
-
-    let target = rows.iter().find(|r| {
-        r.name == needle || r.key == needle || r.path == needle || basename(&r.path) == needle
-    });
-    let target = match target {
-        Some(r) => r,
-        None => {
-            emit_err(cfg, "not-found", &format!("no file: {refr}"));
-            return 2;
-        }
+    let target = match resolved_or_err(cfg, &rows, &refr) {
+        Ok(r) => r,
+        Err(c) => return c,
     };
     let key = &target.key;
     let known: std::collections::HashSet<&str> = rows.iter().map(|r| r.key.as_str()).collect();
@@ -1396,9 +1367,9 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
 // path — shortest connection between two tools through the @link graph
 // ---------------------------------------------------------------------------
 
-/// Resolve a ref (name | key | path | basename, with optional `@`/`#section`)
-/// to a row.
-fn resolve<'a>(rows: &'a [Row], refr: &str) -> Option<&'a Row> {
+/// Strip a leading `@` and a trailing `#section` from a ref, leaving the bare
+/// name | key | path | basename needle the resolvers match on.
+fn normalize_ref(refr: &str) -> String {
     let mut needle = refr.to_string();
     if let Some(s) = needle.strip_prefix('@') {
         needle = s.to_string();
@@ -1406,9 +1377,92 @@ fn resolve<'a>(rows: &'a [Row], refr: &str) -> Option<&'a Row> {
     if let Some(i) = needle.find('#') {
         needle.truncate(i);
     }
-    rows.iter().find(|r| {
-        r.name == needle || r.key == needle || r.path == needle || basename(&r.path) == needle
-    })
+    needle
+}
+
+/// The outcome of resolving a ref against the merged row set.
+enum Resolution<'a> {
+    /// Exactly one file matched.
+    Unique(&'a Row),
+    /// Nothing matched.
+    None,
+    /// The ref matched more than one distinct file. Carries each candidate's
+    /// key — the fully-qualified ref that selects it — so the caller can tell
+    /// the user how to disambiguate.
+    Ambiguous(Vec<String>),
+}
+
+/// Resolve a ref to a single row, refusing rather than guessing when it is
+/// ambiguous. An exact identifier — name, key, or path — is a unique address
+/// and wins outright; only the convenience *basename* match can collide (two
+/// files share a leaf name in different categories, e.g. `meta/tools/release`
+/// and `vcs/gh/release` both basename `release`). When the basename matches
+/// more than one file we report every candidate instead of silently taking the
+/// first, so a bare ref can never resolve to the wrong file undetected. Rows
+/// are deduped by key so reaching one file via two of its identifiers, or the
+/// same key across merge tiers, still counts once.
+fn resolve_ref<'a>(rows: &'a [Row], refr: &str) -> Resolution<'a> {
+    let needle = normalize_ref(refr);
+
+    let dedup_keys = |matches: Vec<&'a Row>| -> Vec<&'a Row> {
+        let mut seen = std::collections::HashSet::new();
+        matches
+            .into_iter()
+            .filter(|r| seen.insert(r.key.clone()))
+            .collect()
+    };
+
+    // Tier 1: exact identifier. A name/key/path hit is a qualified address.
+    let exact = dedup_keys(
+        rows.iter()
+            .filter(|r| r.name == needle || r.key == needle || r.path == needle)
+            .collect(),
+    );
+    match exact.as_slice() {
+        [r] => return Resolution::Unique(r),
+        [] => {}
+        many => return Resolution::Ambiguous(many.iter().map(|r| r.key.clone()).collect()),
+    }
+
+    // Tier 2: convenience basename. The one collision-prone match — refuse when
+    // it is not unique.
+    let by_base = dedup_keys(
+        rows.iter()
+            .filter(|r| basename(&r.path) == needle)
+            .collect(),
+    );
+    match by_base.as_slice() {
+        [r] => Resolution::Unique(r),
+        [] => Resolution::None,
+        many => Resolution::Ambiguous(many.iter().map(|r| r.key.clone()).collect()),
+    }
+}
+
+/// Resolve a ref to a row for a caller that returns an exit code, emitting the
+/// right error on the None / Ambiguous arms. The ambiguity message lists every
+/// candidate key and suggests qualifying with one, so the fix is in the output.
+fn resolved_or_err<'a>(cfg: &Config, rows: &'a [Row], refr: &str) -> Result<&'a Row, i32> {
+    match resolve_ref(rows, refr) {
+        Resolution::Unique(r) => Ok(r),
+        Resolution::None => {
+            emit_err(cfg, "not-found", &format!("no file: {refr}"));
+            Err(2)
+        }
+        Resolution::Ambiguous(keys) => {
+            emit_err(
+                cfg,
+                "ambiguous-ref",
+                &format!(
+                    "'{}' matches {} files: {} — qualify it (e.g. `{}`)",
+                    refr,
+                    keys.len(),
+                    keys.join(", "),
+                    keys[0]
+                ),
+            );
+            Err(2)
+        }
+    }
 }
 
 /// `jd path <a> <b>` — the shortest chain of @links connecting two files,
@@ -1429,19 +1483,13 @@ pub fn path(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    let src = match resolve(&rows, &a) {
-        Some(r) => r.key.clone(),
-        None => {
-            emit_err(cfg, "not-found", &format!("no file: {a}"));
-            return 2;
-        }
+    let src = match resolved_or_err(cfg, &rows, &a) {
+        Ok(r) => r.key.clone(),
+        Err(c) => return c,
     };
-    let dst = match resolve(&rows, &b) {
-        Some(r) => r.key.clone(),
-        None => {
-            emit_err(cfg, "not-found", &format!("no file: {b}"));
-            return 2;
-        }
+    let dst = match resolved_or_err(cfg, &rows, &b) {
+        Ok(r) => r.key.clone(),
+        Err(c) => return c,
     };
 
     // undirected adjacency among known keys (sorted for deterministic BFS)
@@ -1523,6 +1571,113 @@ pub fn path(cfg: &Config, args: &[String]) -> i32 {
     match chain {
         Some(_) => 0,
         None => 2,
+    }
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use super::{resolve_ref, Resolution};
+    use justdown::store::{Row, Source};
+
+    /// A minimal row carrying just the fields the resolver matches on.
+    fn row(key: &str, name: &str, path: &str) -> Row {
+        Row {
+            source: Source::Local,
+            origin: String::new(),
+            key: key.to_string(),
+            name: name.to_string(),
+            kind: "tool".to_string(),
+            description: String::new(),
+            purpose: String::new(),
+            tags: String::new(),
+            path: path.to_string(),
+            use_when: String::new(),
+            not_when: String::new(),
+            danger: String::new(),
+            side_effects: String::new(),
+            requires: String::new(),
+            category: String::new(),
+            run: String::new(),
+            has_fm: true,
+            links: Vec::new(),
+        }
+    }
+
+    /// The two `release` files that motivated the guard: same basename, distinct
+    /// keys and names.
+    fn release_pair() -> Vec<Row> {
+        vec![
+            row(
+                "tools/release",
+                "tools_release",
+                "library/meta/tools/release.jd",
+            ),
+            row("gh/release", "gh_release", "library/vcs/gh/release.jd"),
+        ]
+    }
+
+    #[test]
+    fn bare_basename_collision_is_ambiguous() {
+        let rows = release_pair();
+        match resolve_ref(&rows, "release") {
+            Resolution::Ambiguous(keys) => {
+                assert_eq!(keys.len(), 2);
+                assert!(keys.contains(&"tools/release".to_string()));
+                assert!(keys.contains(&"gh/release".to_string()));
+            }
+            _ => panic!("bare ambiguous basename must refuse, not guess"),
+        }
+    }
+
+    #[test]
+    fn qualified_ref_resolves_uniquely() {
+        let rows = release_pair();
+        // by name, by key, and by full path each pin one file
+        for (refr, want) in [
+            ("tools_release", "tools/release"),
+            ("gh/release", "gh/release"),
+            ("library/meta/tools/release.jd", "tools/release"),
+        ] {
+            match resolve_ref(&rows, refr) {
+                Resolution::Unique(r) => assert_eq!(r.key, want, "ref {refr}"),
+                _ => panic!("qualified ref {refr} must resolve uniquely"),
+            }
+        }
+    }
+
+    #[test]
+    fn at_prefix_and_section_suffix_are_stripped() {
+        let rows = release_pair();
+        match resolve_ref(&rows, "@tools/release#tools") {
+            Resolution::Unique(r) => assert_eq!(r.key, "tools/release"),
+            _ => panic!("@ref#section must normalize before matching"),
+        }
+    }
+
+    #[test]
+    fn unique_basename_still_resolves() {
+        let rows = vec![row("gh/pr", "gh_pr", "library/vcs/gh/pr.jd")];
+        match resolve_ref(&rows, "pr") {
+            Resolution::Unique(r) => assert_eq!(r.key, "gh/pr"),
+            _ => panic!("a basename matching one file must resolve"),
+        }
+    }
+
+    #[test]
+    fn no_match_is_none() {
+        let rows = release_pair();
+        assert!(matches!(resolve_ref(&rows, "nope"), Resolution::None));
+    }
+
+    #[test]
+    fn same_file_via_two_identifiers_counts_once() {
+        // A single row reached by both its name and basename must not look like
+        // two candidates.
+        let rows = vec![row("gh/release", "gh_release", "library/vcs/gh/release.jd")];
+        assert!(matches!(
+            resolve_ref(&rows, "release"),
+            Resolution::Unique(_)
+        ));
     }
 }
 

@@ -32,10 +32,19 @@ fn env_with_store() -> Option<Vec<(String, String)>> {
         return None;
     }
     Some(vec![
-        ("JUSTDOWN_ROOT".to_string(), repo_root.to_string_lossy().into_owned()),
-        ("JUSTDOWN_INDEX".to_string(), tmp.to_string_lossy().into_owned()),
+        (
+            "JUSTDOWN_ROOT".to_string(),
+            repo_root.to_string_lossy().into_owned(),
+        ),
+        (
+            "JUSTDOWN_INDEX".to_string(),
+            tmp.to_string_lossy().into_owned(),
+        ),
         // point the online merge at localhost so it 404s fast, not hang
-        ("JUSTDOWN_RAW_BASE".to_string(), "http://127.0.0.1:1".to_string()),
+        (
+            "JUSTDOWN_RAW_BASE".to_string(),
+            "http://127.0.0.1:1".to_string(),
+        ),
     ])
 }
 
@@ -69,7 +78,9 @@ fn assert_no_panic_on_early_close(args: &[&str]) {
     let output = child.wait_with_output().expect("wait");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        !stderr.contains("Broken pipe") && !stderr.contains("panicked") && !stderr.contains("backtrace"),
+        !stderr.contains("Broken pipe")
+            && !stderr.contains("panicked")
+            && !stderr.contains("backtrace"),
         "jd panicked on a closed pipe (args {args:?}):\n{stderr}"
     );
 }

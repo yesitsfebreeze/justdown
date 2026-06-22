@@ -1,6 +1,6 @@
 ---
 name: git_remote
-description: Sync with remotes — fetch, pull, push, and manage remote URLs. The network surface of git: move commits between your repo and origin. Use to push your branch, pull updates, fetch without merging, or wire up a new remote.
+description: "Sync with remotes — fetch, pull, push, and manage remote URLs. The network surface of git: move commits between your repo and origin. Use to push your branch, pull updates, fetch without merging, or wire up a new remote."
 kind: tool
 tags: [git, remote, push, pull, fetch, origin, vcs]
 use_when: [push my branch, pull the latest changes, fetch without merging, add a remote, set the upstream, push a new branch, update from origin]

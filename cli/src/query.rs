@@ -8,46 +8,124 @@ use crate::config::{Config, Format};
 use justdown::render::{self, Vars};
 use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
 use justdown::store::{Row, Source, Store};
+use serde::Serialize;
 
 // ---------------------------------------------------------------------------
 // shared helpers
 // ---------------------------------------------------------------------------
 
-fn json_str(s: &str) -> String {
-    let mut o = String::with_capacity(s.len() + 2);
-    o.push('"');
-    for c in s.chars() {
-        match c {
-            '\\' => o.push_str("\\\\"),
-            '"' => o.push_str("\\\""),
-            '\n' => o.push_str("\\n"),
-            '\r' => o.push_str("\\r"),
-            '\t' => o.push_str("\\t"),
-            _ => o.push(c),
-        }
-    }
-    o.push('"');
-    o
+/// Serialize a `--json` envelope to a single line. Our output types are plain
+/// structs of strings/ints/string-vecs — `serde_json` cannot fail on them — so
+/// an error here is a bug, not bad input; surface it loudly rather than emit a
+/// half-formed envelope.
+fn to_json<T: Serialize>(v: &T) -> String {
+    serde_json::to_string(v).expect("jd json output is always serializable")
 }
 
-/// Render a comma-joined field as a JSON array of strings.
-fn json_arr(csv: &str) -> String {
+/// Split a comma-joined store field (`Row::side_effects`, `Row::requires`) into
+/// the vec the JSON arrays carry. Empty string → empty vec (matches the old
+/// `json_arr` which emitted `[]` for an empty field).
+fn csv_vec(csv: &str) -> Vec<String> {
     if csv.is_empty() {
-        return "[]".to_string();
+        Vec::new()
+    } else {
+        csv.split(',').map(str::to_string).collect()
     }
-    let parts: Vec<String> = csv.split(',').map(json_str).collect();
-    format!("[{}]", parts.join(","))
+}
+
+#[derive(Serialize)]
+struct ErrorOut<'a> {
+    schema: &'a str,
+    error: &'a str,
+    message: &'a str,
+}
+
+#[derive(Serialize)]
+struct SearchOut<'a> {
+    schema: &'a str,
+    query: &'a str,
+    results: Vec<SearchResult<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fallback: Option<Fallback<'a>>,
+}
+
+#[derive(Serialize)]
+struct SearchResult<'a> {
+    name: &'a str,
+    kind: &'a str,
+    score: i64,
+    purpose: &'a str,
+    raw: String,
+    source: &'a str,
+    danger: &'a str,
+    side_effects: Vec<String>,
+    requires: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct Fallback<'a> {
+    reason: &'a str,
+    name: &'a str,
+    kind: &'a str,
+    purpose: &'a str,
+    raw: String,
+}
+
+#[derive(Serialize)]
+struct GetOut<'a> {
+    schema: &'a str,
+    #[serde(rename = "ref")]
+    refr: &'a str,
+    sections: Vec<Section<'a>>,
+}
+
+#[derive(Serialize)]
+struct Section<'a> {
+    kind: &'a str,
+    content: &'a str,
+}
+
+#[derive(Serialize)]
+struct LsOut<'a> {
+    schema: &'a str,
+    categories: Vec<LsCategory<'a>>,
+}
+
+#[derive(Serialize)]
+struct LsCategory<'a> {
+    name: &'a str,
+    members: &'a [String],
+}
+
+#[derive(Serialize)]
+struct LinksOut<'a> {
+    schema: &'a str,
+    #[serde(rename = "ref")]
+    refr: &'a str,
+    key: &'a str,
+    outbound: Vec<String>,
+    inbound: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct PathOut<'a> {
+    schema: &'a str,
+    from: &'a str,
+    to: &'a str,
+    path: Vec<String>,
+    length: i64,
 }
 
 fn emit_err(cfg: &Config, code: &str, msg: &str) {
     match cfg.format {
-        Format::Json => {
-            eprintln!(
-                "{{\"schema\":\"justdown.error/1\",\"error\":\"{}\",\"message\":{}}}",
-                code,
-                json_str(msg)
-            );
-        }
+        Format::Json => eprintln!(
+            "{}",
+            to_json(&ErrorOut {
+                schema: "justdown.error/1",
+                error: code,
+                message: msg,
+            })
+        ),
         Format::Text => eprintln!("jd: {msg}"),
     }
 }
@@ -468,41 +546,41 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
 
     match cfg.format {
         Format::Json => {
-            let mut out = String::new();
-            out.push_str(&format!(
-                "{{\"schema\":\"justdown.search/1\",\"query\":{},\"results\":[",
-                json_str(&query)
-            ));
-            for (i, s) in shown.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
-                }
-                let r = s.row;
-                let raw = if r.source.is_local() {
-                    r.path.clone()
-                } else {
-                    format!("{}/{}", online_base(cfg, r), r.path)
-                };
-                let danger = if r.danger.is_empty() {
-                    "none"
-                } else {
-                    &r.danger
-                };
-                out.push_str(&format!(
-                    "{{\"name\":{},\"kind\":{},\"score\":{},\"purpose\":{},\"raw\":{},\"source\":{},\"danger\":{},\"side_effects\":{},\"requires\":{}}}",
-                    json_str(&r.name),
-                    json_str(&r.kind),
-                    s.score,
-                    json_str(&r.purpose),
-                    json_str(&raw),
-                    json_str(r.source.label()),
-                    json_str(danger),
-                    json_arr(&r.side_effects),
-                    json_arr(&r.requires),
-                ));
-            }
-            out.push_str("]}");
-            println!("{out}");
+            let results = shown
+                .iter()
+                .map(|s| {
+                    let r = s.row;
+                    let raw = if r.source.is_local() {
+                        r.path.clone()
+                    } else {
+                        format!("{}/{}", online_base(cfg, r), r.path)
+                    };
+                    SearchResult {
+                        name: &r.name,
+                        kind: &r.kind,
+                        score: s.score,
+                        purpose: &r.purpose,
+                        raw,
+                        source: r.source.label(),
+                        danger: if r.danger.is_empty() {
+                            "none"
+                        } else {
+                            &r.danger
+                        },
+                        side_effects: csv_vec(&r.side_effects),
+                        requires: csv_vec(&r.requires),
+                    }
+                })
+                .collect();
+            println!(
+                "{}",
+                to_json(&SearchOut {
+                    schema: "justdown.search/1",
+                    query: &query,
+                    results,
+                    fallback: None,
+                })
+            );
         }
         Format::Text => {
             for (i, s) in shown.iter().enumerate() {
@@ -569,12 +647,19 @@ fn emit_fallback(cfg: &Config, query: &str, rows: &[Row]) -> i32 {
                 format!("{}/{}", online_base(cfg, r), r.path)
             };
             println!(
-                "{{\"schema\":\"justdown.search/1\",\"query\":{},\"results\":[],\"fallback\":{{\"reason\":\"no-match\",\"name\":{},\"kind\":{},\"purpose\":{},\"raw\":{}}}}}",
-                json_str(query),
-                json_str(&r.name),
-                json_str(&r.kind),
-                json_str(&r.purpose),
-                json_str(&raw),
+                "{}",
+                to_json(&SearchOut {
+                    schema: "justdown.search/1",
+                    query,
+                    results: Vec::new(),
+                    fallback: Some(Fallback {
+                        reason: "no-match",
+                        name: &r.name,
+                        kind: &r.kind,
+                        purpose: &r.purpose,
+                        raw,
+                    }),
+                })
             );
         }
         (Some(r), Format::Text) => {
@@ -588,8 +673,13 @@ fn emit_fallback(cfg: &Config, query: &str, rows: &[Row]) -> i32 {
         }
         (None, Format::Json) => {
             println!(
-                "{{\"schema\":\"justdown.search/1\",\"query\":{},\"results\":[]}}",
-                json_str(query)
+                "{}",
+                to_json(&SearchOut {
+                    schema: "justdown.search/1",
+                    query,
+                    results: Vec::new(),
+                    fallback: None,
+                })
             );
         }
         (None, Format::Text) => {}
@@ -774,23 +864,18 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
     let sections = inject_vars(sections, &vars);
     match cfg.format {
         Format::Json => {
-            let mut out = String::new();
-            out.push_str(&format!(
-                "{{\"schema\":\"justdown.get/1\",\"ref\":{},\"sections\":[",
-                json_str(&refr)
-            ));
-            for (i, (kind, content)) in sections.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
-                }
-                out.push_str(&format!(
-                    "{{\"kind\":{},\"content\":{}}}",
-                    json_str(kind),
-                    json_str(content)
-                ));
-            }
-            out.push_str("]}");
-            println!("{out}");
+            let secs = sections
+                .iter()
+                .map(|(kind, content)| Section { kind, content })
+                .collect();
+            println!(
+                "{}",
+                to_json(&GetOut {
+                    schema: "justdown.get/1",
+                    refr: &refr,
+                    sections: secs,
+                })
+            );
         }
         Format::Text => {
             for (kind, content) in &sections {
@@ -1004,14 +1089,12 @@ fn split_sections(body: &str, only: &str) -> Vec<(String, String)> {
 // platform-guarded recipe variants (justdown extension)
 // ---------------------------------------------------------------------------
 
-// The selection rule now lives in the shared `justdown` core crate
+// Platform-variant resolution lives in the shared `justdown` core crate
 // (`justdown::platform`) so the `jd` CLI and bombshell resolve `[os]` variants
-// identically instead of each carrying a copy that drifts. Re-exported here so
-// the existing `query::…` / `crate::query::…` call sites (and lint.rs) stay
-// unchanged.
-pub(crate) use justdown::platform::{
-    host_platform, parse_platform_attr, platsel, raw_tools_lines, PLATFORMS,
-};
+// identically instead of each carrying a copy that drifts. `get` still selects
+// the host variant when emitting a justfile, so re-export just what this module
+// uses; the lint-side helpers are consumed directly from core by `justdown::lint`.
+pub(crate) use justdown::platform::{host_platform, platsel};
 
 #[cfg(test)]
 mod inject_tests {
@@ -1108,21 +1191,20 @@ pub fn ls(cfg: &Config) -> i32 {
 
     match cfg.format {
         Format::Json => {
-            let mut out = String::from("{\"schema\":\"justdown.ls/1\",\"categories\":[");
-            for (i, c) in order.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
-                }
-                let ms = &members[c];
-                let arr: Vec<String> = ms.iter().map(|m| json_str(m)).collect();
-                out.push_str(&format!(
-                    "{{\"name\":{},\"members\":[{}]}}",
-                    json_str(c),
-                    arr.join(",")
-                ));
-            }
-            out.push_str("]}");
-            println!("{out}");
+            let categories = order
+                .iter()
+                .map(|c| LsCategory {
+                    name: c,
+                    members: &members[c],
+                })
+                .collect();
+            println!(
+                "{}",
+                to_json(&LsOut {
+                    schema: "justdown.ls/1",
+                    categories,
+                })
+            );
         }
         Format::Text => {
             for c in &order {
@@ -1175,14 +1257,15 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
 
     match cfg.format {
         Format::Json => {
-            let o: Vec<String> = outbound.iter().map(|s| json_str(s)).collect();
-            let i: Vec<String> = inbound.iter().map(|s| json_str(s)).collect();
             println!(
-                "{{\"schema\":\"justdown.links/1\",\"ref\":{},\"key\":{},\"outbound\":[{}],\"inbound\":[{}]}}",
-                json_str(&refr),
-                json_str(key),
-                o.join(","),
-                i.join(",")
+                "{}",
+                to_json(&LinksOut {
+                    schema: "justdown.links/1",
+                    refr: &refr,
+                    key,
+                    outbound,
+                    inbound,
+                })
             );
         }
         Format::Text => {
@@ -1380,19 +1463,19 @@ pub fn path(cfg: &Config, args: &[String]) -> i32 {
 
     match cfg.format {
         Format::Json => {
-            let (arr, len) = match &chain {
-                Some(p) => (
-                    p.iter().map(|k| json_str(k)).collect::<Vec<_>>().join(","),
-                    p.len() as i64 - 1,
-                ),
-                None => (String::new(), -1),
+            let (path, length) = match &chain {
+                Some(p) => (p.clone(), p.len() as i64 - 1),
+                None => (Vec::new(), -1),
             };
             println!(
-                "{{\"schema\":\"justdown.path/1\",\"from\":{},\"to\":{},\"path\":[{}],\"length\":{}}}",
-                json_str(&src),
-                json_str(&dst),
-                arr,
-                len
+                "{}",
+                to_json(&PathOut {
+                    schema: "justdown.path/1",
+                    from: &src,
+                    to: &dst,
+                    path,
+                    length,
+                })
             );
         }
         Format::Text => {

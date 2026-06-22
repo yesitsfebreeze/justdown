@@ -12,6 +12,8 @@ path = "src/main.rs"
 [dependencies]
 rusqlite = { version = "0.32", features = ["bundled"] }
 justdown = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # unix-only: reset SIGPIPE to SIG_DFL so `jd … | head` exits cleanly instead of
 # panicking with "failed printing to stdout: Broken pipe". Rust sets SIGPIPE to

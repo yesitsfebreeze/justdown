@@ -1,6 +1,6 @@
 ---
 name: jd_cli
-description: Drive the justdown CLI itself — search the library by need, get a file as ordered sections, list categories, trace a file's @links, find the shortest link path between two files, lint the graph, and rebuild the index. The self-referential tool: a .jd that operates the .jd library it lives in. Use to find and pull tools before doing a task by hand.
+description: "Drive the justdown CLI itself — search the library by need, get a file as ordered sections, list categories, trace a file's @links, find the shortest link path between two files, lint the graph, and rebuild the index. The self-referential tool: a .jd that operates the .jd library it lives in. Use to find and pull tools before doing a task by hand."
 kind: tool
 tags: [jd, justdown, cli, search, retrieval, self-referential, meta]
 use_when: [search the justdown library, find a tool before doing it by hand, get a jd file's sections, list library categories, trace links of a jd file, path between two tools, lint the jd graph, rebuild graph.db, what tools exist for X]

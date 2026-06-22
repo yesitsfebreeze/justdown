@@ -3,7 +3,7 @@ name: vim_tags
 description: Vim tag-based code navigation — jump to a definition with a ctags index, walk the tag stack, and preview tags. The classic go-to-definition surface.
 kind: knowledge
 tags: [vim, tags, ctags, navigation, definitions]
-use_when: [vim go to definition, ctags, jump to symbol, tag stack, ctrl-], vim code navigation]
+use_when: [vim go to definition, ctags, jump to symbol, tag stack, "ctrl-]", vim code navigation]
 ---
 
 # Tags & code navigation

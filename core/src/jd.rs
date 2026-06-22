@@ -1,7 +1,9 @@
-// The .jd parser and node model. Mirrors the original awk in `just build`:
-// frontmatter is ingested as the retrieval contract, the body is scanned for
-// @links, and the key/category are derived from the path. A node plus its link
-// edges is one row in the graph.
+// The .jd parser and node model. Frontmatter (the `---`-delimited YAML head) is
+// the retrieval contract, deserialized with serde via `serde_yaml_ng`; the body
+// is scanned for @links; the key/category are derived from the path. A node plus
+// its link edges is one row in the graph.
+
+use serde::Deserialize;
 
 pub struct Node {
     pub key: String,
@@ -26,38 +28,56 @@ pub struct Node {
     pub links: Vec<String>,
 }
 
-/// Strip the `key:` prefix, neutralize tabs, trim trailing whitespace/CR.
-/// Mirrors awk `val()`.
-fn val(s: &str) -> String {
-    let after = match s.find(':') {
-        Some(i) => &s[i + 1..],
-        None => s,
-    };
-    after
-        .trim_start_matches([' ', '\t'])
-        .replace('\t', " ")
-        .trim_end_matches([' ', '\r'])
-        .to_string()
+/// The frontmatter contract as serde sees it. Unknown keys (e.g. `provides`,
+/// `invoke`) are ignored — only what the graph models is captured. `name` is an
+/// `Option` so we can tell "absent" from "present" for the `name_given` flag
+/// lint relies on. serde handles both inline (`[a, b]`) and block YAML arrays,
+/// a superset of what the old hand-rolled `arr()` accepted.
+#[derive(Deserialize, Default)]
+struct Frontmatter {
+    name: Option<String>,
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    use_when: Vec<String>,
+    #[serde(default)]
+    not_when: Vec<String>,
+    #[serde(default)]
+    danger: String,
+    #[serde(default)]
+    side_effects: Vec<String>,
+    #[serde(default)]
+    requires: Vec<String>,
+    #[serde(default)]
+    run: String,
 }
 
-/// Parse an inline YAML array `key: [a, b, c]` into `["a","b","c"]`. Mirrors
-/// awk `arr()`: take between the first `[` and the next `]`, drop whitespace,
-/// split on commas. Only the inline bracket form is supported (as in the awk).
-fn arr(s: &str) -> Vec<String> {
-    let open = match s.find('[') {
-        Some(i) => i + 1,
-        None => return Vec::new(),
+/// Split a `.jd` into its frontmatter YAML (between the leading `---` fences)
+/// and the body that follows. Frontmatter exists only when the very first line
+/// is exactly `---` and a later line is exactly `---`; otherwise the whole file
+/// is body. Handles `\n` and `\r\n` line endings.
+fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
+    let Some(rest) = content
+        .strip_prefix("---\n")
+        .or_else(|| content.strip_prefix("---\r\n"))
+    else {
+        return (None, content);
     };
-    let inner = &s[open..];
-    let inner = match inner.find(']') {
-        Some(i) => &inner[..i],
-        None => inner,
-    };
-    inner
-        .split(',')
-        .map(|t| t.replace([' ', '\t'], ""))
-        .filter(|t| !t.is_empty())
-        .collect()
+    let mut idx = 0;
+    for line in rest.split_inclusive('\n') {
+        let bare = line.strip_suffix('\n').unwrap_or(line);
+        let bare = bare.strip_suffix('\r').unwrap_or(bare);
+        if bare == "---" {
+            return (Some(&rest[..idx]), &rest[idx + line.len()..]);
+        }
+        idx += line.len();
+    }
+    // Unclosed fence: malformed, treat as no frontmatter (degrade, never fail).
+    (None, content)
 }
 
 /// Scan text for `@dir/name` links: `@[a-z0-9_]+/[a-z0-9_]+`. Returns the key
@@ -117,66 +137,37 @@ pub fn key_and_category(rel: &str) -> (String, String) {
 }
 
 /// Parse one .jd file. `rel` is the path relative to root (includes the lib
-/// dir), `content` is the file body.
+/// dir), `content` is the file body. Never fails: malformed frontmatter
+/// degrades to empty fields (lint then flags the missing required ones).
 pub fn parse(rel: &str, content: &str) -> Node {
     let (key, category) = key_and_category(rel);
 
-    let mut name = String::new();
-    let mut kind = String::new();
-    let mut description = String::new();
-    let mut tags = Vec::new();
-    let mut use_when = Vec::new();
-    let mut not_when = Vec::new();
-    let mut danger = String::new();
-    let mut side_effects = Vec::new();
-    let mut requires = Vec::new();
-    let mut run = String::new();
+    let (fm_text, body) = split_frontmatter(content);
+    let has_frontmatter = fm_text.is_some();
+    let fm: Frontmatter = match fm_text {
+        Some(t) if !t.trim().is_empty() => serde_yaml_ng::from_str(t).unwrap_or_default(),
+        _ => Frontmatter::default(),
+    };
+
     let mut links = Vec::new();
-
-    // fm: 0 = before, 1 = inside frontmatter, 2 = after (body)
-    let mut fm = 0;
-    for (idx, line) in content.lines().enumerate() {
-        if idx == 0 && line == "---" {
-            fm = 1;
-            continue;
-        }
-        if fm == 1 && line == "---" {
-            fm = 2;
-            continue;
-        }
-        if fm == 1 {
-            if let Some(rest) = line.strip_prefix("name:") {
-                name = val(&format!("name:{rest}"));
-            } else if line.starts_with("kind:") {
-                kind = val(line);
-            } else if line.starts_with("description:") {
-                description = val(line);
-            } else if line.starts_with("tags:") {
-                tags = arr(line);
-            } else if line.starts_with("use_when:") {
-                use_when = arr(line);
-            } else if line.starts_with("not_when:") {
-                not_when = arr(line);
-            } else if line.starts_with("danger:") {
-                danger = val(line);
-            } else if line.starts_with("side_effects:") {
-                side_effects = arr(line);
-            } else if line.starts_with("requires:") {
-                requires = arr(line);
-            } else if line.starts_with("run:") {
-                run = val(line);
-            }
-        } else if fm == 2 {
-            scan_links(line, &mut links);
-        }
+    for line in body.lines() {
+        scan_links(line, &mut links);
     }
 
-    let name_given = !name.is_empty();
-    if name.is_empty() {
-        name = key.clone();
-    }
-    let purpose = if !description.is_empty() {
-        description.clone()
+    // `name:` counts as "given" only when present and non-blank — matches the
+    // old `val()`-then-`is_empty()` behaviour the lint depends on.
+    let name_given = fm
+        .name
+        .as_deref()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    let name = if name_given {
+        fm.name.unwrap()
+    } else {
+        key.clone()
+    };
+    let purpose = if !fm.description.is_empty() {
+        fm.description.clone()
     } else {
         name.clone()
     };
@@ -184,19 +175,19 @@ pub fn parse(rel: &str, content: &str) -> Node {
     Node {
         key,
         name,
-        kind,
-        description,
+        kind: fm.kind,
+        description: fm.description,
         purpose,
-        tags,
+        tags: fm.tags,
         path: rel.to_string(),
-        use_when,
-        not_when,
-        danger,
-        side_effects,
-        requires,
+        use_when: fm.use_when,
+        not_when: fm.not_when,
+        danger: fm.danger,
+        side_effects: fm.side_effects,
+        requires: fm.requires,
         category,
-        run,
-        has_frontmatter: fm >= 2,
+        run: fm.run,
+        has_frontmatter,
         name_given,
         links,
     }
@@ -232,5 +223,39 @@ mod tests {
         let n = parse("library/x/foo.jd", "---\nkind: tool\n---\nbody\n");
         assert_eq!(n.name, "x/foo");
         assert_eq!(n.purpose, "x/foo");
+        assert!(!n.name_given);
+    }
+
+    #[test]
+    fn parses_block_style_arrays() {
+        // serde accepts block YAML lists too — a superset of the old inline-only
+        // `arr()`. Multi-word entries keep their spaces (the old parser stripped
+        // them).
+        let src = "---\nname: t\nkind: tool\ntags:\n  - alpha\n  - beta\nuse_when:\n  - go to definition\n  - jump to symbol\n---\nbody\n";
+        let n = parse("library/x/t.jd", src);
+        assert_eq!(n.tags, vec!["alpha", "beta"]);
+        assert_eq!(n.use_when, vec!["go to definition", "jump to symbol"]);
+    }
+
+    #[test]
+    fn quoted_item_with_flow_char_is_preserved() {
+        // A bracket inside a quoted inline-array item must survive (the `ctrl-]`
+        // case) instead of closing the flow sequence early.
+        let src = "---\nname: t\nkind: tool\nuse_when: [tag stack, \"ctrl-]\", more]\n---\nbody\n";
+        let n = parse("library/x/t.jd", src);
+        assert_eq!(n.use_when, vec!["tag stack", "ctrl-]", "more"]);
+    }
+
+    #[test]
+    fn malformed_frontmatter_degrades_without_panicking() {
+        // Unparseable YAML (a `: ` inside an unquoted plain scalar) must not
+        // panic — it degrades to empty fields so lint can flag the missing
+        // required ones. has_frontmatter still reflects that a block was present.
+        let src = "---\nname: t\ndescription: a tool: that breaks yaml\n---\nbody @a/b\n";
+        let n = parse("library/x/t.jd", src);
+        assert!(n.has_frontmatter);
+        assert!(!n.name_given);
+        assert_eq!(n.name, "x/t"); // fell back to key
+        assert_eq!(n.links, vec!["a/b"]); // body still scanned
     }
 }

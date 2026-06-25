@@ -1,0 +1,673 @@
+/* ================================================================== *
+ *  iA Writer-inspired styling — minimal, full-bleed, smooth fades.
+ *  Reference: https://ia.net/writer  (with modern easings)
+ * ================================================================== */
+
+/* --- iA Writer Quattro (open source) ----------------------------- */
+@font-face {
+  font-family: "iA Writer Quattro";
+  font-weight: 400; font-style: normal; font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/iaolo/iA-Fonts@master/iA%20Writer%20Quattro/Webfonts/iAWriterQuattroS-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "iA Writer Quattro";
+  font-weight: 400; font-style: italic; font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/iaolo/iA-Fonts@master/iA%20Writer%20Quattro/Webfonts/iAWriterQuattroS-Italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "iA Writer Quattro";
+  font-weight: 700; font-style: normal; font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/iaolo/iA-Fonts@master/iA%20Writer%20Quattro/Webfonts/iAWriterQuattroS-Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "iA Writer Mono";
+  font-weight: 400; font-style: normal; font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/iaolo/iA-Fonts@master/iA%20Writer%20Mono/Webfonts/iAWriterMonoS-Regular.woff2") format("woff2");
+}
+
+:root {
+  --bg: #f7f7f7;            /* iA Writer's warm off-white (sampled from ia.net) */
+  --text: #1a1a1a;
+  --heading: var(--text);   /* iA Writer headings are ink, not colored */
+  --faint: #a6a6a6;       /* dimmed syntax / fences — legible, not washed out */
+  --muted: #6f6f6f;
+  --accent: #1a1a1a;        /* monotone — the "accent" is ink; zero hue anywhere */
+  --code-pill: #1a1a1a;
+  --var-pill: #6f6f6f;
+  --pill-text: #ffffff;
+  --variable-bg: rgba(0, 0, 0, 0.06);   /* grayscale chip fill */
+  --variable-fg: #444444;               /* grayscale chip text */
+  --tint: #007aff;                      /* the single accent hue — caret, selection, links */
+  --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
+  --dim: 0.34;                          /* focus mode: opacity of inactive text */
+  --rule: rgba(0, 0, 0, 0.07);
+  --code-bg: rgba(0, 0, 0, 0.045);
+  --overlay: rgba(20, 20, 22, 0.28);
+  --panel: #ffffff;
+  --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.30);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);   /* modern, gentle overshoot-free */
+  --font: "iA Writer Quattro", ui-rounded, "Helvetica Neue", -apple-system, sans-serif;
+  --font-mono: "iA Writer Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171a;          /* lifted off pure black — softer, brighter */
+    --text: #f4f4f6;        /* brighter body text */
+    --faint: #7c7c86;       /* readable syntax markers / fences */
+    --muted: #a6a6b0;       /* brighter secondary text */
+    --accent: #f4f4f6;        /* monotone dark — the "accent" is near-white ink */
+    --code-pill: #f4f4f6;
+    --var-pill: #a6a6b0;
+    --pill-text: #0e0e10;
+    --variable-bg: rgba(255, 255, 255, 0.10);   /* grayscale chip fill */
+    --variable-fg: #d0d0d6;                      /* grayscale chip text */
+    --tint: #0a84ff;                             /* brighter accent for dark */
+    --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
+    --dim: 0.40;                                  /* a touch higher so dark dim stays legible */
+    --rule: rgba(255, 255, 255, 0.10);
+    --code-bg: rgba(255, 255, 255, 0.05);
+    --overlay: rgba(0, 0, 0, 0.55);
+    --panel: #222226;
+    --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.65);
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* --- top search line (also the file title) ----------------------- */
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  padding: 22px 28px 16px;
+  /* fade so editor text scrolling underneath stays clean */
+  background: linear-gradient(var(--bg) 62%, transparent);
+  pointer-events: none;
+}
+.searchwrap {
+  position: relative;
+  width: 100%;
+  max-width: 44rem;        /* aligned with the editor column */
+  pointer-events: auto;
+}
+.searchbar {
+  width: 100%;
+  border: none;
+  border-bottom: 1.5px solid var(--rule);   /* the underscore */
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 6px 66px 10px 2px;               /* room for the ⌘K keycap */
+  outline: none;
+  caret-color: var(--tint);                 /* match the editor's accent caret */
+  transition: border-color 0.25s var(--ease), color 0.4s var(--ease);
+}
+.searchbar::placeholder { color: var(--faint); font-weight: 500; }
+.searchbar:focus { border-bottom-color: var(--accent); }
+.searchbar.saved-flash { color: var(--accent); border-bottom-color: var(--accent); }
+
+.search-key {
+  position: absolute;
+  right: 2px; top: 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  pointer-events: none;
+  transition: opacity 0.18s var(--ease);
+}
+.searchwrap.searching .search-key { opacity: 0; }
+
+.dirty-dot {
+  position: absolute;
+  right: 58px; top: 22px;
+  color: var(--accent);
+  font-size: 8px;
+  opacity: 0;                                   /* fades in when there are unsaved edits */
+  transition: opacity 0.25s var(--ease);
+}
+.dirty-dot.show { opacity: 1; }
+.searchwrap.searching .dirty-dot { opacity: 0; }   /* hidden while searching (beats .show) */
+
+/* results dropdown under the search line */
+.search-results {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0; right: 0;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 10px 28px -10px rgba(0, 0, 0, 0.18),
+    0 28px 64px -18px rgba(0, 0, 0, 0.32);
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 6px;
+}
+.search-results[hidden] { display: none; }
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;            /* ≥40px row — comfortable hit area */
+  border-radius: 10px;           /* concentric: 16px box − 6px padding */
+  cursor: pointer;
+  transition: background 0.14s var(--ease), scale 0.14s var(--ease);
+}
+.result-item:active { scale: 0.96; }   /* tactile press feedback */
+.result-item.active { background: var(--variable-bg); }
+.pi-main { display: flex; align-items: baseline; gap: 12px; }
+.pi-snip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pi-hit {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+}
+.result-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 14px; text-wrap: balance; }
+.result-foot {
+  position: sticky;
+  bottom: -6px;                  /* offsets the results container padding */
+  margin: 2px -6px -6px;         /* span full width over the 6px padding */
+  padding: 7px 16px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.4px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  background: var(--panel);
+  box-shadow: 0 -1px 0 var(--rule);   /* hairline separator */
+}
+
+/* staggered entrance — runs only on open (JS toggles .stagger).
+   opacity + translateY + blur is the recommended enter combo. */
+@keyframes resultIn {
+  from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}
+.search-results.stagger .result-item { animation: resultIn 0.28s var(--ease) both; }
+.search-results.stagger .result-item:nth-child(1) { animation-delay: 0ms; }
+.search-results.stagger .result-item:nth-child(2) { animation-delay: 28ms; }
+.search-results.stagger .result-item:nth-child(3) { animation-delay: 56ms; }
+.search-results.stagger .result-item:nth-child(4) { animation-delay: 84ms; }
+.search-results.stagger .result-item:nth-child(5) { animation-delay: 112ms; }
+.search-results.stagger .result-item:nth-child(6) { animation-delay: 140ms; }
+.search-results.stagger .result-item:nth-child(n+7) { animation-delay: 168ms; }
+
+/* --- live word count (whisper-quiet, bottom-right) --------------- */
+.wordcount {
+  position: fixed;
+  bottom: 18px;
+  right: 22px;
+  z-index: 10;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;   /* dynamic number → no jitter */
+  opacity: 0.3;
+  transition: opacity 0.4s var(--ease);
+  pointer-events: none;
+  user-select: none;
+}
+.wordcount:hover { opacity: 0.8; }
+
+/* --- delete-file confirm prompt --------------------------------- */
+.confirm {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translate(-50%, 8px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 10px 28px -10px rgba(0, 0, 0, 0.28),
+    0 24px 60px -20px rgba(0, 0, 0, 0.34);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+}
+.confirm.open { opacity: 1; transform: translate(-50%, 0); }
+.confirm[hidden] { display: none; }
+.confirm-msg { color: var(--text); text-wrap: balance; }
+.confirm-opts { letter-spacing: 1px; }
+.confirm-opts .cslash { color: var(--faint); margin: 0 2px; }
+.confirm-opts .copt {
+  color: var(--muted);
+  padding: 1px 4px;
+  border-radius: 4px;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+.confirm-opts .copt.sel { color: var(--bg); background: var(--accent); }
+
+/* --- editor host ------------------------------------------------- */
+.editor-host { height: 100vh; }
+
+/* file-open entrance — content gently fades + eases in when you switch
+   files, so opening a doc feels like turning a page rather than a hard cut. */
+@keyframes contentIn {
+  from { opacity: 0; transform: translateY(8px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
+}
+.editor-host.just-loaded .cm-content { animation: contentIn 0.42s var(--ease) both; }
+
+.cm-editor { height: 100%; background: var(--bg); }
+.cm-editor.cm-focused { outline: none; }
+
+/* Prose is set in the proportional iA Writer Quattro — sleeker and far more
+   readable than monospace for long-form writing. Code, tables, frontmatter and
+   {{variables}} opt back into the mono face via their own font-family below.
+   CM6 injects a monospace default on .cm-scroller after our sheet, so we
+   override with specificity + !important. */
+.cm-editor .cm-scroller { font-family: var(--font) !important; }
+.cm-scroller {
+  font-family: var(--font);
+  line-height: 1.8;               /* iA Writer's airy leading */
+  overflow: auto;
+  padding: 50vh 0 50vh;           /* half-page of breathing room top & bottom */
+  justify-content: center;        /* center the writing column (flex row) */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;   /* no rubber-banding into the page behind */
+}
+.cm-content {
+  width: 100%;
+  max-width: 44rem;
+  padding: 0 28px;
+  caret-color: var(--tint);
+  font-size: 18px;
+  letter-spacing: 0.01em;
+  overflow-wrap: break-word;   /* break over-long tokens instead of overflowing */
+}
+/* a little vertical breathing room per line (paragraph rhythm) */
+.cm-line { padding: 0.12em 0; }
+
+/* iA Writer's signature accent caret.
+   !important + .cm-editor scope beats CodeMirror's later-injected default. */
+.cm-editor .cm-cursor,
+.cm-editor .cm-dropCursor {
+  border-left-width: 2px !important;
+  border-left-color: var(--tint) !important;
+  margin-left: -1px;
+}
+/* Soft cursor blink. CodeMirror blinks with a hard steps(1) cut; instead the
+   cursor holds its current state for ~60% of each half-cycle, then eases across
+   the remaining ~40% — a gentle fade rather than an abrupt on/off. The keyframe
+   names (cm-blink / cm-blink2, toggled by CM to restart the blink on each move)
+   are redefined here; this stylesheet loads after CM's injected theme, so these win. */
+.cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
+  animation-timing-function: ease-in-out !important;
+}
+@keyframes cm-blink {
+  0%, 30% { opacity: 1; }
+  50%, 80% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes cm-blink2 {
+  0%, 30% { opacity: 1; }
+  50%, 80% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.cm-selectionBackground,
+.cm-content ::selection { background: var(--selection) !important; }
+.cm-activeLine { background: transparent; }
+.cm-placeholder { color: var(--faint); font-style: italic; }
+
+/* --- focus fade: the active deepest-block stays sharp ------------- *
+ *  Strong iA-style dim — inactive text fades well back so the block
+ *  under the cursor clearly dominates. Tunable via --dim. */
+.cm-line { transition: opacity 0.5s var(--ease), color 0.5s var(--ease); }
+.cm-line.cm-dim { opacity: var(--dim); }
+
+/* dimmed-but-present markdown syntax (iA Writer hallmark) */
+.cm-syntax { color: var(--faint); transition: color 0.4s var(--ease); }
+.cm-line:not(.cm-dim) .cm-syntax { color: var(--muted); }
+
+/* inline formatting — always rendered */
+.cm-strong { font-weight: 700; }
+.cm-em { font-style: italic; }
+.cm-strike { text-decoration: line-through; text-decoration-color: var(--faint); }
+/* links — the accent hue + underline */
+.cm-link { color: var(--tint); cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--tint) 45%, transparent); text-underline-offset: 2px; }
+.cm-link:hover { text-decoration-color: var(--tint); }
+/* inline code — restrained neutral chip (iA/Obsidian), not a loud color, so
+   ink headings stay the dominant hierarchy. */
+.cm-inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--text);
+  background: var(--code-bg);
+  padding: 0.08em 0.34em;
+  border-radius: 5px;
+}
+
+/* headings — ink-colored like real iA Writer (differentiated by size/weight,
+   not hue), generous space above. balance evens out multi-line headings.
+   To revert to the accent-blue look, set --heading: var(--accent) in :root. */
+.cm-h1, .cm-h2, .cm-h3, .cm-h4, .cm-h5, .cm-h6 { text-wrap: balance; color: var(--heading); }
+.cm-h1 { font-size: 1.9em; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; padding-top: 1.5em; }
+.cm-h2 { font-size: 1.5em; font-weight: 700; line-height: 1.35; padding-top: 1.3em; }
+.cm-h3 { font-size: 1.25em; font-weight: 700; padding-top: 1.1em; }
+.cm-h4 { font-size: 1.08em; font-weight: 700; padding-top: 0.9em; }
+.cm-h5, .cm-h6 { font-size: 1em; font-weight: 700; padding-top: 0.75em; }
+
+/* list bullet glyph (replaces the hidden "-" on inactive lines) */
+.cm-bullet { color: var(--muted); }
+
+/* markdown tables — monospace + dimmed pipes for readable structure.
+   (Kept wrapping rather than `pre` so wide rows never clip off-screen.) */
+.cm-table {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+}
+.cm-table-sep { color: var(--faint); }   /* the |---|---| separator row */
+.cm-tpipe { color: var(--faint); padding: 0 0.15em; }   /* column separators */
+
+/* interactive GFM table editor (shown when the cursor is outside the block).
+   Cells are contentEditable; hover reveals add-row/-col affordances; focusing a
+   cell raises a contextual toolbar for structural edits. */
+.cm-md-table-wrap { position: relative; max-width: 100%; margin: 0.4em 0; }
+/* the grid row holds the table plus a slim "add column" rail to its right;
+   horizontal scroll lives here so wide tables scroll instead of squishing. */
+.cm-tbl-grid { display: flex; align-items: stretch; overflow-x: auto; }
+.cm-md-table {
+  /* CM's content sets display:block on descendants, which knocks the UA table
+     display off th/td — so re-assert the whole table display chain explicitly. */
+  display: table;
+  border-collapse: collapse;
+  width: auto;               /* size to content; the grid scrolls if too wide */
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.cm-md-table thead { display: table-header-group; }
+.cm-md-table tbody { display: table-row-group; }
+.cm-md-table tr { display: table-row; }
+/* th/td ARE the editable cells (each carries .cm-tcell + contentEditable). */
+.cm-md-table th,
+.cm-md-table td {
+  display: table-cell;
+  border: 1px solid var(--rule);
+  padding: 5px 12px;
+  text-align: left;
+  vertical-align: top;
+  min-width: 2.5em;
+  max-width: 22em;             /* prose wraps here; short cols keep word width */
+  text-wrap: pretty;           /* avoid ugly single-word orphans in cells */
+  overflow-wrap: normal;       /* don't break short labels mid-word */
+}
+.cm-tcell {
+  outline: none;
+  cursor: text;
+  transition: box-shadow 0.12s var(--ease), background 0.12s var(--ease);
+}
+.cm-tcell:hover { background: color-mix(in srgb, var(--tint) 5%, transparent); }
+.cm-tcell:focus {
+  background: color-mix(in srgb, var(--tint) 8%, transparent);
+  box-shadow: inset 0 0 0 2px var(--tint);
+}
+.cm-md-table code { white-space: nowrap; }   /* code chips stay on one line */
+.cm-md-table th { font-weight: 700; background: var(--code-bg); }
+/* whole-table "selected" ring while navigating it with the keyboard */
+.cm-md-table-wrap.editing .cm-md-table {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 35%, transparent),
+              0 6px 22px -12px color-mix(in srgb, var(--tint) 60%, transparent);
+}
+
+/* slim "+" rails — quiet until the table is hovered */
+.cm-tbl-add {
+  flex: none;
+  border: 1px dashed var(--rule);
+  background: transparent;
+  color: var(--faint);
+  font-size: 1.1em;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s var(--ease), background 0.14s var(--ease), color 0.14s var(--ease);
+}
+.cm-tbl-add-col { width: 22px; margin-left: 4px; }
+.cm-tbl-add-row { display: block; width: 100%; height: 20px; margin-top: 4px; }
+.cm-md-table-wrap:hover .cm-tbl-add { opacity: 1; }
+.cm-tbl-add:hover { background: color-mix(in srgb, var(--tint) 12%, transparent); color: var(--tint); border-style: solid; }
+
+/* contextual toolbar — floats above the table while a cell is focused */
+.cm-tbl-toolbar {
+  position: absolute;
+  bottom: calc(100% - 2px);
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  transform-origin: bottom left;
+  pointer-events: none;
+  transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+  z-index: 5;
+}
+.cm-md-table-wrap.editing .cm-tbl-toolbar {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.cm-tbl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s var(--ease), color 0.1s var(--ease);
+}
+.cm-tbl-btn:hover { background: var(--code-bg); color: var(--text); }
+.cm-tbl-btn.danger:hover { background: color-mix(in srgb, #ff3b30 15%, transparent); color: #ff3b30; }
+.cm-tbl-btn.align.on { background: var(--tint); color: var(--pill-text); }
+.cm-tbl-btn.wide { width: auto; padding: 0 8px; font-family: var(--font-mono); font-size: 12px; }
+.cm-tbl-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--rule); }
+
+/* raw-markdown view: slim bar above the table source with a "back" toggle */
+.cm-tbl-rawbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0.4em 0 2px;
+  font-family: var(--font);
+}
+.cm-tbl-rawbar-label {
+  font-size: 0.72em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.cm-tbl-rawbar-btn {
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 0.1s var(--ease), color 0.1s var(--ease), border-color 0.1s var(--ease);
+}
+.cm-tbl-rawbar-btn:hover { color: var(--tint); border-color: var(--tint); }
+.cm-md-table code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--text);
+  background: var(--code-bg);
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+}
+
+/* blockquote */
+.cm-quote {
+  border-left: 2px solid var(--rule);
+  padding-left: 1.1em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* fenced code — no background; line numbers in the left margin */
+.cm-code-line {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.cm-code-fence { color: var(--faint); }
+.cm-code-open { padding-top: 1em; }      /* breathing room above a code block */
+.cm-code-close { padding-bottom: 1em; }  /* …and below it */
+.cm-code-num { position: relative; }
+.cm-code-num::before {
+  content: attr(data-ln);
+  position: absolute;
+  left: -3em;                 /* sit outside the text column, to the left */
+  width: 2.2em;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  font-variant-numeric: tabular-nums;
+  line-height: inherit;
+  color: var(--faint);
+  opacity: 0.7;
+  user-select: none;
+  pointer-events: none;
+  transition: color 0.3s var(--ease), opacity 0.3s var(--ease);
+}
+/* active line inside a code block → its number takes the accent color */
+.cm-code-num-active::before { color: var(--accent); opacity: 1; }
+
+/* frontmatter — rendered as an individual-fields table */
+.cm-fm {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--text);
+}
+/* each property is its own row; hanging indent keeps wrapped value lines
+   aligned under the value column instead of falling back to the margin.
+   6.6em ≈ the label column width (label min-width:8em × its 0.82em font).
+   Scoped under .cm-editor to beat CodeMirror's injected .cm-line padding. */
+.cm-editor .cm-fm-field { padding: 2px 0 2px 6.6em; text-indent: -6.6em; }
+.cm-fm-fence { color: var(--faint); min-height: 0.4em; }
+.cm-fm-key { color: var(--accent); }          /* raw key when editing the row */
+/* the hanging indent's text-indent inherits into inline children — reset it
+   so the label/badge/chips paint inside their own box, not the left margin. */
+.cm-fm-label, .cm-fm-badge, .cm-tags, .cm-fm-key { text-indent: 0; }
+/* rendered field label: a left-aligned column, like a properties table */
+.cm-fm-label {
+  display: inline-block;
+  min-width: 8em;
+  color: var(--muted);
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+/* enum-like frontmatter values (kind/status/type) rendered as a badge */
+.cm-fm-badge {
+  font-size: 0.78em;
+  padding: 1px 9px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* array frontmatter values rendered as chips (Obsidian Properties-style) */
+.cm-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; vertical-align: baseline; }
+.cm-tag {
+  font-family: var(--font);
+  font-size: 0.74em;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--variable-bg);
+  color: var(--variable-fg);
+  letter-spacing: 0;
+}
+
+/* {{variables}} / <<variables>> template slots → orange foreground only */
+/* {{variables}} / <<variables>> — restrained grayscale chip (muted text to
+   read as a placeholder), distinct from the neutral inline-code chip. */
+.cm-variable {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--variable-fg);
+  background: var(--variable-bg);
+  padding: 0.08em 0.34em;
+  border-radius: 5px;
+}
+
+/* result row contents (used by .result-item above) */
+.pi-name { font-size: 15px; color: var(--text); white-space: nowrap; flex-shrink: 0; }
+.result-item.create .pi-name { color: var(--accent); font-weight: 600; }
+.pi-dir {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* --- scrollbars -------------------------------------------------- */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* --- respect reduced-motion -------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

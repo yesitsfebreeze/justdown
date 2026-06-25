@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>jd</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Singleton-safe CodeMirror 6 import map.
+       Only state / view / language are forced external so every package
+       shares the SAME module instances (required for Facet/Decoration identity). -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@codemirror/state": "https://esm.sh/@codemirror/state@6.5.2",
+      "@codemirror/view": "https://esm.sh/@codemirror/view@6.36.4?external=@codemirror/state",
+      "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.8?external=@codemirror/state,@codemirror/view",
+      "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.8.0?external=@codemirror/state,@codemirror/view,@codemirror/language",
+      "@codemirror/lang-markdown": "https://esm.sh/@codemirror/lang-markdown@6.3.2?external=@codemirror/state,@codemirror/view,@codemirror/language",
+      "markdown-table": "https://esm.sh/markdown-table@3.0.4"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- always-visible search line; doubles as the file title -->
+  <header class="topbar">
+    <div class="searchwrap">
+      <input id="searchbar" class="searchbar" type="text" placeholder="Search"
+             autocomplete="off" spellcheck="false">
+      <span class="dirty-dot" id="dirtyDot">●</span>
+      <span class="search-key" id="searchKey">⌘K</span>
+      <div class="search-results" id="results" hidden></div>
+    </div>
+  </header>
+
+  <div class="editor-host" id="editor"></div>
+
+  <!-- whisper-quiet live word count (iA Writer-style) -->
+  <div class="wordcount" id="wordcount"></div>
+
+  <!-- delete-file confirm (shown when a file's whole content is cleared) -->
+  <div class="confirm" id="confirm" hidden>
+    <span class="confirm-msg">Delete the whole file?</span>
+    <span class="confirm-opts" id="confirmOpts"></span>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

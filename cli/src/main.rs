@@ -17,6 +17,7 @@
 
 mod build;
 mod config;
+mod edit;
 mod lint;
 mod pull;
 mod query;
@@ -61,6 +62,7 @@ fn main() {
         "ls" => query::ls(&cfg),
         "links" => query::links(&cfg, rest),
         "path" => query::path(&cfg, rest),
+        "edit" => edit::run(rest),
         "lint" => lint::run(&cfg),
         "version" => version(&cfg),
         "help" | "-h" | "--help" => {
@@ -121,6 +123,13 @@ USAGE  jd <command> [args]
   ls                           categories and their member files
   links  <ref>                 inbound + outbound @links of a file
   path   <a> <b>               shortest @link connection between two files
+  edit   [--port=N]            serve the built-in .jd editor and open it in the
+                               browser. One shared website per port (default
+                               3001): the first process hosts, every later one
+                               feeds its JD_ROOT (default $HOME) into the search
+                               and reuses the running site. Search spans the
+                               union of all live jd processes; if the host dies a
+                               feeder takes over.
   lint                         validate library .jd frontmatter (CI-gateable)
   version                      CLI + store-schema versions
   help                         this

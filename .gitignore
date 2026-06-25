@@ -39,6 +39,12 @@ cli/target/
 # local Claude Code MCP wiring (kern etc.) — environment-specific
 .mcp.json
 
+# Obsidian vault config — local editor metadata, never part of the project
+.obsidian/
+
+# vicky knowledge base — plugin-managed local KB, environment-specific
+vicky/
+
 # Claude Code session state (local settings, history, plans, task scratch) —
 # harness-local, never part of the project.
 .claude/

@@ -27,7 +27,7 @@ use config::Format;
 use justdown::store::STORE_SCHEMA;
 use std::process::exit;
 
-pub const CLI_VERSION: &str = "0.3.0";
+pub const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
     // Restore the default SIGPIPE disposition. The Rust runtime sets SIGPIPE to

@@ -98,23 +98,23 @@ cargo install --git https://github.com/yesitsfebreeze/justdown jd
 jd search "cut a release"   # find a tool
 jd get release              # read it as sections
 jd get release tools        # just the runnable steps
-jd edit                     # open the built-in .jd editor in your browser
+jd explore                  # open the built-in .jd explorer in your browser
 ```
 
-### `jd edit` — the built-in editor
+### `jd explore` — the built-in explorer
 
-`jd edit` serves a full-bleed, iA-Writer-style `.jd` editor (CodeMirror 6 with
+`jd explore` serves a full-bleed, iA-Writer-style `.jd` explorer (CodeMirror 6 with
 live `.jd` rendering) straight from the binary and opens it in your browser. It
 searches **every `.jd` under `JD_ROOT`** (default `$HOME`) by name *and*
 content — no `node`, no `npm`, no `rg`/`fzf` needed; it's all in `jd`.
 
 **One website, fed by every running `jd`.** Each Claude instance runs its own
-`jd` process scoped to its own files; the editor is a single shared site they
+`jd` process scoped to its own files; the explorer is a single shared site they
 all feed:
 
 - The listen port is the lock. The first process to bind it **hosts** the
   website; every later process (any number of shells/instances) becomes a
-  **feeder** and opens the same running editor — never a second server.
+  **feeder** and opens the same running explorer — never a second server.
 - Each process registers its `JD_ROOT`(s) with the host on a heartbeat, so
   search spans the **union of every live `jd` at once**. When a process exits,
   its files drop out of search.

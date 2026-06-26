@@ -1,4 +1,4 @@
-//! `jd edit` — the built-in .jd editor, served from the binary itself.
+//! `jd explore` — the built-in .jd explorer/editor, served from the binary itself.
 //!
 //! A Rust port of the former Node/Express `justdown-editor`: the CodeMirror 6
 //! frontend is embedded into the executable, the file/search API is served by
@@ -135,7 +135,7 @@ pub fn run(args: &[String]) -> i32 {
                 spawn_indexer(state.clone());
                 spawn_self_heartbeat(state.clone(), id.clone(), roots.clone());
                 if !announced {
-                    println!("✺ jd editor → {url}");
+                    println!("✺ jd explorer → {url}");
                     println!("✺ hosting; searching every running jd (this one: {})", root.display());
                     open_url(&url);
                     announced = true;
@@ -147,7 +147,7 @@ pub fn run(args: &[String]) -> i32 {
             Err(e) if e.kind() == ErrorKind::AddrInUse => {
                 let fed = post_feed(port, &id, &roots);
                 if fed && !announced {
-                    println!("✺ jd editor already running → {url}");
+                    println!("✺ jd explorer already running → {url}");
                     println!("✺ feeding: {}", root.display());
                     open_url(&url);
                     announced = true;

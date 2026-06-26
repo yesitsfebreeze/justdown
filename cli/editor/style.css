@@ -123,6 +123,24 @@ body {
 .searchbar:focus { border-bottom-color: var(--accent); }
 .searchbar.saved-flash { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* reading progress: the accent fills the bottom border left→right by how far
+   you've scrolled through the document (--read, 0–1, set on scroll). */
+.searchwrap::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 1.5px;
+  width: 100%;
+  background: var(--tint);
+  pointer-events: none;
+  /* scaleX (not width) so the per-scroll-frame update composites on the GPU
+     instead of triggering layout; anchored left so it fills rightward. */
+  transform: scaleX(var(--read, 0));
+  transform-origin: left center;
+  will-change: transform;
+  transition: transform 0.12s linear;
+}
+
 .search-key {
   position: absolute;
   right: 2px; top: 18px;
@@ -164,8 +182,12 @@ body {
   max-height: 52vh;
   overflow-y: auto;
   padding: 6px;
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
 }
 .search-results[hidden] { display: none; }
+/* subtle fade-out on close, matching the find/rg/confirm overlays — the items
+   stagger IN, the whole panel eases UP and out (translateY toward the search line). */
+.search-results.closing { opacity: 0; transform: translateY(-4px); pointer-events: none; }
 
 .result-item {
   display: flex;
@@ -224,22 +246,20 @@ body {
 .search-results.stagger .result-item:nth-child(n+7) { animation-delay: 168ms; }
 
 /* --- live word count (whisper-quiet, bottom-right) --------------- */
-.wordcount {
-  position: fixed;
-  bottom: 18px;
-  right: 22px;
-  z-index: 10;
+/* word count + reading time, sat quietly above the file name in the searchbar */
+.readmeta {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.4px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;   /* dynamic number → no jitter */
-  opacity: 0.3;
-  transition: opacity 0.4s var(--ease);
-  pointer-events: none;
+  opacity: 0.55;
+  margin-bottom: 3px;
+  height: 13px;                         /* reserve the line so the title never shifts */
   user-select: none;
+  transition: opacity 0.25s var(--ease);
 }
-.wordcount:hover { opacity: 0.8; }
+.searchwrap.searching .readmeta { opacity: 0; }   /* hide while searching */
 
 /* --- delete-file confirm prompt --------------------------------- */
 .confirm {
@@ -278,31 +298,6 @@ body {
 
 /* --- editor host ------------------------------------------------- */
 .editor-host { height: 100vh; }
-
-/* tilt-shift / miniaturizing focus: two bands whose backdrop blur is masked
-   to fade in toward the top & bottom edges, so the line you're writing on
-   stays sharp while the page softens away above and below. Sits above the
-   editor (z 0) but below the wordcount (z 10) and topbar (z 20), so the
-   chrome stays crisp. */
-.focus-blur {
-  position: fixed;
-  left: 0; right: 0;
-  height: 34vh;
-  z-index: 5;
-  pointer-events: none;
-  backdrop-filter: blur(2.5px);
-  -webkit-backdrop-filter: blur(2.5px);
-}
-.focus-blur.top {
-  top: 0;
-  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
-  mask-image: linear-gradient(to bottom, #000, transparent);
-}
-.focus-blur.bottom {
-  bottom: 0;
-  -webkit-mask-image: linear-gradient(to top, #000, transparent);
-  mask-image: linear-gradient(to top, #000, transparent);
-}
 
 /* file-open entrance — content gently fades + eases in when you switch
    files, so opening a doc feels like turning a page rather than a hard cut. */
@@ -350,24 +345,57 @@ body {
   border-left-color: var(--tint) !important;
   margin-left: -1px;
 }
-/* Soft cursor blink. CodeMirror blinks with a hard steps(1) cut; instead the
-   cursor holds its current state for ~60% of each half-cycle, then eases across
-   the remaining ~40% — a gentle fade rather than an abrupt on/off. The keyframe
-   names (cm-blink / cm-blink2, toggled by CM to restart the blink on each move)
-   are redefined here; this stylesheet loads after CM's injected theme, so these win. */
+/* Glide the caret between lines: CM positions it with inline top/height, so
+   easing those animates line-to-line jumps. `left` stays instant so typing
+   never trails horizontally. */
+.cm-editor .cm-cursor {
+  transition: top 0.12s var(--ease), height 0.12s var(--ease);
+}
+/* Soft cursor phase. CodeMirror blinks with a hard steps(1) cut; instead the
+   cursor only phases slightly — it never fully disappears, easing between full
+   and dimmed with a cubic curve. On every move/keystroke CM restarts this
+   animation (toggling cm-blink / cm-blink2), so the 800ms animation-delay holds
+   the caret solid for 800ms before it starts phasing again. The keyframes are
+   redefined here; this stylesheet loads after CM's theme, so these win. */
 .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
-  animation-timing-function: ease-in-out !important;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1) !important;
+  animation-delay: 0.8s !important;            /* solid hold after a move before phasing */
+  animation-fill-mode: backwards !important;   /* show the full-opacity frame during the hold */
 }
 @keyframes cm-blink {
-  0%, 30% { opacity: 1; }
-  50%, 80% { opacity: 0; }
-  100% { opacity: 1; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 @keyframes cm-blink2 {
-  0%, 30% { opacity: 1; }
-  50%, 80% { opacity: 0; }
-  100% { opacity: 1; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
+/* Catch-the-eye flash: a quick glow around the caret when it moves or you type,
+   retriggered from JS by toggling .cm-flash (CM reuses the caret element). */
+@keyframes cm-caret-flash {
+  from { box-shadow: 0 0 8px 2px var(--tint); }
+  to   { box-shadow: 0 0 0 0 transparent; }
+}
+.cm-editor .cm-cursor.cm-flash { animation: cm-caret-flash 0.5s var(--ease); }
+
+/* Neovide-style cursor smear. A viewport-covering layer painted in the accent
+   tint and clipped (via JS-driven clip-path) to the convex hull spanning the
+   caret's old → new position, so a moving cursor leaves a brief streak that
+   contracts into the caret. Sits just below the glass bands (z5) so its edges
+   frost consistently with the text; pointer-events off so it never intercepts. */
+.cm-smear-layer { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+.cm-smear {
+  position: absolute;
+  inset: 0;
+  background: var(--tint);
+  opacity: 0;
+  filter: blur(0.4px);
+  transition: opacity 0.2s var(--ease);   /* fade-OUT only; the snap-on wins */
+  will-change: clip-path;
+}
+/* snap to full opacity the instant it's moving (no fade-in lag — the smear's
+   whole life is ~150ms), then the rule above eases it back out on settle. */
+.cm-smear-layer.on .cm-smear { opacity: 0.85; transition: none; }
 .cm-selectionBackground,
 .cm-content ::selection { background: var(--selection) !important; }
 .cm-activeLine { background: transparent; }
@@ -378,6 +406,45 @@ body {
  *  under the cursor clearly dominates. Tunable via --dim. */
 .cm-line { transition: opacity 0.5s var(--ease), color 0.5s var(--ease); }
 .cm-line.cm-dim { opacity: var(--dim); }
+
+/* ---- progressive "glass" blur at the top & bottom edges ----------- *
+ *  Each band stacks several backdrop-filter layers with growing blur,
+ *  each masked to sit progressively closer to the very edge. Stacked,
+ *  they ramp the blur smoothly (sharp in the middle → frosted at the
+ *  edge) — the iOS-style graduated glass, GPU-composited, no per-frame JS.
+ *  Sits above the editor but below the chrome (topbar z20). */
+.glass {
+  position: fixed;
+  left: 0; right: 0;
+  height: 30vh;
+  z-index: 5;
+  pointer-events: none;
+}
+.glass.top { top: 0; }
+.glass.bottom { bottom: 0; }
+.glass > i {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+/* faint milky body so it reads as glass, not just a blur; densest at the edge */
+.glass.top    { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 22%, transparent), transparent 62%); }
+.glass.bottom { background: linear-gradient(to top,    color-mix(in srgb, var(--bg) 22%, transparent), transparent 62%); }
+
+/* TOP band — edge at top, so masks run top→down (0% = edge). Each deeper
+   layer is blurrier and confined nearer the top. */
+.glass.top > i:nth-child(1) { backdrop-filter: blur(1.5px);  -webkit-backdrop-filter: blur(1.5px);  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 90%); mask-image: linear-gradient(to bottom, #000 0%, #000 60%, transparent 90%); }
+.glass.top > i:nth-child(2) { backdrop-filter: blur(3px);    -webkit-backdrop-filter: blur(3px);    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 70%); mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 70%); }
+.glass.top > i:nth-child(3) { backdrop-filter: blur(6px);    -webkit-backdrop-filter: blur(6px);    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 26%, transparent 52%); mask-image: linear-gradient(to bottom, #000 0%, #000 26%, transparent 52%); }
+.glass.top > i:nth-child(4) { backdrop-filter: blur(12px);   -webkit-backdrop-filter: blur(12px);   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 13%, transparent 34%); mask-image: linear-gradient(to bottom, #000 0%, #000 13%, transparent 34%); }
+.glass.top > i:nth-child(5) { backdrop-filter: blur(24px);   -webkit-backdrop-filter: blur(24px);   -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 18%); mask-image: linear-gradient(to bottom, #000 0%, transparent 18%); }
+
+/* BOTTOM band — mirror, masks run bottom→up. */
+.glass.bottom > i:nth-child(1) { backdrop-filter: blur(1.5px);  -webkit-backdrop-filter: blur(1.5px);  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 60%, transparent 90%); mask-image: linear-gradient(to top, #000 0%, #000 60%, transparent 90%); }
+.glass.bottom > i:nth-child(2) { backdrop-filter: blur(3px);    -webkit-backdrop-filter: blur(3px);    -webkit-mask-image: linear-gradient(to top, #000 0%, #000 42%, transparent 70%); mask-image: linear-gradient(to top, #000 0%, #000 42%, transparent 70%); }
+.glass.bottom > i:nth-child(3) { backdrop-filter: blur(6px);    -webkit-backdrop-filter: blur(6px);    -webkit-mask-image: linear-gradient(to top, #000 0%, #000 26%, transparent 52%); mask-image: linear-gradient(to top, #000 0%, #000 26%, transparent 52%); }
+.glass.bottom > i:nth-child(4) { backdrop-filter: blur(12px);   -webkit-backdrop-filter: blur(12px);   -webkit-mask-image: linear-gradient(to top, #000 0%, #000 13%, transparent 34%); mask-image: linear-gradient(to top, #000 0%, #000 13%, transparent 34%); }
+.glass.bottom > i:nth-child(5) { backdrop-filter: blur(24px);   -webkit-backdrop-filter: blur(24px);   -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 18%); mask-image: linear-gradient(to top, #000 0%, transparent 18%); }
 
 /* dimmed-but-present markdown syntax (iA Writer hallmark) */
 .cm-syntax { color: var(--faint); transition: color 0.4s var(--ease); }
@@ -500,9 +567,8 @@ body {
   gap: 1px;
   padding: 3px;
   background: var(--panel);
-  border: 1px solid var(--rule);
   border-radius: 9px;
-  box-shadow: var(--shadow);
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow);   /* hairline ring, matching the other floating panels */
   opacity: 0;
   transform: translateY(4px) scale(0.98);
   transform-origin: bottom left;
@@ -528,9 +594,10 @@ body {
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.1s var(--ease), color 0.1s var(--ease);
+  transition: background 0.1s var(--ease), color 0.1s var(--ease), scale 0.1s var(--ease);
 }
 .cm-tbl-btn:hover { background: var(--code-bg); color: var(--text); }
+.cm-tbl-btn:active { scale: 0.96; }
 .cm-tbl-btn.danger:hover { background: color-mix(in srgb, #ff3b30 15%, transparent); color: #ff3b30; }
 .cm-tbl-btn.align.on { background: var(--tint); color: var(--pill-text); }
 .cm-tbl-btn.wide { width: auto; padding: 0 8px; font-family: var(--font-mono); font-size: 12px; }
@@ -558,9 +625,10 @@ body {
   font-size: 12px;
   padding: 3px 9px;
   cursor: pointer;
-  transition: background 0.1s var(--ease), color 0.1s var(--ease), border-color 0.1s var(--ease);
+  transition: background 0.1s var(--ease), color 0.1s var(--ease), border-color 0.1s var(--ease), scale 0.1s var(--ease);
 }
 .cm-tbl-rawbar-btn:hover { color: var(--tint); border-color: var(--tint); }
+.cm-tbl-rawbar-btn:active { scale: 0.96; }
 .cm-md-table code {
   font-family: var(--font-mono);
   font-size: 0.92em;
@@ -682,6 +750,139 @@ body {
   text-align: right;
 }
 
+/* --- local find / replace bar ------------------------------------ *
+ *  Floats top-right under the title line. The search row is always
+ *  shown; the replace row appears only in find+replace mode (⌃⇧F). */
+.cm-find {
+  position: fixed;
+  top: 72px; right: 28px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--panel);
+  border-radius: 15px;          /* concentric: 7px input radius + 8px padding */
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+}
+.cm-find.open { opacity: 1; transform: translateY(0); }
+.cm-find[hidden] { display: none; }
+.cm-find-row { display: flex; align-items: center; gap: 5px; }
+.cm-find-replace-row { display: none; }
+.cm-find.with-replace .cm-find-replace-row { display: flex; }
+.cm-find input {
+  border: none;
+  outline: none;
+  background: var(--code-bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  width: 200px;
+  caret-color: var(--tint);
+}
+.cm-find input::placeholder { color: var(--faint); }
+.cm-find-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cm-find-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+  transition: background 0.1s var(--ease), color 0.1s var(--ease), scale 0.1s var(--ease);
+}
+.cm-find-btn:hover { background: var(--code-bg); color: var(--text); }
+.cm-find-btn:active { scale: 0.96; }
+.cm-find-btn.on { background: var(--tint); color: var(--pill-text); }
+.cm-find-btn.wide { width: auto; padding: 0 9px; font-size: 12px; }
+
+/* find highlights — all hits get a soft tint; the active one is stronger */
+.cm-find-match { background: color-mix(in srgb, var(--tint) 16%, transparent); border-radius: 3px; }
+.cm-find-current { background: color-mix(in srgb, var(--tint) 40%, transparent); }
+
+/* --- global ripgrep palette (⌃G) --------------------------------- *
+ *  Centered command palette; the results list shows ~5 rows then
+ *  scrolls. The selected hit previews live in the editor below. */
+.rgpanel {
+  position: fixed;
+  top: 12vh; left: 50%;
+  transform: translate(-50%, -8px);
+  width: min(42rem, calc(100vw - 48px));
+  z-index: 50;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow);
+  opacity: 0;
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+  overflow: hidden;
+}
+.rgpanel.open { opacity: 1; transform: translate(-50%, 0); }
+.rgpanel[hidden] { display: none; }
+.rg-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--rule);
+  caret-color: var(--tint);
+}
+.rg-input::placeholder { color: var(--faint); }
+.rg-results { max-height: calc(5 * 56px); overflow-y: auto; padding: 6px; }
+.rg-results:empty { display: none; }
+.rg-item {
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s var(--ease), scale 0.12s var(--ease);
+}
+.rg-item:active { scale: 0.96; }   /* tactile press, matching .result-item */
+.rg-item.active { background: var(--variable-bg); }
+.rg-head { display: flex; align-items: baseline; gap: 10px; }
+.rg-name { font-family: var(--font); font-size: 14px; color: var(--text); white-space: nowrap; }
+.rg-loc {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rg-snip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.rg-snip mark.pi-hit {
+  background: color-mix(in srgb, var(--tint) 22%, transparent);
+  color: var(--text);
+  border-radius: 3px;
+}
+
 /* --- scrollbars -------------------------------------------------- */
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -694,5 +895,11 @@ body {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+  /* the cursor phase is a gentle in-place fade, not travelling motion — keep it
+     alive so the caret still breathes under reduced-motion. */
+  .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
   }
 }

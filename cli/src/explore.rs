@@ -33,6 +33,11 @@ const INDEX_HTML: &str = include_str!("../editor/index.html");
 const APP_JS: &str = include_str!("../editor/app.js");
 const STYLE_CSS: &str = include_str!("../editor/style.css");
 
+/// Source-tree asset dir, baked in at build time. `--dev` serves the editor
+/// files from here (live) instead of the embedded copies, so a save-and-refresh
+/// shows up without a rebuild — and the page auto-reloads via `/api/livereload`.
+const EDITOR_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/editor");
+
 /// How often a process re-registers its roots with the host.
 const HEARTBEAT: Duration = Duration::from_secs(5);
 /// A feeder is dropped from the index after this long without a heartbeat.
@@ -53,14 +58,17 @@ struct State {
     index: Mutex<Vec<PathBuf>>,
     /// Bumped whenever the feeder set changes, so the indexer re-walks promptly.
     gen: AtomicU64,
+    /// `--dev`: serve editor assets from disk + inject the live-reload watcher.
+    dev: bool,
 }
 
 impl State {
-    fn new() -> Self {
+    fn new(dev: bool) -> Self {
         State {
             feeders: Mutex::new(HashMap::new()),
             index: Mutex::new(Vec::new()),
             gen: AtomicU64::new(0),
+            dev,
         }
     }
 
@@ -117,6 +125,7 @@ pub fn run(args: &[String]) -> i32 {
     let roots = vec![root.clone()];
     let id = format!("pid-{}", std::process::id());
     let url = format!("http://localhost:{port}");
+    let dev = args.iter().any(|a| a == "--dev");
 
     let mut announced = false;
     loop {
@@ -130,13 +139,16 @@ pub fn run(args: &[String]) -> i32 {
                         return 4;
                     }
                 };
-                let state = Arc::new(State::new());
+                let state = Arc::new(State::new(dev));
                 state.register(&id, roots.clone());
                 spawn_indexer(state.clone());
                 spawn_self_heartbeat(state.clone(), id.clone(), roots.clone());
                 if !announced {
                     println!("✺ jd explorer → {url}");
                     println!("✺ hosting; searching every running jd (this one: {})", root.display());
+                    if dev {
+                        println!("✺ dev: serving editor from {EDITOR_DIR} — live reload on");
+                    }
                     open_url(&url);
                     announced = true;
                 }
@@ -204,26 +216,73 @@ fn handle(request: tiny_http::Request, state: &State) {
     let method = request.method().clone();
 
     match (&method, path.as_str()) {
-        (Method::Get, "/") | (Method::Get, "/index.html") => {
-            respond(request, 200, "text/html; charset=utf-8", INDEX_HTML.as_bytes())
-        }
+        (Method::Get, "/") | (Method::Get, "/index.html") => respond(
+            request,
+            200,
+            "text/html; charset=utf-8",
+            index_html(state.dev).as_bytes(),
+        ),
         (Method::Get, "/app.js") => respond(
             request,
             200,
             "text/javascript; charset=utf-8",
-            APP_JS.as_bytes(),
+            asset(state.dev, "app.js", APP_JS).as_bytes(),
         ),
-        (Method::Get, "/style.css") => {
-            respond(request, 200, "text/css; charset=utf-8", STYLE_CSS.as_bytes())
-        }
+        (Method::Get, "/style.css") => respond(
+            request,
+            200,
+            "text/css; charset=utf-8",
+            asset(state.dev, "style.css", STYLE_CSS).as_bytes(),
+        ),
+        (Method::Get, "/api/livereload") => api_livereload(request),
         (Method::Post, "/api/feed") => api_feed(request, state),
         (Method::Get, "/api/search") => api_search(request, state, &query),
+        (Method::Get, "/api/rg") => api_rg(request, state, &query),
         (Method::Get, "/api/file") => api_load(request, state, &query),
         (Method::Post, "/api/file") => api_save(request, state, &query),
         (Method::Post, "/api/reveal") => api_reveal(request, state, &query),
         (Method::Post, "/api/delete") => api_delete(request, state, &query),
         _ => respond(request, 404, "text/plain", b"not found"),
     }
+}
+
+/* ------------------------------ dev assets ----------------------------- */
+
+/// In `--dev`, read an asset fresh from the source tree so a save shows up on
+/// the next request; otherwise return the copy embedded at build time. A
+/// missing dev file falls back to the embedded copy rather than 404ing.
+fn asset(dev: bool, name: &str, embedded: &str) -> String {
+    if dev {
+        std::fs::read_to_string(Path::new(EDITOR_DIR).join(name))
+            .unwrap_or_else(|_| embedded.to_string())
+    } else {
+        embedded.to_string()
+    }
+}
+
+/// The page HTML, with a tiny poll-and-reload watcher spliced in under `--dev`.
+/// It polls `/api/livereload`; when the newest asset mtime changes, it reloads.
+fn index_html(dev: bool) -> String {
+    let html = asset(dev, "index.html", INDEX_HTML);
+    if !dev {
+        return html;
+    }
+    const WATCH: &str = "<script>(async()=>{let last=null;for(;;){try{const j=await(await fetch('/api/livereload')).json();if(last!==null&&j.mtime!==last)location.reload();last=j.mtime;}catch(e){}await new Promise(r=>setTimeout(r,600));}})();</script>";
+    match html.rfind("</body>") {
+        Some(i) => format!("{}{WATCH}{}", &html[..i], &html[i..]),
+        None => format!("{html}{WATCH}"),
+    }
+}
+
+/// The newest mtime across the on-disk editor assets — the dev reload signal.
+/// Always served (harmless in prod; only the dev page polls it).
+fn api_livereload(request: tiny_http::Request) {
+    let mtime = ["index.html", "app.js", "style.css"]
+        .iter()
+        .map(|f| mtime_ms(&Path::new(EDITOR_DIR).join(f)))
+        .max()
+        .unwrap_or(0);
+    respond_json(request, 200, &json!({ "mtime": mtime as f64 }));
 }
 
 /* ------------------------------ registry ------------------------------- */
@@ -261,28 +320,40 @@ fn api_search(request: tiny_http::Request, state: &State, query: &str) {
     let (files, snippets): (Vec<PathBuf>, HashMap<PathBuf, String>) = if q.is_empty() {
         (all, HashMap::new())
     } else {
-        // Filename fuzzy match on the path tail (not the absolute prefix, which
-        // would fuzzy-match everything), unioned with a content match.
-        let labels: Vec<(String, &PathBuf)> = all.iter().map(|f| (display_path(f), f)).collect();
-        let ranked = fuzzy_rank(labels.iter().map(|(l, _)| l.as_str()), q);
-        let by_label: HashMap<&str, &PathBuf> =
-            labels.iter().map(|(l, f)| (l.as_str(), *f)).collect();
-        let name_matches: Vec<PathBuf> = ranked
-            .iter()
-            .filter_map(|l| by_label.get(l.as_str()).map(|p| (*p).clone()))
-            .collect();
-
-        let content = content_matches(&all, q);
-        let seen: HashSet<&PathBuf> = name_matches.iter().collect();
-        let content_only: Vec<PathBuf> = content
-            .keys()
-            .filter(|f| !seen.contains(*f))
-            .cloned()
-            .collect();
-
-        let mut files = name_matches;
-        files.extend(content_only);
-        (files, content)
+        // Each whitespace term must match somewhere — either the path tail
+        // (fuzzy subsequence) or the file's content. So "vim rg" hits rg.jd
+        // when `rg` matches the name and `vim` matches the body.
+        let terms: Vec<String> = q.to_lowercase().split_whitespace().map(String::from).collect();
+        let mut files = Vec::new();
+        let mut snippets = HashMap::new();
+        for f in &all {
+            let label: Vec<char> = display_path(f).to_lowercase().chars().collect();
+            let raw = std::fs::read_to_string(f).unwrap_or_default();
+            let content = raw.to_lowercase();
+            let mut snippet: Option<String> = None;
+            let matched = terms.iter().all(|t| {
+                if subsequence(&label, t) {
+                    return true;
+                }
+                if content.contains(t.as_str()) {
+                    if snippet.is_none() {
+                        snippet = raw
+                            .lines()
+                            .find(|l| l.to_lowercase().contains(t.as_str()))
+                            .map(|l| l.trim().chars().take(120).collect());
+                    }
+                    return true;
+                }
+                false
+            });
+            if matched {
+                files.push(f.clone());
+                if let Some(s) = snippet {
+                    snippets.insert(f.clone(), s);
+                }
+            }
+        }
+        (files, snippets)
     };
 
     let total = files.len();
@@ -313,49 +384,110 @@ fn api_search(request: tiny_http::Request, state: &State, query: &str) {
     respond_json(request, 200, &body);
 }
 
-/// Subsequence fuzzy match ranked by how tightly the query packs (smaller gap
-/// sum = tighter). Mirrors the editor's `jsFuzzy`.
-fn fuzzy_rank<'a>(files: impl Iterator<Item = &'a str>, q: &str) -> Vec<String> {
-    let needle: Vec<char> = q.to_lowercase().chars().collect();
-    let mut scored: Vec<(String, i64)> = Vec::new();
-    for f in files {
-        let hay: Vec<char> = f.to_lowercase().chars().collect();
-        let (mut i, mut score, mut last) = (0usize, 0i64, -1i64);
-        for (j, c) in hay.iter().enumerate() {
-            if i < needle.len() && *c == needle[i] {
-                if last >= 0 {
-                    score += j as i64 - last;
-                }
-                last = j as i64;
-                i += 1;
+/// Subsequence test: are `needle`'s chars present, in order, within `hay`?
+/// `needle` is already lowercase; `hay` is a lowercased char slice.
+fn subsequence(hay: &[char], needle: &str) -> bool {
+    let mut chars = needle.chars();
+    let mut want = chars.next();
+    for &c in hay {
+        if Some(c) == want {
+            want = chars.next();
+            if want.is_none() {
+                return true;
             }
         }
-        if i == needle.len() {
-            scored.push((f.to_string(), score));
-        }
     }
-    scored.sort_by(|a, b| a.1.cmp(&b.1));
-    scored.into_iter().map(|(f, _)| f).collect()
+    want.is_none()
 }
 
-/// First line of each file containing `q` (case-insensitive), trimmed to a
-/// 120-char snippet. Lets you find a `.jd` by what it *says*.
-fn content_matches(files: &[PathBuf], q: &str) -> HashMap<PathBuf, String> {
-    let needle = q.to_lowercase();
-    let mut map = HashMap::new();
-    for f in files {
-        let Ok(text) = std::fs::read_to_string(f) else {
+/* ------------------------------ ripgrep -------------------------------- */
+
+/// Case-sensitive content search across every live root, powered by `rg`.
+/// Returns one hit per matching line (file, line number, the line text) so the
+/// editor can render a navigable dropdown and jump to the match. `rg` is the
+/// canonical tool here — literal (`-F`), case-sensitive (rg's default), `.jd`
+/// only. If `rg` isn't installed we say so rather than silently returning empty.
+fn api_rg(request: tiny_http::Request, state: &State, query: &str) {
+    let q = param(query, "q").unwrap_or_default();
+    let q = q.trim().to_string();
+    if q.is_empty() {
+        return respond_json(request, 200, &json!({ "results": [], "total": 0 }));
+    }
+    let roots = state.live_roots();
+    let mut cmd = Command::new("rg");
+    cmd.arg("--json")
+        .arg("-F") // literal string, not a regex
+        .arg("--max-count")
+        .arg("50") // cap hits per file
+        .arg("-g")
+        .arg("*.jd")
+        .arg("--")
+        .arg(&q);
+    for r in &roots {
+        cmd.arg(r);
+    }
+    let stdout = match cmd.stderr(Stdio::null()).output() {
+        Ok(o) => o.stdout,
+        Err(_) => {
+            return respond_json(
+                request,
+                200,
+                &json!({ "results": [], "total": 0, "error": "ripgrep (rg) not found on PATH" }),
+            );
+        }
+    };
+
+    let text = String::from_utf8_lossy(&stdout);
+    let mut results = Vec::new();
+    let mut seen = HashSet::new();
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
-        for line in text.lines() {
-            if line.to_lowercase().contains(&needle) {
-                let snip: String = line.trim().chars().take(120).collect();
-                map.insert(f.clone(), snip);
-                break;
-            }
+        if v.get("type").and_then(|t| t.as_str()) != Some("match") {
+            continue;
+        }
+        let data = &v["data"];
+        let Some(path) = data["path"]["text"].as_str() else {
+            continue;
+        };
+        let lineno = data["line_number"].as_u64().unwrap_or(0);
+        if !seen.insert((path.to_string(), lineno)) {
+            continue; // one row per (file, line)
+        }
+        let snippet: String = data["lines"]["text"]
+            .as_str()
+            .unwrap_or("")
+            .trim_end_matches(['\n', '\r'])
+            .trim()
+            .chars()
+            .take(160)
+            .collect();
+        let col = data["submatches"]
+            .get(0)
+            .and_then(|s| s["start"].as_u64())
+            .unwrap_or(0);
+        let pb = PathBuf::from(path);
+        let display = display_path(&pb);
+        let dir = Path::new(&display)
+            .parent()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        results.push(json!({
+            "path": path,
+            "name": pb.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+            "dir": dir,
+            "line": lineno,
+            "col": col,
+            "text": snippet,
+        }));
+        if results.len() >= 200 {
+            break;
         }
     }
-    map
+
+    let total = results.len();
+    respond_json(request, 200, &json!({ "results": results, "total": total }));
 }
 
 /* -------------------------------- files -------------------------------- */

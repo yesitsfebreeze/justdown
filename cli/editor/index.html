@@ -1,55 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>jd</title>
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Singleton-safe CodeMirror 6 import map.
-       Only state / view / language are forced external so every package
-       shares the SAME module instances (required for Facet/Decoration identity). -->
-  <script type="importmap">
-  {
-    "imports": {
-      "@codemirror/state": "https://esm.sh/@codemirror/state@6.5.2",
-      "@codemirror/view": "https://esm.sh/@codemirror/view@6.36.4?external=@codemirror/state",
-      "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.8?external=@codemirror/state,@codemirror/view",
-      "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.8.0?external=@codemirror/state,@codemirror/view,@codemirror/language",
-      "@codemirror/lang-markdown": "https://esm.sh/@codemirror/lang-markdown@6.3.2?external=@codemirror/state,@codemirror/view,@codemirror/language",
-      "markdown-table": "https://esm.sh/markdown-table@3.0.4"
-    }
-  }
-  </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jd</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{"imports":{"@codemirror/state":"https://esm.sh/@codemirror/state@6.5.2","@codemirror/view":"https://esm.sh/@codemirror/view@6.36.4?external=@codemirror/state","@codemirror/language":"https://esm.sh/@codemirror/language@6.10.8?external=@codemirror/state,@codemirror/view","@codemirror/commands":"https://esm.sh/@codemirror/commands@6.8.0?external=@codemirror/state,@codemirror/view,@codemirror/language","@codemirror/lang-markdown":"https://esm.sh/@codemirror/lang-markdown@6.3.2?external=@codemirror/state,@codemirror/view,@codemirror/language","@codemirror/search":"https://esm.sh/@codemirror/search@6.5.6?external=@codemirror/state,@codemirror/view","markdown-table":"https://esm.sh/markdown-table@3.0.4"}}
+</script>
 </head>
 <body>
-  <!-- always-visible search line; doubles as the file title -->
-  <header class="topbar">
-    <div class="searchwrap">
-      <input id="searchbar" class="searchbar" type="text" placeholder="Search"
-             autocomplete="off" spellcheck="false">
-      <span class="dirty-dot" id="dirtyDot">●</span>
-      <span class="search-key" id="searchKey">⌘K</span>
-      <div class="search-results" id="results" hidden></div>
-    </div>
-  </header>
-
-  <div class="editor-host" id="editor"></div>
-
-  <!-- tilt-shift focus: blur fades in toward the top & bottom edges,
-       keeping the reading center crisp (a miniaturizing-lens feel) -->
-  <div class="focus-blur top" aria-hidden="true"></div>
-  <div class="focus-blur bottom" aria-hidden="true"></div>
-
-  <!-- whisper-quiet live word count (iA Writer-style) -->
-  <div class="wordcount" id="wordcount"></div>
-
-  <!-- delete-file confirm (shown when a file's whole content is cleared) -->
-  <div class="confirm" id="confirm" hidden>
-    <span class="confirm-msg">Delete the whole file?</span>
-    <span class="confirm-opts" id="confirmOpts"></span>
-  </div>
-
-  <script type="module" src="app.js"></script>
+<header class="topbar">
+<div class="searchwrap">
+<div class="readmeta" id="wordcount"></div>
+<input id="searchbar" class="searchbar" type="text" placeholder="Search" autocomplete="off" spellcheck="false">
+<span class="dirty-dot" id="dirtyDot">●</span>
+<span class="search-key" id="searchKey">⌘K</span>
+<div class="search-results" id="results" hidden></div>
+</div>
+</header>
+<div class="editor-host" id="editor"></div>
+<div class="glass top" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+<div class="glass bottom" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+<div class="confirm" id="confirm" hidden>
+<span class="confirm-msg">Delete the whole file?</span>
+<span class="confirm-opts" id="confirmOpts"></span>
+</div>
+<div class="cm-find" id="findbar" hidden>
+<div class="cm-find-row">
+<input id="findInput" type="text" placeholder="Find" autocomplete="off" spellcheck="false">
+<span class="cm-find-count" id="findCount"></span>
+<button class="cm-find-btn" id="findCase" title="Case sensitive">Aa</button>
+<button class="cm-find-btn" id="findPrev" title="Previous (⇧⏎)">↑</button>
+<button class="cm-find-btn" id="findNext" title="Next (⏎)">↓</button>
+<button class="cm-find-btn" id="findClose" title="Close (Esc)">✕</button>
+</div>
+<div class="cm-find-row cm-find-replace-row">
+<input id="findReplace" type="text" placeholder="Replace" autocomplete="off" spellcheck="false">
+<button class="cm-find-btn wide" id="findReplaceOne" title="Replace (⏎)">Replace</button>
+<button class="cm-find-btn wide" id="findReplaceAll" title="Replace all (⇧⏎)">All</button>
+</div>
+</div>
+<div class="rgpanel" id="rgpanel" hidden>
+<input id="rgInput" type="text" placeholder="ripgrep across all .jd…   ↑↓ / ⌃j ⌃k to navigate" autocomplete="off" spellcheck="false">
+<div class="rg-results" id="rgResults"></div>
+</div>
+<div class="settings" id="settings" hidden>
+<div class="settings-title">Settings</div>
+<div class="settings-row">
+<span class="settings-label">Accent</span>
+<span class="settings-swatches" id="settingsSwatches"></span>
+<input type="color" id="setTint" title="Accent color">
+</div>
+<div class="settings-row">
+<span class="settings-label">Focus fade</span>
+<input type="range" id="setDim" min="0" max="90" step="1" title="How strongly inactive text fades">
+</div>
+<div class="settings-row">
+<span class="settings-label">Edge fade</span>
+<input type="range" id="setFade" min="0" max="45" step="1" title="How far the top/bottom blur reaches">
+</div>
+<div class="settings-foot">
+<button type="button" id="settingsReset" class="settings-reset">Reset</button>
+<span class="settings-hint">⌃,  ·  Esc</span>
+</div>
+</div>
+<script type="module" src="app.js"></script>
 </body>
 </html>

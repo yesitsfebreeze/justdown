@@ -3,6 +3,7 @@ import { EditorView, Decoration, ViewPlugin, WidgetType, keymap, drawSelection,
 import { EditorState, StateField, StateEffect } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { SearchCursor } from "@codemirror/search";
 import { history, defaultKeymap, historyKeymap,
          cursorGroupLeft, cursorGroupRight,
          selectGroupLeft, selectGroupRight } from "@codemirror/commands";
@@ -831,11 +832,20 @@ let loadedReflowed = "";  // reflowed view of it
 // view exists (see smoothScroll below). scheduleCenter coalesces calls into
 // one rAF so rapid cursor moves don't thrash.
 let centerCaret = () => {};
+let smearMove = () => {};   // Neovide-style cursor smear; real impl assigned below
 let centerRaf = null;
 function scheduleCenter() {
   if (centerRaf !== null) return;
   centerRaf = requestAnimationFrame(() => { centerRaf = null; centerCaret(true); });
 }
+// Hoisted here because the view's initial update fires updateRead()/scheduleFlash()
+// during construction — a `let` declared after the editor would still be in its
+// temporal dead zone and throw, blanking the whole UI.
+let readRaf = null;
+let flashRaf = null;
+// Hoisted: the update listener reads findOpen during the view's initial
+// construction update, so it must be initialized before the view is built.
+let findOpen = false;
 
 const view = new EditorView({
   parent: document.getElementById("editor"),
@@ -852,6 +862,9 @@ const view = new EditorView({
       placeholder("Press ⌘K to open a .jd file, or just start writing…"),
       keymap.of([
         { key: "Mod-s", preventDefault: true, run: () => { saveFile(); return true; } },
+        // swallow CM's default Ctrl-k (deleteLine) so the global search shortcut
+        // wins on Windows/Linux; the window handler below does the focus.
+        { key: "Mod-k", preventDefault: true, run: () => true },
         // Alt/Option + ←/→ jump by word (Shift extends the selection)
         { key: "Alt-ArrowLeft", run: cursorGroupLeft, shift: selectGroupLeft, preventDefault: true },
         { key: "Alt-ArrowRight", run: cursorGroupRight, shift: selectGroupRight, preventDefault: true },
@@ -871,7 +884,9 @@ const view = new EditorView({
         },
       }),
       EditorView.updateListener.of((u) => {
-        if (u.selectionSet || u.docChanged) scheduleCenter();   // typewriter recenter
+        if (u.selectionSet || u.docChanged) { scheduleCenter(); scheduleFlash(); smearMove(); }
+        if (u.docChanged || u.geometryChanged) updateRead();
+        if (findOpen && u.docChanged) updateFindCount();   // field recomputed; sync the n/m counter
         if (!u.docChanged) return;
         markDirty();
         updateWordCount();
@@ -951,6 +966,136 @@ const view = new EditorView({
   };
   centerCaret(false);                                 // center whatever's loaded now
 })();
+
+/* ------------------------------------------------------------------ *
+ *  Neovide-style cursor smear. A tinted shape stretches between the
+ *  caret's previous and current positions and contracts into the caret
+ *  as it catches up, so the eye can always track where the cursor went.
+ *  Implemented as the convex hull of the old + new caret rectangles,
+ *  painted via clip-path on a fixed, viewport-covering layer (a single
+ *  clip-path update per frame — no layout, GPU-composited). The target
+ *  is re-read every frame so the smear rides typewriter scrolling, and
+ *  long jumps (e.g. opening a file) snap instead of streaking the screen.
+ * ------------------------------------------------------------------ */
+(function smearCursor() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const layer = document.createElement("div");
+  layer.className = "cm-smear-layer";
+  const smear = document.createElement("div");
+  smear.className = "cm-smear";
+  layer.appendChild(smear);
+  document.body.appendChild(layer);
+
+  let from = null, to = null, t = 0, step = 0.1, raf = null;
+
+  // Caret rect in scroll-invariant CONTENT coords, so a captured from/to keeps
+  // tracking the text while the typewriter scroll glides underneath it.
+  const caretRect = () => {
+    const sel = view.state.selection.main;
+    if (!sel.empty) return null;                 // only smear a collapsed caret
+    const c = view.coordsAtPos(sel.head);
+    if (!c) return null;
+    const b = view.scrollDOM.getBoundingClientRect();
+    return {
+      x: c.left - b.left + view.scrollDOM.scrollLeft,
+      y: c.top - b.top + view.scrollDOM.scrollTop,
+      w: 2, h: c.bottom - c.top,
+    };
+  };
+  // Project a content-coord rect back into viewport space for painting.
+  const toView = (r) => {
+    const b = view.scrollDOM.getBoundingClientRect();
+    return {
+      x: r.x + b.left - view.scrollDOM.scrollLeft,
+      y: r.y + b.top - view.scrollDOM.scrollTop,
+      w: r.w, h: r.h,
+    };
+  };
+  const lerp = (a, b, k) => ({
+    x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k,
+    w: a.w + (b.w - a.w) * k, h: a.h + (b.h - a.h) * k,
+  });
+  const corners = (r) => [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]];
+  // Andrew's monotone-chain convex hull of the 8 corner points.
+  const hull = (pts) => {
+    pts = pts.slice().sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    const cross = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+    const lo = [], up = [];
+    for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
+    lo.pop(); up.pop();
+    return lo.concat(up);
+  };
+  const draw = (head, tail) => {
+    const pts = hull([...corners(toView(head)), ...corners(toView(tail))]);
+    if (pts.length < 3) return;
+    smear.style.clipPath = "polygon(" + pts.map((p) => `${p[0]}px ${p[1]}px`).join(",") + ")";
+  };
+
+  const ease = (x) => 1 - Math.pow(1 - x, 3);     // easeOutCubic
+  function tick() {
+    raf = null;
+    if (!from || !to) { layer.classList.remove("on"); return; }
+    t = Math.min(1, t + step);
+    // leading edge reaches the target by t=0.35; trailing edge stays pinned at
+    // the origin until t=0.5, then catches up — a full-length streak that holds
+    // a beat, then collapses into the caret.
+    const head = lerp(from, to, ease(Math.min(1, t / 0.35)));
+    const tail = lerp(from, to, ease(Math.max(0, (t - 0.5) / 0.5)));
+    draw(head, tail);
+    if (t >= 1) { layer.classList.remove("on"); return; }
+    layer.classList.add("on");
+    raf = requestAnimationFrame(tick);
+  }
+
+  smearMove = () => {
+    const r = caretRect();
+    if (!r) { layer.classList.remove("on"); to = null; if (raf) { cancelAnimationFrame(raf); raf = null; } return; }
+    const jump = to ? Math.hypot(r.x - to.x, r.y - to.y) : 0;
+    if (!to || jump < 0.5) { to = r; return; }     // first paint / no real move → just snap
+    from = to;                                     // streak starts where the caret just was
+    to = r;
+    t = 0;
+    // Trail rides the distance: the streak spans the full from→to gap (so a
+    // cross-screen jump streaks across the screen), and a longer jump also rides
+    // through more frames so it lives — and reads — longer. Roughly constant
+    // travel speed (~PX_PER_FRAME) between clamped min/max durations.
+    const PX_PER_FRAME = 55, MIN_FRAMES = 4, MAX_FRAMES = 30;
+    const frames = Math.max(MIN_FRAMES, Math.min(MAX_FRAMES, Math.round(jump / PX_PER_FRAME)));
+    step = 1 / frames;
+    if (raf === null) raf = requestAnimationFrame(tick);
+  };
+})();
+
+/* Reading progress — fill the searchbar's bottom border (--read, 0–1) by how
+   far you've scrolled through the document. Coalesced into a rAF off scroll. */
+function updateRead() {
+  if (readRaf !== null) return;
+  readRaf = requestAnimationFrame(() => {
+    readRaf = null;
+    const s = view.scrollDOM;
+    const max = s.scrollHeight - s.clientHeight;
+    searchwrap.style.setProperty("--read", max > 0 ? (s.scrollTop / max).toFixed(4) : "0");
+  });
+}
+view.scrollDOM.addEventListener("scroll", updateRead, { passive: true });
+new ResizeObserver(updateRead).observe(view.scrollDOM);
+updateRead();
+
+// Retrigger the caret glow flash on every move/keystroke. CM reuses the caret
+// element, so restart the CSS animation by reflowing between class toggles.
+// Deferred a frame so the caret is drawn at its new position first.
+function scheduleFlash() {
+  if (flashRaf !== null) return;
+  flashRaf = requestAnimationFrame(() => { flashRaf = null; flashCaret(); });
+}
+function flashCaret() {
+  const caret = view.scrollDOM.querySelector(".cm-cursor-primary");
+  if (!caret) return;
+  caret.classList.remove("cm-flash");
+  void caret.offsetWidth;          // force reflow → animation replays from 0%
+  caret.classList.add("cm-flash");
+}
 
 const getContent = () => view.state.doc.toString();
 function setContent(text) {
@@ -1118,7 +1263,11 @@ function exitSearch() {
   if (!searching) return;
   searching = false;
   searchwrap.classList.remove("searching");
-  resultsEl.hidden = true;
+  // subtle fade-out, then hide — only commit the hide if still closed (a fast
+  // reopen within the window clears .closing in renderResults and aborts this).
+  resultsEl.classList.remove("stagger");
+  resultsEl.classList.add("closing");
+  setTimeout(() => { if (!searching) resultsEl.hidden = true; }, 160);
   showTitle();
 }
 
@@ -1143,6 +1292,7 @@ async function runSearch(q) {
 function renderResults() {
   const stagger = staggerNext;
   staggerNext = false;
+  resultsEl.classList.remove("closing");   // cancel any in-flight fade-out
   resultsEl.hidden = false;
   // offer to create a new .jd when the query names a file that doesn't exist
   const q = lastQuery.trim();
@@ -1252,6 +1402,21 @@ window.addEventListener("keydown", (e) => {
   } else if ((e.metaKey || e.ctrlKey) && e.key === "o") {
     e.preventDefault();
     if (currentPath) fetch(`/api/reveal?path=${encodeURIComponent(currentPath)}`, { method: "POST" });
+  } else if ((e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F")) {
+    // ⌃F find · ⌃⇧F find + replace
+    e.preventDefault();
+    openFind(e.shiftKey);
+  } else if ((e.metaKey || e.ctrlKey) && (e.key === "g" || e.key === "G")) {
+    // ⌃G global ripgrep palette
+    e.preventDefault();
+    rgOpen ? closeRg(false) : openRg();
+  } else if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+    // ⌃, settings (accent + fade)
+    e.preventDefault();
+    settingsOpen ? closeSettings() : openSettings();
+  } else if (e.key === "Escape" && settingsOpen) {
+    e.preventDefault();
+    closeSettings();
   }
 });
 
@@ -1301,6 +1466,389 @@ window.addEventListener("keydown", (e) => {
   e.preventDefault();
   e.stopPropagation();
 }, true);
+
+/* ================================================================== *
+ *  Local find / replace (⌃F · ⌃⇧F) + global ripgrep (⌃G).
+ *  Matching uses @codemirror/search's SearchCursor; the match list lives
+ *  in a StateField so it recomputes on doc changes *inside* the field
+ *  (no dispatch from the update listener, which CM forbids). ripgrep runs
+ *  server-side (/api/rg) — case-sensitive, literal, .jd only — and its hits
+ *  preview live in the editor as you arrow through the dropdown.
+ * ================================================================== */
+
+const findBar = document.getElementById("findbar");
+const findInput = document.getElementById("findInput");
+const findReplaceInput = document.getElementById("findReplace");
+const findCount = document.getElementById("findCount");
+const findCaseBtn = document.getElementById("findCase");
+
+let findCase = false;        // case-sensitive toggle (off = case-insensitive)
+let findFieldAdded = false;
+
+const setFindQuery = StateEffect.define();   // { query, cs } — resets the active match
+const setFindIndex = StateEffect.define();   // number — moves the active match
+const findDefault = { query: "", cs: false, matches: [], index: -1, deco: Decoration.none };
+
+function pickIndex(matches, head) {
+  if (!matches.length) return -1;
+  const at = matches.findIndex((m) => m.from >= head);
+  return at === -1 ? 0 : at;
+}
+
+const findField = StateField.define({
+  create() { return findDefault; },
+  update(val, tr) {
+    let { query, cs, index } = val;
+    let queryChanged = false, indexSet = null;
+    for (const e of tr.effects) {
+      if (e.is(setFindQuery)) { query = e.value.query; cs = e.value.cs; queryChanged = true; }
+      else if (e.is(setFindIndex)) indexSet = e.value;
+    }
+    if (!tr.docChanged && !queryChanged && indexSet === null) return val;
+    let matches = val.matches;
+    if (tr.docChanged || queryChanged) {
+      matches = [];
+      if (query) {
+        const len = tr.state.doc.length;
+        const cur = cs
+          ? new SearchCursor(tr.state.doc, query, 0, len)
+          : new SearchCursor(tr.state.doc, query, 0, len, (s) => s.toLowerCase());
+        while (!cur.next().done) matches.push({ from: cur.value.from, to: cur.value.to });
+      }
+    }
+    if (indexSet !== null) index = indexSet;
+    else if (queryChanged || tr.docChanged) index = pickIndex(matches, tr.state.selection.main.head);
+    if (index >= matches.length) index = matches.length ? 0 : -1;
+    const deco = matches.length
+      ? Decoration.set(matches.map((m, i) =>
+          Decoration.mark({ class: i === index ? "cm-find-match cm-find-current" : "cm-find-match" })
+            .range(m.from, m.to)), true)
+      : Decoration.none;
+    return { query, cs, matches, index, deco };
+  },
+  provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
+});
+
+const findState = () => view.state.field(findField, false) || findDefault;
+
+function updateFindCount() {
+  const fs = findState();
+  if (!findInput.value) findCount.textContent = "";
+  else if (!fs.matches.length) findCount.textContent = "0/0";
+  else findCount.textContent = `${fs.index + 1}/${fs.matches.length}`;
+}
+
+// Move the editor selection onto the active match and center it.
+function revealCurrent() {
+  const fs = findState();
+  const m = fs.matches[fs.index];
+  if (!m) return;
+  view.dispatch({
+    selection: { anchor: m.from, head: m.to },
+    effects: EditorView.scrollIntoView(m.from, { y: "center" }),
+  });
+}
+
+function applyFindQuery(reveal) {
+  view.dispatch({ effects: setFindQuery.of({ query: findInput.value, cs: findCase }) });
+  updateFindCount();
+  if (reveal) revealCurrent();
+}
+
+function gotoMatch(delta) {
+  const fs = findState();
+  if (!fs.matches.length) return;
+  const idx = (fs.index + delta + fs.matches.length) % fs.matches.length;
+  const m = fs.matches[idx];
+  view.dispatch({
+    selection: { anchor: m.from, head: m.to },
+    effects: [setFindIndex.of(idx), EditorView.scrollIntoView(m.from, { y: "center" })],
+  });
+  updateFindCount();
+}
+
+function replaceCurrent() {
+  const fs = findState();
+  const m = fs.matches[fs.index];
+  if (!m) return;
+  view.dispatch({ changes: { from: m.from, to: m.to, insert: findReplaceInput.value } });
+  // the field recomputed matches + repicked the index (after the insert)
+  updateFindCount();
+  revealCurrent();
+}
+
+function replaceAll() {
+  const fs = findState();
+  if (!fs.matches.length) return;
+  const rep = findReplaceInput.value;
+  view.dispatch({ changes: fs.matches.map((m) => ({ from: m.from, to: m.to, insert: rep })) });
+  updateFindCount();
+}
+
+function openFind(replace) {
+  if (!findFieldAdded) {
+    view.dispatch({ effects: StateEffect.appendConfig.of([findField]) });
+    findFieldAdded = true;
+  }
+  findOpen = true;
+  findBar.hidden = false;
+  findBar.classList.toggle("with-replace", !!replace);
+  requestAnimationFrame(() => findBar.classList.add("open"));
+  const sel = view.state.selection.main;
+  if (!sel.empty) findInput.value = view.state.sliceDoc(sel.from, sel.to);
+  findInput.focus();
+  findInput.select();
+  applyFindQuery(true);
+}
+
+function closeFind() {
+  if (!findOpen) return;
+  findOpen = false;
+  findBar.classList.remove("open");
+  setTimeout(() => { findBar.hidden = true; }, 160);
+  if (findFieldAdded) view.dispatch({ effects: setFindQuery.of({ query: "", cs: findCase }) }); // clear highlights
+  view.focus();
+}
+
+findInput.addEventListener("input", () => applyFindQuery(true));
+findInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); }
+  else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+});
+findReplaceInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); e.shiftKey ? replaceAll() : replaceCurrent(); }
+  else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+});
+findCaseBtn.addEventListener("click", () => {
+  findCase = !findCase;
+  findCaseBtn.classList.toggle("on", findCase);
+  applyFindQuery(true);
+  findInput.focus();
+});
+document.getElementById("findPrev").addEventListener("click", () => { gotoMatch(-1); findInput.focus(); });
+document.getElementById("findNext").addEventListener("click", () => { gotoMatch(1); findInput.focus(); });
+document.getElementById("findClose").addEventListener("click", () => closeFind());
+document.getElementById("findReplaceOne").addEventListener("click", () => { replaceCurrent(); findReplaceInput.focus(); });
+document.getElementById("findReplaceAll").addEventListener("click", () => { replaceAll(); findReplaceInput.focus(); });
+
+/* ---- global ripgrep palette (⌃G) ---- */
+const rgPanel = document.getElementById("rgpanel");
+const rgInput = document.getElementById("rgInput");
+const rgResults = document.getElementById("rgResults");
+
+let rgItems = [];
+let rgSel = 0;
+let rgOpen = false;
+let rgError = null;
+let rgTimer = null;
+let rgSeq = 0;
+let rgPreviewSeq = 0;
+let rgReturn = null;   // {path, anchor} restored when the palette is cancelled
+
+function openRg() {
+  if (rgOpen) return;
+  rgOpen = true;
+  rgReturn = currentPath ? { path: currentPath, anchor: view.state.selection.main.head } : null;
+  rgPanel.hidden = false;
+  requestAnimationFrame(() => rgPanel.classList.add("open"));
+  rgInput.value = "";
+  rgItems = []; rgSel = 0; rgError = null;
+  rgResults.innerHTML = "";
+  rgInput.focus();
+}
+
+function closeRg(cancel) {
+  if (!rgOpen) return;
+  rgOpen = false;
+  rgPanel.classList.remove("open");
+  setTimeout(() => { rgPanel.hidden = true; }, 160);
+  if (cancel && rgReturn && rgReturn.path !== currentPath) {
+    const { path, anchor } = rgReturn;
+    openFile(path).then(() => {
+      view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+      view.focus();
+    });
+  } else {
+    view.focus();
+  }
+  rgReturn = null;
+}
+
+async function runRg(q) {
+  const seq = ++rgSeq;
+  if (!q.trim()) { rgItems = []; rgError = null; renderRg(); return; }
+  try {
+    const res = await fetch(`/api/rg?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if (seq !== rgSeq) return;
+    rgItems = data.results || [];
+    rgError = data.error || null;
+    rgSel = 0;
+    renderRg();
+    if (rgItems.length) previewRg(rgItems[0]);
+  } catch {
+    if (seq !== rgSeq) return;
+    rgItems = []; rgError = "search unavailable"; renderRg();
+  }
+}
+
+function renderRg() {
+  if (rgError && !rgItems.length) {
+    rgResults.innerHTML = `<div class="result-empty">${escapeHtml(rgError)}</div>`;
+    return;
+  }
+  if (!rgItems.length) {
+    rgResults.innerHTML = rgInput.value.trim() ? '<div class="result-empty">no matches</div>' : "";
+    return;
+  }
+  rgResults.innerHTML = rgItems.map((r, i) => `
+    <div class="rg-item${i === rgSel ? " active" : ""}" data-i="${i}">
+      <div class="rg-head">
+        <span class="rg-name">${escapeHtml(r.name)}</span>
+        <span class="rg-loc">${escapeHtml(r.dir || "")}:${r.line}</span>
+      </div>
+      <div class="rg-snip">${highlight(r.text, rgInput.value)}</div>
+    </div>`).join("");
+  rgResults.querySelectorAll(".rg-item").forEach((el) => {
+    el.onmousemove = () => { rgSel = +el.dataset.i; paintRg(); previewRg(rgItems[rgSel]); };
+    el.onmousedown = (e) => { e.preventDefault(); rgSel = +el.dataset.i; confirmRg(); };
+  });
+  scrollRgIntoView();
+}
+
+function paintRg() {
+  rgResults.querySelectorAll(".rg-item").forEach((el, i) => el.classList.toggle("active", i === rgSel));
+}
+function scrollRgIntoView() {
+  const el = rgResults.querySelector(".rg-item.active");
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+
+function moveRg(delta) {
+  if (!rgItems.length) return;
+  rgSel = (rgSel + delta + rgItems.length) % rgItems.length;
+  paintRg();
+  scrollRgIntoView();
+  previewRg(rgItems[rgSel]);
+}
+
+// Show the highlighted hit in the editor (the "content area"): open its file
+// if needed, then select the matched text on that line and center it.
+async function previewRg(item) {
+  if (!item) return;
+  const seq = ++rgPreviewSeq;
+  if (item.path !== currentPath) {
+    const ok = await openFile(item.path);
+    if (!ok || seq !== rgPreviewSeq) return;
+  }
+  const ln = Math.min(Math.max(item.line || 1, 1), view.state.doc.lines);
+  const line = view.state.doc.line(ln);
+  let from = line.from, to = line.from;
+  const q = rgInput.value;
+  if (q) {
+    const cur = new SearchCursor(view.state.doc, q, line.from, line.to);   // rg is case-sensitive
+    if (!cur.next().done) { from = cur.value.from; to = cur.value.to; }
+  }
+  view.dispatch({ selection: { anchor: from, head: to }, effects: EditorView.scrollIntoView(from, { y: "center" }) });
+  if (rgOpen) rgInput.focus();   // keep the palette driving
+}
+
+function confirmRg() {
+  rgReturn = null;          // keep the previewed hit; don't restore
+  closeRg(false);
+}
+
+rgInput.addEventListener("input", () => {
+  clearTimeout(rgTimer);
+  const q = rgInput.value;
+  rgTimer = setTimeout(() => runRg(q), 90);
+});
+rgInput.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "j")) { e.preventDefault(); moveRg(1); }
+  else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "k")) { e.preventDefault(); moveRg(-1); }
+  else if (e.key === "Enter") { e.preventDefault(); confirmRg(); }
+  else if (e.key === "Escape") { e.preventDefault(); closeRg(true); }
+});
+
+/* ================================================================== *
+ *  Settings overlay (⌃,) — accent color + focus/edge fade tuning.
+ *  Each control writes a CSS custom property on :root (inline, so it
+ *  beats the stylesheet incl. the dark-mode block) and persists to
+ *  localStorage. Empty value = fall back to the stylesheet default.
+ * ================================================================== */
+
+const settingsPanel = document.getElementById("settings");
+const setTint = document.getElementById("setTint");
+const setDim = document.getElementById("setDim");
+const setFade = document.getElementById("setFade");
+const settingsSwatches = document.getElementById("settingsSwatches");
+
+const SETTINGS_KEY = "jd:settings";
+const SETTINGS_DEFAULTS = { tint: "", dim: "", fadeDist: "" };
+const SWATCHES = ["#007aff", "#0a84ff", "#5e5ce6", "#34c759", "#ff9f0a", "#ff375f", "#bf5af2", "#1a1a1a"];
+let settingsOpen = false;
+let settings = loadSettings();
+
+function loadSettings() {
+  try { return { ...SETTINGS_DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) }; }
+  catch { return { ...SETTINGS_DEFAULTS }; }
+}
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+}
+function applySettings() {
+  const root = document.documentElement.style;
+  // --tint cascades into --selection / links automatically (they're var(--tint))
+  settings.tint ? root.setProperty("--tint", settings.tint) : root.removeProperty("--tint");
+  settings.dim ? root.setProperty("--dim", settings.dim) : root.removeProperty("--dim");
+  settings.fadeDist ? root.setProperty("--fade-dist", settings.fadeDist) : root.removeProperty("--fade-dist");
+}
+
+function hexOf(v) {
+  v = (v || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : "#007aff";
+}
+function syncSettingsControls() {
+  const cs = getComputedStyle(document.documentElement);
+  setTint.value = hexOf(settings.tint || cs.getPropertyValue("--tint"));
+  const dim = parseFloat(settings.dim || cs.getPropertyValue("--dim")) || 0.34;
+  setDim.value = String(Math.round((1 - dim) * 100));            // higher slider = stronger fade
+  const dist = parseFloat(settings.fadeDist || cs.getPropertyValue("--fade-dist") || "30");
+  setFade.value = String(Math.round(dist));
+  settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
+    b.classList.toggle("on", b.dataset.c === setTint.value));
+}
+
+function openSettings() {
+  settingsOpen = true;
+  settingsPanel.hidden = false;
+  syncSettingsControls();
+  requestAnimationFrame(() => settingsPanel.classList.add("open"));
+}
+function closeSettings() {
+  if (!settingsOpen) return;
+  settingsOpen = false;
+  settingsPanel.classList.remove("open");
+  setTimeout(() => { settingsPanel.hidden = true; }, 160);
+  view.focus();
+}
+
+settingsSwatches.innerHTML = SWATCHES.map((c) =>
+  `<button type="button" class="settings-swatch" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("");
+settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
+  b.addEventListener("click", () => {
+    settings.tint = b.dataset.c;
+    applySettings(); saveSettings(); syncSettingsControls();
+  }));
+setTint.addEventListener("input", () => { settings.tint = setTint.value; applySettings(); saveSettings(); syncSettingsControls(); });
+setDim.addEventListener("input", () => { settings.dim = ((100 - +setDim.value) / 100).toFixed(2); applySettings(); saveSettings(); });
+setFade.addEventListener("input", () => { settings.fadeDist = `${+setFade.value}vh`; applySettings(); saveSettings(); });
+document.getElementById("settingsReset").addEventListener("click", () => {
+  settings = { ...SETTINGS_DEFAULTS };
+  applySettings(); saveSettings(); syncSettingsControls();
+});
+
+applySettings();   // restore persisted look on launch
 
 function escapeHtml(text) {
   const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };

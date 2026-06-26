@@ -396,6 +396,14 @@ body,
    cursor (display:none) when it loses focus; we keep the primary caret shown.
    When unfocused there's no blink (that's gated on .cm-focused), so it sits solid. */
 .cm-editor .cm-cursor-primary { display: block !important; }
+.cm-editor:not(.cm-focused) .cm-cursorLayer { animation: none !important; }   /* solid, no blink, when blurred */
+/* Draw the caret BEHIND the glyphs. CM paints the cursor layer ON TOP of the
+   content, so the solid block would cover the character. Lift the content above
+   both CM layers (selection + cursor) so the glyph always renders over the block
+   — the cursor reads as a highlight behind the text, like a terminal. */
+.cm-editor .cm-content { position: relative; z-index: 1; }
+.cm-editor .cm-cursorLayer,
+.cm-editor .cm-selectionLayer { z-index: 0 !important; }
 /* Soft cursor phase. CodeMirror blinks with a hard steps(1) cut; instead the
    cursor only phases slightly — it never fully disappears, easing between full
    and dimmed with a cubic curve. On every move/keystroke CM restarts this
@@ -1006,6 +1014,8 @@ body,
   color: var(--faint);
 }
 .settings-row { display: flex; align-items: center; gap: 12px; }
+/* the smear Trail/Speed sliders only show when Smear is On */
+.settings.smear-off .smear-opt { display: none; }
 .settings-label {
   font-family: var(--font);
   font-size: 13px;

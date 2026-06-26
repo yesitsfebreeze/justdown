@@ -877,6 +877,11 @@ let findOpen = false;
 let cursorBlock = false;
 let smearEnabled = true;
 let cursorBlockW = 0;       // measured glyph width under the caret (block mode)
+// Smear feel, derived from the Trail/Speed settings (set in applySettings). The
+// LEADING corners run at smearLead (front snaps to the destination, Neovide's
+// trail_size 1.0), the TRAILING corners at smearTail — the lower it is, the
+// further the tail lags, so the trail reads longer and lives longer.
+let smearLead = 0.78, smearTail = 0.12;
 
 // CM rewrites .cm-editor's className wholesale on focus/state changes, wiping
 // any class we add there. So the block-cursor flag and its measured width ride
@@ -1079,18 +1084,17 @@ const view = new EditorView({
   // 4 corners (TL, TR, BR, BL) of a cell, in content coords
   const cellCorners = (c) => [[c.x, c.y], [c.x + c.w, c.y], [c.x + c.w, c.y + c.h], [c.x, c.y + c.h]];
 
-  // Neovide model (cursor_trail_size = 1.0): the LEADING corners snap to the new
-  // cell almost immediately while the TRAILING corners lag and catch up over
-  // ~cursor_animation_length, so the cursor shows its front at the destination at
-  // once with a tail smearing back to where it came from — responsive, not a
-  // floaty drifting block. First-order exponential per corner (no velocity) ⇒
-  // critically damped: a clean catch-up with ZERO overshoot/bounce. Each corner's
-  // rate is ranked by how close it sits to the target centre (leading → LEAD,
-  // trailing → tail). Short hops (typing) use a faster tail so the caret never lags.
-  const LEAD = 0.92, TAIL = 0.24, TAIL_SHORT = 0.5, SHORT = 64, EXP = 1.7, STOP = 1.2, MAX_FRAMES = 90;
+  // Neovide's model: each corner is ranked by how well it aligns with the travel
+  // direction (dot product) — the LEADING edge runs fast (smearLead: front snaps
+  // to the destination) and the TRAILING edge slow (smearTail: it lags far behind,
+  // making the long visible trail), then the quad contracts as the tail catches
+  // up. First-order per corner ⇒ critically damped, zero overshoot. Both rates are
+  // live from the Trail/Speed settings; short hops (typing) speed the tail up.
+  const EXP = 1.5, STOP = 1.0, MAX_FRAMES = 140, SHORT = 64, SHORT_BOOST = 2.0;
   let cur = null;        // [[x, y] × 4] live corners, content coords
   let tgt = null;        // [[x, y] × 4] target corners, content coords
-  let tail = TAIL;       // trailing-corner rate for the active move
+  let wlead = smearLead, wtail = smearTail;   // per-move corner rates (boosted for typing)
+  let dir = [1, 0];      // travel direction (unit), set per move
   let raf = null, frame = 0;
 
   const paint = () => {
@@ -1116,14 +1120,16 @@ const view = new EditorView({
 
   const step = () => {
     raf = null;
-    const tcx = (tgt[0][0] + tgt[2][0]) / 2, tcy = (tgt[0][1] + tgt[2][1]) / 2;
-    const d = cur.map((c) => Math.hypot(c[0] - tcx, c[1] - tcy));
-    const min = Math.min(...d), max = Math.max(...d), span = max - min || 1;
+    // Rank corners by how far along the travel direction they sit (projection),
+    // independent of cell shape: the leading edge (max) snaps at wlead, the
+    // trailing edge (min) crawls at wtail — the gap between them IS the smear.
+    const proj = tgt.map((t) => t[0] * dir[0] + t[1] * dir[1]);
+    const pmin = Math.min(...proj), pspan = (Math.max(...proj) - pmin) || 1;
     let moving = 0;
     for (let i = 0; i < 4; i++) {
       const c = cur[i], t = tgt[i];
-      const x = (d[i] - min) / span;                 // 0 = leading corner, 1 = trailing
-      const rate = LEAD + (tail - LEAD) * Math.pow(x, EXP);   // lead snaps, tail trails
+      const s = Math.pow((proj[i] - pmin) / pspan, EXP);   // 0 trailing … 1 leading
+      const rate = wtail + (wlead - wtail) * s;
       c[0] += (t[0] - c[0]) * rate;
       c[1] += (t[1] - c[1]) * rate;
       moving = Math.max(moving, Math.hypot(t[0] - c[0], t[1] - c[1]));
@@ -1145,12 +1151,20 @@ const view = new EditorView({
     const next = cellCorners(cell);
     if (!cur) { cur = next.map((p) => [p[0], p[1]]); tgt = next; return; }  // first paint → snap
     const moved = Math.hypot(next[0][0] - tgt[0][0], next[0][1] - tgt[0][1]);
+    // travel direction: current quad centre → new cell centre
+    const ccx = (cur[0][0] + cur[2][0]) / 2, ccy = (cur[0][1] + cur[2][1]) / 2;
+    const ncx = (next[0][0] + next[2][0]) / 2, ncy = (next[0][1] + next[2][1]) / 2;
+    const dl = Math.hypot(ncx - ccx, ncy - ccy) || 1;
+    dir = [(ncx - ccx) / dl, (ncy - ccy) / dl];
     tgt = next;
     if (moved < 0.5) {                               // no real move; keep the quad synced while idle
       if (raf === null) cur = next.map((p) => [p[0], p[1]]);
       return;
     }
-    tail = moved < SHORT ? TAIL_SHORT : TAIL;         // short hop (typing) catches up faster
+    // short hop (typing) → boost both rates so the caret never visibly lags
+    const boost = moved < SHORT ? SHORT_BOOST : 1;
+    wlead = Math.min(0.98, smearLead * boost);
+    wtail = Math.min(0.98, smearTail * boost);
     editorHost.classList.add("smearing");             // the trailing quad becomes the cursor
     smear.classList.add("show");
     frame = 0;                                        // restart the safety-cap countdown
@@ -1897,6 +1911,8 @@ const setMono = document.getElementById("setMono");
 const settingsSwatches = document.getElementById("settingsSwatches");
 const setCursor = document.getElementById("setCursor");
 const setSmear = document.getElementById("setSmear");
+const setTrail = document.getElementById("setTrail");
+const setSmearSpeed = document.getElementById("setSmearSpeed");
 const setTheme = document.getElementById("setTheme");
 
 // Curated Google Fonts. "" = the bundled iA Writer default (no network load).
@@ -1922,7 +1938,7 @@ function loadGFont(id, name, italic) {
 }
 
 const SETTINGS_KEY = "jd:settings";
-const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: true };
+const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: true, smearTrail: 78, smearSpeed: 62 };
 const SWATCHES = ["#007aff", "#0a84ff", "#5e5ce6", "#34c759", "#ff9f0a", "#ff375f", "#bf5af2", "#1a1a1a"];
 let settingsOpen = false;
 let settings = loadSettings();
@@ -1958,6 +1974,12 @@ function applySettings() {
   smearEnabled = settings.smear !== false;
   editorHost.classList.toggle("cursor-block", cursorBlock);
   if (cursorBlock) updateCursorBlockWidth(); else editorHost.style.removeProperty("--cursor-w");
+  // Trail / Speed → spring rates. Speed sets the front rate (overall pace); Trail
+  // sets how much slower the tail runs (its length). Both 0–100 from the sliders.
+  const speed01 = (settings.smearSpeed ?? 62) / 100;
+  const trail01 = (settings.smearTrail ?? 78) / 100;
+  smearLead = 0.34 + speed01 * 0.62;                 // 0.34 (slow) … 0.96 (snappy front)
+  smearTail = smearLead * (0.55 - trail01 * 0.5);    // ratio 0.55 (short) … 0.05 (long trail)
 }
 
 function hexOf(v) {
@@ -1980,6 +2002,9 @@ function syncSettingsControls() {
   const smearOn = settings.smear !== false;
   setSmear.classList.toggle("on", smearOn);
   setSmear.textContent = smearOn ? "On" : "Off";
+  setTrail.value = String(settings.smearTrail ?? 78);
+  setSmearSpeed.value = String(settings.smearSpeed ?? 62);
+  settingsPanel.classList.toggle("smear-off", !smearOn);   // hide Trail/Speed when smear is off
 }
 
 function openSettings() {
@@ -2015,6 +2040,8 @@ setMono.addEventListener("change", () => { settings.mono = setMono.value; applyS
 setCursor.querySelectorAll("button").forEach((b) =>
   b.addEventListener("click", () => { settings.cursor = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setSmear.addEventListener("click", () => { settings.smear = settings.smear === false; applySettings(); saveSettings(); syncSettingsControls(); });
+setTrail.addEventListener("input", () => { settings.smearTrail = +setTrail.value; applySettings(); saveSettings(); });
+setSmearSpeed.addEventListener("input", () => { settings.smearSpeed = +setSmearSpeed.value; applySettings(); saveSettings(); });
 document.addEventListener("mousedown", (e) => {
   if (settingsOpen && !settingsPanel.contains(e.target)) closeSettings();
 });

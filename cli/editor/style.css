@@ -279,6 +279,31 @@ body {
 /* --- editor host ------------------------------------------------- */
 .editor-host { height: 100vh; }
 
+/* tilt-shift / miniaturizing focus: two bands whose backdrop blur is masked
+   to fade in toward the top & bottom edges, so the line you're writing on
+   stays sharp while the page softens away above and below. Sits above the
+   editor (z 0) but below the wordcount (z 10) and topbar (z 20), so the
+   chrome stays crisp. */
+.focus-blur {
+  position: fixed;
+  left: 0; right: 0;
+  height: 34vh;
+  z-index: 5;
+  pointer-events: none;
+  backdrop-filter: blur(2.5px);
+  -webkit-backdrop-filter: blur(2.5px);
+}
+.focus-blur.top {
+  top: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+}
+.focus-blur.bottom {
+  bottom: 0;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent);
+  mask-image: linear-gradient(to top, #000, transparent);
+}
+
 /* file-open entrance — content gently fades + eases in when you switch
    files, so opening a doc feels like turning a page rather than a hard cut. */
 @keyframes contentIn {

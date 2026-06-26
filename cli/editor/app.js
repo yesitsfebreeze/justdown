@@ -1378,7 +1378,7 @@ function exitSearch() {
   // reopen within the window clears .closing in renderResults and aborts this).
   resultsEl.classList.remove("stagger");
   resultsEl.classList.add("closing");
-  setTimeout(() => { if (!searching) resultsEl.hidden = true; }, 160);
+  setTimeout(() => { if (!searching) resultsEl.hidden = true; }, 280);
   showTitle();
 }
 
@@ -1547,7 +1547,7 @@ function showConfirm() {
 }
 function hideConfirm() {
   confirmEl.classList.remove("open");
-  setTimeout(() => { confirmEl.hidden = true; }, 160);
+  setTimeout(() => { confirmEl.hidden = true; }, 280);
   view.focus();
 }
 async function deleteCurrentFile() {
@@ -1716,7 +1716,7 @@ function closeFind() {
   if (!findOpen) return;
   findOpen = false;
   findBar.classList.remove("open");
-  setTimeout(() => { findBar.hidden = true; }, 160);
+  setTimeout(() => { findBar.hidden = true; }, 280);
   if (findFieldAdded) view.dispatch({ effects: setFindQuery.of({ query: "", cs: findCase }) }); // clear highlights
   view.focus();
 }
@@ -1772,7 +1772,7 @@ function closeRg(cancel) {
   if (!rgOpen) return;
   rgOpen = false;
   rgPanel.classList.remove("open");
-  setTimeout(() => { rgPanel.hidden = true; }, 160);
+  setTimeout(() => { rgPanel.hidden = true; }, 280);
   if (cancel && rgReturn && rgReturn.path !== currentPath) {
     const { path, anchor } = rgReturn;
     openFile(path).then(() => {
@@ -1992,7 +1992,7 @@ function closeSettings() {
   if (!settingsOpen) return;
   settingsOpen = false;
   settingsPanel.classList.remove("open");
-  setTimeout(() => { settingsPanel.hidden = true; }, 160);
+  setTimeout(() => { settingsPanel.hidden = true; }, 280);
   view.focus();
 }
 

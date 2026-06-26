@@ -175,7 +175,9 @@ body,
   transform: scaleX(var(--read, 0));
   transform-origin: left center;
   will-change: transform;
-  transition: transform 0.12s linear;
+  /* eased + a slight trailing lag so the fill glides to catch the scroll
+     position instead of snapping — gives the bar a sense of momentum. */
+  transition: transform 0.5s var(--ease) 0.04s;
 }
 
 .search-key {

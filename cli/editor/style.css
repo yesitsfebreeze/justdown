@@ -378,6 +378,35 @@ body {
 }
 .cm-editor .cm-cursor.cm-flash { animation: cm-caret-flash 0.5s var(--ease); }
 
+/* Block cursor (⌃, settings): widen the caret into a translucent block sized to
+   the glyph under it (--cursor-w, measured live for the proportional font). The
+   smear above reads the same width, so a moving block streaks like Neovide. */
+.cm-editor.cursor-block .cm-cursor {
+  width: var(--cursor-w, 0.6em);
+  margin-left: 0;
+  background: color-mix(in srgb, var(--tint) 32%, transparent);
+}
+.settings-seg { display: inline-flex; margin-left: auto; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.settings-seg button {
+  border: none; background: transparent; color: var(--muted);
+  font-family: var(--font-mono); font-size: 12px; padding: 4px 11px; cursor: pointer;
+  transition: background 0.1s var(--ease), color 0.1s var(--ease), scale 0.1s var(--ease);
+}
+.settings-seg button + button { border-left: 1px solid var(--rule); }
+.settings-seg button:not(.on):hover { background: var(--code-bg); color: var(--text); }
+.settings-seg button:active { scale: 0.96; }   /* tactile press, matching Reset/swatches */
+.settings-seg button.on { background: var(--tint); color: var(--pill-text); }
+.settings-toggle {
+  margin-left: auto;
+  border: 1px solid var(--rule); border-radius: 8px; background: transparent;
+  color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+  padding: 4px 14px; cursor: pointer; min-width: 54px;
+  transition: background 0.1s var(--ease), color 0.1s var(--ease), border-color 0.1s var(--ease), scale 0.1s var(--ease);
+}
+.settings-toggle:not(.on):hover { background: var(--code-bg); color: var(--text); }
+.settings-toggle:active { scale: 0.96; }
+.settings-toggle.on { background: var(--tint); color: var(--pill-text); border-color: var(--tint); }
+
 /* Neovide-style cursor smear. A viewport-covering layer painted in the accent
    tint and clipped (via JS-driven clip-path) to the convex hull spanning the
    caret's old → new position, so a moving cursor leaves a brief streak that
@@ -416,7 +445,7 @@ body {
 .glass {
   position: fixed;
   left: 0; right: 0;
-  height: 30vh;
+  height: var(--fade-dist, 30vh);   /* driven by the Settings "Edge fade" slider */
   z-index: 5;
   pointer-events: none;
 }
@@ -817,51 +846,56 @@ body {
 .cm-find-current { background: color-mix(in srgb, var(--tint) 40%, transparent); }
 
 /* --- global ripgrep palette (⌃G) --------------------------------- *
- *  Centered command palette; the results list shows ~5 rows then
- *  scrolls. The selected hit previews live in the editor below. */
+ *  Mirrors the find bar: a compact panel pinned top-right, with the
+ *  results as a dropdown directly below the input (~5 rows, then scrolls).
+ *  The selected hit previews live in the editor. */
 .rgpanel {
   position: fixed;
-  top: 12vh; left: 50%;
-  transform: translate(-50%, -8px);
-  width: min(42rem, calc(100vw - 48px));
-  z-index: 50;
+  top: 72px; right: 28px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 340px;
+  max-width: calc(100vw - 56px);
+  padding: 8px;
   background: var(--panel);
-  border-radius: 16px;
+  border-radius: 15px;          /* concentric: 7px input radius + 8px padding */
   box-shadow: 0 0 0 1px var(--rule), var(--shadow);
   opacity: 0;
+  transform: translateY(-6px);
   transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
-  overflow: hidden;
 }
-.rgpanel.open { opacity: 1; transform: translate(-50%, 0); }
+.rgpanel.open { opacity: 1; transform: translateY(0); }
 .rgpanel[hidden] { display: none; }
-.rg-input {
+.rgpanel input {
   width: 100%;
   border: none;
   outline: none;
-  background: transparent;
+  background: var(--code-bg);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 16px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  padding: 6px 9px;
+  border-radius: 7px;
   caret-color: var(--tint);
 }
-.rg-input::placeholder { color: var(--faint); }
-.rg-results { max-height: calc(5 * 56px); overflow-y: auto; padding: 6px; }
+.rgpanel input::placeholder { color: var(--faint); }
+.rg-results { max-height: calc(5 * 48px); overflow-y: auto; }
 .rg-results:empty { display: none; }
 .rg-item {
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 6px 9px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.12s var(--ease), scale 0.12s var(--ease);
 }
-.rg-item:active { scale: 0.96; }   /* tactile press, matching .result-item */
+.rg-item:active { scale: 0.97; }   /* tactile press, matching .result-item */
 .rg-item.active { background: var(--variable-bg); }
-.rg-head { display: flex; align-items: baseline; gap: 10px; }
-.rg-name { font-family: var(--font); font-size: 14px; color: var(--text); white-space: nowrap; }
+.rg-head { display: flex; align-items: baseline; gap: 8px; }
+.rg-name { font-family: var(--font); font-size: 13px; color: var(--text); white-space: nowrap; }
 .rg-loc {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--muted);
   margin-left: auto;
   overflow: hidden;
@@ -870,18 +904,217 @@ body {
 }
 .rg-snip {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 .rg-snip mark.pi-hit {
   background: color-mix(in srgb, var(--tint) 22%, transparent);
   color: var(--text);
   border-radius: 3px;
 }
+
+/* --- settings popover (⌃,) — accent + fade controls ------------------ *
+ *  Centered card; fades + eases up on open, matching the other overlays
+ *  (JS toggles .open / .hidden with the same 160ms window). */
+.settings {
+  position: fixed;
+  top: 50%; left: 50%;
+  z-index: 50;
+  width: min(21rem, calc(100vw - 48px));
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px var(--rule), var(--shadow);   /* hairline ring, no border */
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 6px));        /* enters from just below */
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+}
+.settings.open { opacity: 1; transform: translate(-50%, -50%); }
+.settings[hidden] { display: none; }
+
+.settings-title {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.settings-row { display: flex; align-items: center; gap: 12px; }
+.settings-label {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  min-width: 5.5em;
+}
+
+/* preset accent swatches — round chips with an inset outline so light chips
+   read on the panel and the near-black chip reads in dark mode. */
+.settings-swatches { display: flex; align-items: center; gap: 7px; margin-right: auto; }
+.settings-swatch {
+  width: 20px; height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  transition: scale 0.12s var(--ease), box-shadow 0.16s var(--ease);
+}
+.settings-swatch:active { scale: 0.96; }   /* tactile press */
+/* selected → an offset ring in the panel color then the accent, like macOS */
+.settings-swatch.on {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+              0 0 0 2px var(--panel),
+              0 0 0 3.5px var(--tint);
+}
+
+/* native color well — a small concentric chip (7px well + 6px inner swatch) */
+.settings input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;            /* drop the native bevel so the inset ring + radius read cleanly */
+  width: 26px; height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.settings input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.settings input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+
+/* sliders — slim track in the rule color, accent thumb */
+.settings input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rule);
+  cursor: pointer;
+}
+.settings input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 999px;
+  background: var(--tint);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: scale 0.12s var(--ease);
+}
+.settings input[type="range"]:active::-webkit-slider-thumb { scale: 1.12; }   /* grow under the grab */
+
+/* font pickers — flat select with a custom chevron (no native bevel) */
+.settings-select {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  background-color: var(--code-bg);
+  border: none;
+  border-radius: 8px;
+  padding: 7px 30px 7px 11px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  transition: background-color 0.12s var(--ease);
+}
+.settings-select:hover { background-color: var(--variable-bg); }
+.settings-select:focus { outline: none; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tint) 35%, transparent); }
+
+.settings-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+}
+.settings-reset {
+  border: none;
+  background: var(--code-bg);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease), scale 0.12s var(--ease);
+}
+.settings-reset:hover { background: var(--variable-bg); color: var(--text); }
+.settings-reset:active { scale: 0.96; }
+.settings-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--faint);
+}
+
+/* --- footer: whisper-quiet GitHub + license, centered at the very bottom --- */
+.footer {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 10;                  /* above the bottom glass (z5), below the chrome */
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--faint);
+  pointer-events: none;        /* never block the editor underneath… */
+  user-select: none;
+}
+/* a soft bg fade behind the footer so the shortcuts stay readable over document
+   text — mirrors the topbar's gradient, denser at the very bottom edge. */
+.footer::before {
+  content: "";
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 56px;
+  background: linear-gradient(to top, var(--bg) 46%, transparent);
+  pointer-events: none;
+  z-index: -1;                 /* behind the footer's own text, above editor + glass */
+}
+.footer-sep { opacity: 0.6; }
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  text-decoration: none;
+  pointer-events: auto;        /* …only the links are clickable */
+  opacity: 0.55;
+  transition: opacity 0.16s var(--ease), color 0.16s var(--ease);
+}
+.footer-link:hover { opacity: 1; color: var(--tint); }
+.footer-gh { display: block; }   /* fill:currentColor → inherits the link color */
+
+/* keyboard-shortcut legend — informational kbd chips beside the github link */
+.footer-legend { display: flex; align-items: center; gap: 11px; opacity: 0.85; }
+.khint { display: inline-flex; align-items: center; gap: 4px; }
+.footer-legend kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+/* on narrow viewports drop the legend so the footer never overruns the page */
+@media (max-width: 720px) { .footer-legend, .footer-legend + .footer-sep { display: none; } }
 
 /* --- scrollbars -------------------------------------------------- */
 ::-webkit-scrollbar { width: 9px; height: 9px; }

@@ -60,11 +60,45 @@
 <span class="settings-label">Edge fade</span>
 <input type="range" id="setFade" min="0" max="45" step="1" title="How far the top/bottom blur reaches">
 </div>
+<div class="settings-row">
+<span class="settings-label">Font</span>
+<select id="setFont" class="settings-select" title="Body / prose font (Google Fonts)"></select>
+</div>
+<div class="settings-row">
+<span class="settings-label">Mono</span>
+<select id="setMono" class="settings-select" title="Monospace font for code, tables, frontmatter (Google Fonts)"></select>
+</div>
+<div class="settings-row">
+<span class="settings-label">Cursor</span>
+<span class="settings-seg" id="setCursor">
+<button type="button" data-v="line">Line</button>
+<button type="button" data-v="block">Block</button>
+</span>
+</div>
+<div class="settings-row">
+<span class="settings-label">Smear</span>
+<button type="button" class="settings-toggle" id="setSmear">On</button>
+</div>
 <div class="settings-foot">
 <button type="button" id="settingsReset" class="settings-reset">Reset</button>
 <span class="settings-hint">⌃,  ·  Esc</span>
 </div>
 </div>
+<footer class="footer">
+<span class="footer-legend" aria-hidden="true">
+<span class="khint"><kbd>⌘K</kbd>Search</span>
+<span class="khint"><kbd>⌘F</kbd>Find</span>
+<span class="khint"><kbd>⌘G</kbd>Grep</span>
+<span class="khint"><kbd>⌘S</kbd>Save</span>
+<span class="khint"><kbd>⌃,</kbd>Settings</span>
+</span>
+<span class="footer-sep">·</span>
+<a class="footer-link" href="https://github.com/yesitsfebreeze/justdown" target="_blank" rel="noopener" title="jd on GitHub">
+<svg class="footer-gh" viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>
+jd</a>
+<span class="footer-sep">·</span>
+<a class="footer-link" href="https://github.com/yesitsfebreeze/justdown/blob/main/LICENSE" target="_blank" rel="noopener">MIT</a>
+</footer>
 <script type="module" src="app.js"></script>
 </body>
 </html>

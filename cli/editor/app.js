@@ -846,6 +846,12 @@ let flashRaf = null;
 // Hoisted: the update listener reads findOpen during the view's initial
 // construction update, so it must be initialized before the view is built.
 let findOpen = false;
+// Cursor look + smear, driven by the settings overlay (applySettings sets them).
+// Hoisted for the same reason as findOpen — the update listener reads them
+// during the view's initial construction update.
+let cursorBlock = false;
+let smearEnabled = true;
+let cursorBlockW = 0;       // measured glyph width under the caret (block mode)
 
 const view = new EditorView({
   parent: document.getElementById("editor"),
@@ -884,7 +890,7 @@ const view = new EditorView({
         },
       }),
       EditorView.updateListener.of((u) => {
-        if (u.selectionSet || u.docChanged) { scheduleCenter(); scheduleFlash(); smearMove(); }
+        if (u.selectionSet || u.docChanged) { scheduleCenter(); scheduleFlash(); smearMove(); updateCursorBlockWidth(); }
         if (u.docChanged || u.geometryChanged) updateRead();
         if (findOpen && u.docChanged) updateFindCount();   // field recomputed; sync the n/m counter
         if (!u.docChanged) return;
@@ -999,7 +1005,8 @@ const view = new EditorView({
     return {
       x: c.left - b.left + view.scrollDOM.scrollLeft,
       y: c.top - b.top + view.scrollDOM.scrollTop,
-      w: 2, h: c.bottom - c.top,
+      w: cursorBlock ? Math.max(cursorBlockW || view.defaultCharacterWidth, 3) : 2,
+      h: c.bottom - c.top,
     };
   };
   // Project a content-coord rect back into viewport space for painting.
@@ -1050,7 +1057,7 @@ const view = new EditorView({
 
   smearMove = () => {
     const r = caretRect();
-    if (!r) { layer.classList.remove("on"); to = null; if (raf) { cancelAnimationFrame(raf); raf = null; } return; }
+    if (!r || !smearEnabled) { layer.classList.remove("on"); to = r; if (raf) { cancelAnimationFrame(raf); raf = null; } return; }
     const jump = to ? Math.hypot(r.x - to.x, r.y - to.y) : 0;
     if (!to || jump < 0.5) { to = r; return; }     // first paint / no real move → just snap
     from = to;                                     // streak starts where the caret just was
@@ -1066,6 +1073,21 @@ const view = new EditorView({
     if (raf === null) raf = requestAnimationFrame(tick);
   };
 })();
+
+/* Block cursor: when enabled, the native caret is widened into a block sized to
+   the glyph under it — measured live, since the prose font is proportional. The
+   smear above reads the same width, so a moving block streaks like Neovide. */
+function measureGlyphWidth(pos) {
+  const a = view.coordsAtPos(pos);
+  const b = view.coordsAtPos(pos + 1);
+  if (a && b && Math.abs(b.top - a.top) < 1 && b.left > a.left) return b.left - a.left;
+  return view.defaultCharacterWidth;
+}
+function updateCursorBlockWidth() {
+  if (!cursorBlock) return;
+  cursorBlockW = measureGlyphWidth(view.state.selection.main.head);
+  view.dom.style.setProperty("--cursor-w", `${cursorBlockW}px`);
+}
 
 /* Reading progress — fill the searchbar's bottom border (--read, 0–1) by how
    far you've scrolled through the document. Coalesced into a rAF off scroll. */
@@ -1781,10 +1803,36 @@ const settingsPanel = document.getElementById("settings");
 const setTint = document.getElementById("setTint");
 const setDim = document.getElementById("setDim");
 const setFade = document.getElementById("setFade");
+const setFont = document.getElementById("setFont");
+const setMono = document.getElementById("setMono");
 const settingsSwatches = document.getElementById("settingsSwatches");
+const setCursor = document.getElementById("setCursor");
+const setSmear = document.getElementById("setSmear");
+
+// Curated Google Fonts. "" = the bundled iA Writer default (no network load).
+// Fallback chains mirror the stylesheet's --font / --font-mono.
+const FONT_FALLBACK = 'ui-rounded, "Helvetica Neue", -apple-system, sans-serif';
+const MONO_FALLBACK = 'ui-monospace, "SF Mono", Menlo, monospace';
+const BODY_FONTS = ["", "Inter", "Work Sans", "Lora", "Source Serif 4", "Newsreader",
+                    "Spectral", "Literata", "EB Garamond"];
+const MONO_FONTS = ["", "JetBrains Mono", "IBM Plex Mono", "Space Mono", "Roboto Mono", "Fira Code"];
+
+// Inject (or update / remove) a Google Fonts <link> for the chosen family.
+function loadGFont(id, name, italic) {
+  let link = document.getElementById(id);
+  if (!name) { if (link) link.remove(); return; }
+  if (!link) {
+    link = document.createElement("link");
+    link.id = id; link.rel = "stylesheet";
+    document.head.appendChild(link);
+  }
+  const fam = name.replace(/ /g, "+");
+  const axis = italic ? ":ital,wght@0,400;0,700;1,400" : ":wght@400;700";
+  link.href = `https://fonts.googleapis.com/css2?family=${fam}${axis}&display=swap`;
+}
 
 const SETTINGS_KEY = "jd:settings";
-const SETTINGS_DEFAULTS = { tint: "", dim: "", fadeDist: "" };
+const SETTINGS_DEFAULTS = { tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: true };
 const SWATCHES = ["#007aff", "#0a84ff", "#5e5ce6", "#34c759", "#ff9f0a", "#ff375f", "#bf5af2", "#1a1a1a"];
 let settingsOpen = false;
 let settings = loadSettings();
@@ -1802,6 +1850,24 @@ function applySettings() {
   settings.tint ? root.setProperty("--tint", settings.tint) : root.removeProperty("--tint");
   settings.dim ? root.setProperty("--dim", settings.dim) : root.removeProperty("--dim");
   settings.fadeDist ? root.setProperty("--fade-dist", settings.fadeDist) : root.removeProperty("--fade-dist");
+  // fonts: load the webfont on demand, then point the CSS var at it (with the
+  // stylesheet's fallback chain); empty → drop the link and the override.
+  loadGFont("gfont-body", settings.font, true);
+  loadGFont("gfont-mono", settings.mono, false);
+  settings.font ? root.setProperty("--font", `"${settings.font}", ${FONT_FALLBACK}`) : root.removeProperty("--font");
+  settings.mono ? root.setProperty("--font-mono", `"${settings.mono}", ${MONO_FALLBACK}`) : root.removeProperty("--font-mono");
+  // preview: render each picker's own label in the family it selects (the body
+  // picker in the body font, the mono picker in mono); empty → CSS default.
+  setFont.style.fontFamily = settings.font ? `"${settings.font}", ${FONT_FALLBACK}` : "";
+  setMono.style.fontFamily = settings.mono ? `"${settings.mono}", ${MONO_FALLBACK}` : "";
+  // a swapped-in webfont changes glyph metrics — re-measure so the caret and
+  // typewriter scroll stay aligned (CM caches character width otherwise).
+  document.fonts?.ready.then(() => view.requestMeasure());
+  // cursor look + smear
+  cursorBlock = settings.cursor !== "line";
+  smearEnabled = settings.smear !== false;
+  view.dom.classList.toggle("cursor-block", cursorBlock);
+  if (cursorBlock) updateCursorBlockWidth(); else view.dom.style.removeProperty("--cursor-w");
 }
 
 function hexOf(v) {
@@ -1815,8 +1881,15 @@ function syncSettingsControls() {
   setDim.value = String(Math.round((1 - dim) * 100));            // higher slider = stronger fade
   const dist = parseFloat(settings.fadeDist || cs.getPropertyValue("--fade-dist") || "30");
   setFade.value = String(Math.round(dist));
+  setFont.value = settings.font || "";
+  setMono.value = settings.mono || "";
   settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
     b.classList.toggle("on", b.dataset.c === setTint.value));
+  const curMode = settings.cursor === "line" ? "line" : "block";
+  setCursor.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === curMode));
+  const smearOn = settings.smear !== false;
+  setSmear.classList.toggle("on", smearOn);
+  setSmear.textContent = smearOn ? "On" : "Off";
 }
 
 function openSettings() {
@@ -1840,9 +1913,18 @@ settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
     settings.tint = b.dataset.c;
     applySettings(); saveSettings(); syncSettingsControls();
   }));
+const fontOption = (f) => `<option value="${f}">${f || "iA Writer (default)"}</option>`;
+setFont.innerHTML = BODY_FONTS.map(fontOption).join("");
+setMono.innerHTML = MONO_FONTS.map(fontOption).join("");
+
 setTint.addEventListener("input", () => { settings.tint = setTint.value; applySettings(); saveSettings(); syncSettingsControls(); });
 setDim.addEventListener("input", () => { settings.dim = ((100 - +setDim.value) / 100).toFixed(2); applySettings(); saveSettings(); });
 setFade.addEventListener("input", () => { settings.fadeDist = `${+setFade.value}vh`; applySettings(); saveSettings(); });
+setFont.addEventListener("change", () => { settings.font = setFont.value; applySettings(); saveSettings(); });
+setMono.addEventListener("change", () => { settings.mono = setMono.value; applySettings(); saveSettings(); });
+setCursor.querySelectorAll("button").forEach((b) =>
+  b.addEventListener("click", () => { settings.cursor = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
+setSmear.addEventListener("click", () => { settings.smear = settings.smear === false; applySettings(); saveSettings(); syncSettingsControls(); });
 document.getElementById("settingsReset").addEventListener("click", () => {
   settings = { ...SETTINGS_DEFAULTS };
   applySettings(); saveSettings(); syncSettingsControls();

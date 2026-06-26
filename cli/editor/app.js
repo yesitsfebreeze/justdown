@@ -119,6 +119,28 @@ function activeBlockLines(state) {
   return set;
 }
 
+// Range from the caret to the end of the deepest block it sits in — so the
+// text *after* the cursor in the active block fades like the rest, leaving
+// only what you've written so far fully lit. Only when there's a bare caret
+// (no selection); returns null otherwise.
+function caretBlockTail(state) {
+  const r = state.selection.main;
+  if (!r.empty) return null;
+  const tree = syntaxTree(state);
+  let block = null;
+  for (const side of [-1, 1]) {
+    for (let n = tree.resolveInner(r.head, side); n; n = n.parent) {
+      if (BLOCK_NODES.has(n.name)) {
+        if (!block || (n.to - n.from) < (block.to - block.from)) block = n;
+        break;
+      }
+    }
+  }
+  if (!block) return null;
+  const end = Math.min(block.to, state.doc.length);
+  return end > r.head ? { from: r.head, to: end } : null;
+}
+
 // True when any selection range touches [from, to] (inclusive). Drives
 // per-token markdown reveal: a span shows its raw markers only when the
 // cursor is actually inside (or right at the edge of) that span — every
@@ -643,7 +665,10 @@ function buildDecorations(view) {
   const dimOn = activeBlockLines(state);        // deepest block — drives focus dim
   const fm = frontmatter(state);
   const tableSkip = inactiveTableLines(state); // lines rendered as <table> widgets
+  const tail = caretBlockTail(state);          // dim the active block past the caret
   const decos = [];
+
+  if (tail) decos.push(Decoration.mark({ class: "cm-dim-after" }).range(tail.from, tail.to));
 
   for (const { from, to } of view.visibleRanges) {
     eachLine(state, from, to, (line) => {
@@ -930,6 +955,40 @@ const view = new EditorView({
   let raf = null;
   const max = () => scroller.scrollHeight - scroller.clientHeight;
   const clamp = (v) => Math.max(0, Math.min(max(), v));
+
+  // Left mouse held = the user is drag-selecting. Typewriter follow is suspended
+  // for the duration (see centerCaret), but when the cursor nears a viewport edge
+  // we run a slow edge-autoscroll so the content under the growing selection stays
+  // visible. Keyboard selection still follows the caret normally.
+  let dragging = false, dragX = 0, dragY = 0, dragRaf = null;
+  const EDGE = 72, EDGE_MAX = 9;            // edge band (px) and top speed (px/frame)
+  function edgeScroll() {
+    if (!dragging) { dragRaf = null; return; }
+    const rect = scroller.getBoundingClientRect();
+    let f = 0;                                          // -1..1, signed depth into the edge band
+    if (dragY < rect.top + EDGE)         f = -(rect.top + EDGE - dragY) / EDGE;
+    else if (dragY > rect.bottom - EDGE) f =  (dragY - (rect.bottom - EDGE)) / EDGE;
+    if (f !== 0) {
+      const next = clamp(scroller.scrollTop + Math.max(-1, Math.min(1, f)) * EDGE_MAX);
+      if (next !== scroller.scrollTop) {
+        scroller.scrollTop = next; target = next;       // keep typewriter target synced
+        // mouse is stationary at the edge, so CM fires no pointer event — extend
+        // the selection ourselves to whatever now sits under the cursor.
+        const pos = view.posAtCoords({ x: dragX, y: dragY });
+        if (pos != null && pos !== view.state.selection.main.head)
+          view.dispatch({ selection: { anchor: view.state.selection.main.anchor, head: pos } });
+      }
+    }
+    dragRaf = requestAnimationFrame(edgeScroll);
+  }
+  scroller.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    dragging = true; dragX = e.clientX; dragY = e.clientY;
+    if (dragRaf === null) dragRaf = requestAnimationFrame(edgeScroll);
+  });
+  addEventListener("mousemove", (e) => { if (dragging) { dragX = e.clientX; dragY = e.clientY; } });
+  addEventListener("mouseup", (e) => { if (e.button === 0) dragging = false; });
+
   function tick() {
     const cur = scroller.scrollTop;
     const next = cur + (target - cur) * 0.18;         // lerp → momentum glide
@@ -954,11 +1013,11 @@ const view = new EditorView({
 
   // typewriter: keep the caret's line vertically centered on cursor moves
   centerCaret = (animated) => {
-    if (!view.state.selection.main.empty) {
-      // A range selection is active — don't recenter. Crucially, also abort any
-      // in-flight momentum glide (e.g. the recenter kicked off by the initial
-      // click) and resync the target, so the typewriter loop stops fighting the
-      // drag and native edge-autoscroll can extend the selection freely.
+    if (dragging) {
+      // Mouse drag-selecting — don't recenter; the edge-autoscroll loop owns
+      // scrolling here. Abort any in-flight momentum glide (e.g. the recenter
+      // kicked off by the initial click) and resync the target so the typewriter
+      // loop stops fighting the drag.
       if (raf !== null) { cancelAnimationFrame(raf); raf = null; }
       target = scroller.scrollTop;
       return;
@@ -1877,10 +1936,6 @@ function saveSettings() {
 }
 function applySettings() {
   const root = document.documentElement.style;
-  // theme: "auto" follows the OS (CSS media query handles it); "light"/"dark"
-  // force the palette via a class on <html>. The crossfade is CSS transitions.
-  document.documentElement.classList.toggle("theme-light", settings.theme === "light");
-  document.documentElement.classList.toggle("theme-dark", settings.theme === "dark");
   // --tint cascades into --selection / links automatically (they're var(--tint))
   settings.tint ? root.setProperty("--tint", settings.tint) : root.removeProperty("--tint");
   settings.dim ? root.setProperty("--dim", settings.dim) : root.removeProperty("--dim");
@@ -1920,8 +1975,6 @@ function syncSettingsControls() {
   setMono.value = settings.mono || "";
   settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
     b.classList.toggle("on", b.dataset.c === setTint.value));
-  const theme = settings.theme || "auto";
-  setTheme.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === theme));
   const curMode = settings.cursor === "line" ? "line" : "block";
   setCursor.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === curMode));
   const smearOn = settings.smear !== false;
@@ -1959,11 +2012,12 @@ setDim.addEventListener("input", () => { settings.dim = ((100 - +setDim.value) /
 setFade.addEventListener("input", () => { settings.fadeDist = `${+setFade.value}vh`; applySettings(); saveSettings(); });
 setFont.addEventListener("change", () => { settings.font = setFont.value; applySettings(); saveSettings(); });
 setMono.addEventListener("change", () => { settings.mono = setMono.value; applySettings(); saveSettings(); });
-setTheme.querySelectorAll("button").forEach((b) =>
-  b.addEventListener("click", () => { settings.theme = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setCursor.querySelectorAll("button").forEach((b) =>
   b.addEventListener("click", () => { settings.cursor = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setSmear.addEventListener("click", () => { settings.smear = settings.smear === false; applySettings(); saveSettings(); syncSettingsControls(); });
+document.addEventListener("mousedown", (e) => {
+  if (settingsOpen && !settingsPanel.contains(e.target)) closeSettings();
+});
 document.getElementById("settingsReset").addEventListener("click", () => {
   settings = { ...SETTINGS_DEFAULTS };
   applySettings(); saveSettings(); syncSettingsControls();

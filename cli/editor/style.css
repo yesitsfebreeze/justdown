@@ -41,6 +41,7 @@
   --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
   --dim: 0.34;                          /* focus mode: opacity of inactive text */
   --rule: rgba(0, 0, 0, 0.07);
+  --swatch-ring: rgba(0, 0, 0, 0.18);   /* swatch edge — pure black in light */
   --code-bg: rgba(0, 0, 0, 0.045);
   --overlay: rgba(20, 20, 22, 0.28);
   --panel: #ffffff;
@@ -51,8 +52,33 @@
   --font-mono: "iA Writer Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
+/* Dark palette. Two entry points, identical values: forced by .theme-dark on
+   <html> (the manual Theme toggle), or auto-followed from the OS when no explicit
+   light/dark choice is set (so first paint never flashes). Keep the two blocks
+   in sync. The crossfade comes from the transitions on the surfaces below. */
+:root.theme-dark {
+  --bg: #17171a;
+  --text: #f4f4f6;
+  --faint: #7c7c86;
+  --muted: #a6a6b0;
+  --accent: #f4f4f6;
+  --code-pill: #f4f4f6;
+  --var-pill: #a6a6b0;
+  --pill-text: #0e0e10;
+  --variable-bg: rgba(255, 255, 255, 0.10);
+  --variable-fg: #d0d0d6;
+  --tint: #0a84ff;
+  --selection: color-mix(in srgb, var(--tint) 30%, transparent);
+  --dim: 0.40;
+  --rule: rgba(255, 255, 255, 0.10);
+  --swatch-ring: rgba(255, 255, 255, 0.22);
+  --code-bg: rgba(255, 255, 255, 0.05);
+  --overlay: rgba(0, 0, 0, 0.55);
+  --panel: #222226;
+  --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.65);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.theme-light):not(.theme-dark) {
     --bg: #17171a;          /* lifted off pure black — softer, brighter */
     --text: #f4f4f6;        /* brighter body text */
     --faint: #7c7c86;       /* readable syntax markers / fences */
@@ -67,6 +93,7 @@
     --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
     --dim: 0.40;                                  /* a touch higher so dark dim stays legible */
     --rule: rgba(255, 255, 255, 0.10);
+    --swatch-ring: rgba(255, 255, 255, 0.22);   /* swatch edge — pure white in dark (lifts the near-black chip) */
     --code-bg: rgba(255, 255, 255, 0.05);
     --overlay: rgba(0, 0, 0, 0.55);
     --panel: #222226;
@@ -84,6 +111,16 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+}
+
+/* Smooth theme crossfade. Custom properties flip instantly, so the fade has to
+   live on the concrete colour properties of the surfaces that consume them.
+   Scoped to surfaces that have NO transition of their own (so nothing existing
+   is clobbered); body carries the page background, the cm-* layers carry the
+   prose colour. Panels with their own transitions opt in individually below. */
+body,
+.cm-editor, .cm-scroller, .cm-content, .cm-line {
+  transition: background-color 0.4s var(--ease), color 0.4s var(--ease);
 }
 
 /* --- top search line (also the file title) ----------------------- */
@@ -307,7 +344,9 @@ body {
 }
 .editor-host.just-loaded .cm-content { animation: contentIn 0.42s var(--ease) both; }
 
-.cm-editor { height: 100%; background: var(--bg); }
+/* transparent so the smear layer (z-index:-1, on body) shows THROUGH the editor
+   from behind the glyphs; the page background colour comes from <body>. */
+.cm-editor { height: 100%; background: transparent; }
 .cm-editor.cm-focused { outline: none; }
 
 /* Prose is set in the proportional iA Writer Quattro — sleeker and far more
@@ -351,6 +390,18 @@ body {
 .cm-editor .cm-cursor {
   transition: top 0.12s var(--ease), height 0.12s var(--ease);
 }
+/* Keep the caret visible when the editor is blurred / tabbed out — CM hides the
+   cursor (display:none) when it loses focus; keep the primary caret shown and
+   stop the blink so it sits perfectly solid while unfocused. */
+.cm-editor .cm-cursor-primary { display: block !important; }
+.cm-editor:not(.cm-focused) .cm-cursorLayer { animation: none !important; }
+/* Draw the caret BEHIND the glyphs. CM paints the cursor layer ON TOP of the
+   content, so a solid block would hide the character under it. Lift the content
+   above both CM layers (selection + cursor) so the glyph always renders over the
+   block — the cursor reads as a highlight behind the text, like a terminal. */
+.cm-editor .cm-content { position: relative; z-index: 1; }
+.cm-editor .cm-cursorLayer,
+.cm-editor .cm-selectionLayer { z-index: 0 !important; }
 /* Soft cursor phase. CodeMirror blinks with a hard steps(1) cut; instead the
    cursor only phases slightly — it never fully disappears, easing between full
    and dimmed with a cubic curve. On every move/keystroke CM restarts this
@@ -381,10 +432,11 @@ body {
 /* Block cursor (⌃, settings): widen the caret into a translucent block sized to
    the glyph under it (--cursor-w, measured live for the proportional font). The
    smear above reads the same width, so a moving block streaks like Neovide. */
-.cm-editor.cursor-block .cm-cursor {
+.editor-host.cursor-block .cm-cursor {
   width: var(--cursor-w, 0.6em);
   margin-left: 0;
-  background: color-mix(in srgb, var(--tint) 32%, transparent);
+  border-left-width: 0 !important;   /* block mode is a full cell — drop the iA line edge */
+  background: var(--tint);           /* solid block, like a terminal / Neovide cursor */
 }
 .settings-seg { display: inline-flex; margin-left: auto; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .settings-seg button {
@@ -407,24 +459,27 @@ body {
 .settings-toggle:active { scale: 0.96; }
 .settings-toggle.on { background: var(--tint); color: var(--pill-text); border-color: var(--tint); }
 
-/* Neovide-style cursor smear. A viewport-covering layer painted in the accent
-   tint and clipped (via JS-driven clip-path) to the convex hull spanning the
-   caret's old → new position, so a moving cursor leaves a brief streak that
-   contracts into the caret. Sits just below the glass bands (z5) so its edges
-   frost consistently with the text; pointer-events off so it never intercepts. */
-.cm-smear-layer { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+/* Neovide / smear-cursor.nvim model: the smear IS the cursor while it travels.
+   A single quad (drawn via JS-driven clip-path) whose four corners spring toward
+   the new cell — leading corners stiff, trailing corners soft — so the block
+   stretches along its path then contracts back into a cell. Sits just below the
+   glass bands (z5); pointer-events off so it never intercepts. */
+.cm-smear-layer { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+/* Positioned + sized per frame to the quad's bounding box; the polygon is
+   expressed relative to that box. Same tint as the resting block so the hand-off
+   to CM's caret on settle is seamless. */
 .cm-smear {
   position: absolute;
-  inset: 0;
-  background: var(--tint);
+  left: 0; top: 0; width: 0; height: 0;
+  background: var(--tint);                 /* solid — the moving cursor, not a wash */
   opacity: 0;
-  filter: blur(0.4px);
-  transition: opacity 0.2s var(--ease);   /* fade-OUT only; the snap-on wins */
-  will-change: clip-path;
+  transition: opacity 0.12s var(--ease);   /* fade-OUT on settle; the snap-on wins */
+  will-change: clip-path, left, top, width, height;
 }
-/* snap to full opacity the instant it's moving (no fade-in lag — the smear's
-   whole life is ~150ms), then the rule above eases it back out on settle. */
-.cm-smear-layer.on .cm-smear { opacity: 0.85; transition: none; }
+.cm-smear.show { opacity: 1; transition: none; }   /* live the instant it moves */
+/* while the springing quad is the cursor, hide CM's native caret so the two
+   don't double up or teleport past each other; the caret takes back over on settle. */
+.editor-host.smearing .cm-cursor { opacity: 0 !important; }
 .cm-selectionBackground,
 .cm-content ::selection { background: var(--selection) !important; }
 .cm-activeLine { background: transparent; }
@@ -435,6 +490,8 @@ body {
  *  under the cursor clearly dominates. Tunable via --dim. */
 .cm-line { transition: opacity 0.5s var(--ease), color 0.5s var(--ease); }
 .cm-line.cm-dim { opacity: var(--dim); }
+/* the stretch of the active block past the caret fades like inactive text */
+.cm-dim-after { opacity: var(--dim); transition: opacity 0.5s var(--ease); }
 
 /* ---- progressive "glass" blur at the top & bottom edges ----------- *
  *  Each band stacks several backdrop-filter layers with growing blur,
@@ -889,7 +946,7 @@ body {
   cursor: pointer;
   transition: background 0.12s var(--ease), scale 0.12s var(--ease);
 }
-.rg-item:active { scale: 0.97; }   /* tactile press, matching .result-item */
+.rg-item:active { scale: 0.96; }   /* tactile press, matching .result-item */
 .rg-item.active { background: var(--variable-bg); }
 .rg-head { display: flex; align-items: baseline; gap: 8px; }
 .rg-name { font-family: var(--font); font-size: 13px; color: var(--text); white-space: nowrap; }
@@ -925,6 +982,8 @@ body {
   top: 50%; left: 50%;
   z-index: 50;
   width: min(21rem, calc(100vw - 48px));
+  max-height: calc(100vh - 32px);   /* never clip rows off a short viewport… */
+  overflow-y: auto;                 /* …scroll within the panel if it can't fit */
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -934,7 +993,10 @@ body {
   box-shadow: 0 0 0 1px var(--rule), var(--shadow);   /* hairline ring, no border */
   opacity: 0;
   transform: translate(-50%, calc(-50% + 6px));        /* enters from just below */
-  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+  /* + background/shadow so the panel itself crossfades when you flip the theme
+     while it's open (the Theme toggle lives in here) */
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease),
+              background-color 0.4s var(--ease), box-shadow 0.4s var(--ease);
 }
 .settings.open { opacity: 1; transform: translate(-50%, -50%); }
 .settings[hidden] { display: none; }
@@ -964,13 +1026,13 @@ body {
   border: none;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px var(--swatch-ring);
   transition: scale 0.12s var(--ease), box-shadow 0.16s var(--ease);
 }
 .settings-swatch:active { scale: 0.96; }   /* tactile press */
 /* selected → an offset ring in the panel color then the accent, like macOS */
 .settings-swatch.on {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+  box-shadow: inset 0 0 0 1px var(--swatch-ring),
               0 0 0 2px var(--panel),
               0 0 0 3.5px var(--tint);
 }
@@ -1061,13 +1123,16 @@ body {
 
 /* --- footer: whisper-quiet GitHub + license, centered at the very bottom --- */
 .footer {
+  width: 100%;
+  height: 50px;
   position: fixed;
   left: 50%;
-  bottom: 10px;
+  bottom: 0px;
   transform: translateX(-50%);
   z-index: 10;                  /* above the bottom glass (z5), below the chrome */
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   font-family: var(--font-mono);
   font-size: 11px;

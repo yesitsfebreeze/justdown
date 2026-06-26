@@ -853,8 +853,14 @@ let cursorBlock = false;
 let smearEnabled = true;
 let cursorBlockW = 0;       // measured glyph width under the caret (block mode)
 
+// CM rewrites .cm-editor's className wholesale on focus/state changes, wiping
+// any class we add there. So the block-cursor flag and its measured width ride
+// the editor HOST (which CM never touches); --cursor-w inherits down into the
+// caret, and the selector is .editor-host.cursor-block .cm-cursor.
+const editorHost = document.getElementById("editor");
+
 const view = new EditorView({
-  parent: document.getElementById("editor"),
+  parent: editorHost,
   state: EditorState.create({
     doc: "",
     extensions: [
@@ -890,7 +896,7 @@ const view = new EditorView({
         },
       }),
       EditorView.updateListener.of((u) => {
-        if (u.selectionSet || u.docChanged) { scheduleCenter(); scheduleFlash(); smearMove(); updateCursorBlockWidth(); }
+        if (u.selectionSet || u.docChanged) { scheduleCenter(); scheduleFlash(); updateCursorBlockWidth(); smearMove(); }
         if (u.docChanged || u.geometryChanged) updateRead();
         if (findOpen && u.docChanged) updateFindCount();   // field recomputed; sync the n/m counter
         if (!u.docChanged) return;
@@ -974,14 +980,13 @@ const view = new EditorView({
 })();
 
 /* ------------------------------------------------------------------ *
- *  Neovide-style cursor smear. A tinted shape stretches between the
- *  caret's previous and current positions and contracts into the caret
- *  as it catches up, so the eye can always track where the cursor went.
- *  Implemented as the convex hull of the old + new caret rectangles,
- *  painted via clip-path on a fixed, viewport-covering layer (a single
- *  clip-path update per frame — no layout, GPU-composited). The target
- *  is re-read every frame so the smear rides typewriter scrolling, and
- *  long jumps (e.g. opening a file) snap instead of streaking the screen.
+ *  Neovide-style cursor smear (the smear-cursor.nvim spring model). The cursor
+ *  cell is a quad of four corners; on a move each corner springs toward the new
+ *  cell, but stiffness is ranked by closeness to the destination centre, so the
+ *  leading corners rush ahead while the trailing ones lag — the block stretches
+ *  along its path then contracts back into a cell. The quad IS the cursor while
+ *  travelling (CM's caret is hidden); corners live in scroll-invariant content
+ *  coords so the smear rides typewriter scrolling, re-projected each frame.
  * ------------------------------------------------------------------ */
 (function smearCursor() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -992,13 +997,11 @@ const view = new EditorView({
   layer.appendChild(smear);
   document.body.appendChild(layer);
 
-  let from = null, to = null, t = 0, step = 0.1, raf = null;
-
-  // Caret rect in scroll-invariant CONTENT coords, so a captured from/to keeps
-  // tracking the text while the typewriter scroll glides underneath it.
-  const caretRect = () => {
+  // Caret cell in scroll-invariant CONTENT coords, so captured corners keep
+  // tracking the text while the typewriter scroll glides underneath them.
+  const caretCell = () => {
     const sel = view.state.selection.main;
-    if (!sel.empty) return null;                 // only smear a collapsed caret
+    if (!sel.empty) return null;                 // only a collapsed caret has a cell
     const c = view.coordsAtPos(sel.head);
     if (!c) return null;
     const b = view.scrollDOM.getBoundingClientRect();
@@ -1009,68 +1012,90 @@ const view = new EditorView({
       h: c.bottom - c.top,
     };
   };
-  // Project a content-coord rect back into viewport space for painting.
-  const toView = (r) => {
+  // content-space point → viewport px
+  const toView = (x, y) => {
     const b = view.scrollDOM.getBoundingClientRect();
-    return {
-      x: r.x + b.left - view.scrollDOM.scrollLeft,
-      y: r.y + b.top - view.scrollDOM.scrollTop,
-      w: r.w, h: r.h,
-    };
+    return [x + b.left - view.scrollDOM.scrollLeft, y + b.top - view.scrollDOM.scrollTop];
   };
-  const lerp = (a, b, k) => ({
-    x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k,
-    w: a.w + (b.w - a.w) * k, h: a.h + (b.h - a.h) * k,
-  });
-  const corners = (r) => [[r.x, r.y], [r.x + r.w, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]];
-  // Andrew's monotone-chain convex hull of the 8 corner points.
-  const hull = (pts) => {
-    pts = pts.slice().sort((p, q) => p[0] - q[0] || p[1] - q[1]);
-    const cross = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
-    const lo = [], up = [];
-    for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
-    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
-    lo.pop(); up.pop();
-    return lo.concat(up);
-  };
-  const draw = (head, tail) => {
-    const pts = hull([...corners(toView(head)), ...corners(toView(tail))]);
-    if (pts.length < 3) return;
-    smear.style.clipPath = "polygon(" + pts.map((p) => `${p[0]}px ${p[1]}px`).join(",") + ")";
+  // 4 corners (TL, TR, BR, BL) of a cell, in content coords
+  const cellCorners = (c) => [[c.x, c.y], [c.x + c.w, c.y], [c.x + c.w, c.y + c.h], [c.x, c.y + c.h]];
+
+  // Neovide model (cursor_trail_size = 1.0): the LEADING corners snap to the new
+  // cell almost immediately while the TRAILING corners lag and catch up over
+  // ~cursor_animation_length, so the cursor shows its front at the destination at
+  // once with a tail smearing back to where it came from — responsive, not a
+  // floaty drifting block. First-order exponential per corner (no velocity) ⇒
+  // critically damped: a clean catch-up with ZERO overshoot/bounce. Each corner's
+  // rate is ranked by how close it sits to the target centre (leading → LEAD,
+  // trailing → tail). Short hops (typing) use a faster tail so the caret never lags.
+  const LEAD = 0.92, TAIL = 0.24, TAIL_SHORT = 0.5, SHORT = 64, EXP = 1.7, STOP = 1.2, MAX_FRAMES = 90;
+  let cur = null;        // [[x, y] × 4] live corners, content coords
+  let tgt = null;        // [[x, y] × 4] target corners, content coords
+  let tail = TAIL;       // trailing-corner rate for the active move
+  let raf = null, frame = 0;
+
+  const paint = () => {
+    const pv = cur.map((c) => toView(c[0], c[1]));   // → viewport corners, in quad order
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [x, y] of pv) {
+      if (x < minX) minX = x; if (y < minY) minY = y;
+      if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+    }
+    smear.style.left = `${minX}px`;
+    smear.style.top = `${minY}px`;
+    smear.style.width = `${maxX - minX}px`;
+    smear.style.height = `${maxY - minY}px`;
+    smear.style.clipPath = "polygon(" + pv.map((p) => `${p[0] - minX}px ${p[1] - minY}px`).join(",") + ")";
   };
 
-  const ease = (x) => 1 - Math.pow(1 - x, 3);     // easeOutCubic
-  function tick() {
+  const settle = () => {                             // snap to rest, hand back to CM's caret
+    for (let i = 0; i < 4; i++) { cur[i][0] = tgt[i][0]; cur[i][1] = tgt[i][1]; }
+    paint();
+    editorHost.classList.remove("smearing");
+    smear.classList.remove("show");
+  };
+
+  const step = () => {
     raf = null;
-    if (!from || !to) { layer.classList.remove("on"); return; }
-    t = Math.min(1, t + step);
-    // leading edge reaches the target by t=0.35; trailing edge stays pinned at
-    // the origin until t=0.5, then catches up — a full-length streak that holds
-    // a beat, then collapses into the caret.
-    const head = lerp(from, to, ease(Math.min(1, t / 0.35)));
-    const tail = lerp(from, to, ease(Math.max(0, (t - 0.5) / 0.5)));
-    draw(head, tail);
-    if (t >= 1) { layer.classList.remove("on"); return; }
-    layer.classList.add("on");
-    raf = requestAnimationFrame(tick);
-  }
+    const tcx = (tgt[0][0] + tgt[2][0]) / 2, tcy = (tgt[0][1] + tgt[2][1]) / 2;
+    const d = cur.map((c) => Math.hypot(c[0] - tcx, c[1] - tcy));
+    const min = Math.min(...d), max = Math.max(...d), span = max - min || 1;
+    let moving = 0;
+    for (let i = 0; i < 4; i++) {
+      const c = cur[i], t = tgt[i];
+      const x = (d[i] - min) / span;                 // 0 = leading corner, 1 = trailing
+      const rate = LEAD + (tail - LEAD) * Math.pow(x, EXP);   // lead snaps, tail trails
+      c[0] += (t[0] - c[0]) * rate;
+      c[1] += (t[1] - c[1]) * rate;
+      moving = Math.max(moving, Math.hypot(t[0] - c[0], t[1] - c[1]));
+    }
+    paint();
+    if (moving <= STOP || ++frame >= MAX_FRAMES) { settle(); return; }   // tail caught up (or safety cap)
+    raf = requestAnimationFrame(step);
+  };
 
   smearMove = () => {
-    const r = caretRect();
-    if (!r || !smearEnabled) { layer.classList.remove("on"); to = r; if (raf) { cancelAnimationFrame(raf); raf = null; } return; }
-    const jump = to ? Math.hypot(r.x - to.x, r.y - to.y) : 0;
-    if (!to || jump < 0.5) { to = r; return; }     // first paint / no real move → just snap
-    from = to;                                     // streak starts where the caret just was
-    to = r;
-    t = 0;
-    // Trail rides the distance: the streak spans the full from→to gap (so a
-    // cross-screen jump streaks across the screen), and a longer jump also rides
-    // through more frames so it lives — and reads — longer. Roughly constant
-    // travel speed (~PX_PER_FRAME) between clamped min/max durations.
-    const PX_PER_FRAME = 55, MIN_FRAMES = 4, MAX_FRAMES = 30;
-    const frames = Math.max(MIN_FRAMES, Math.min(MAX_FRAMES, Math.round(jump / PX_PER_FRAME)));
-    step = 1 / frames;
-    if (raf === null) raf = requestAnimationFrame(tick);
+    const cell = caretCell();
+    if (!cell || !smearEnabled) {                    // nothing to smear → rest on CM's caret
+      editorHost.classList.remove("smearing");
+      smear.classList.remove("show");
+      cur = null; tgt = null;
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      return;
+    }
+    const next = cellCorners(cell);
+    if (!cur) { cur = next.map((p) => [p[0], p[1]]); tgt = next; return; }  // first paint → snap
+    const moved = Math.hypot(next[0][0] - tgt[0][0], next[0][1] - tgt[0][1]);
+    tgt = next;
+    if (moved < 0.5) {                               // no real move; keep the quad synced while idle
+      if (raf === null) cur = next.map((p) => [p[0], p[1]]);
+      return;
+    }
+    tail = moved < SHORT ? TAIL_SHORT : TAIL;         // short hop (typing) catches up faster
+    editorHost.classList.add("smearing");             // the trailing quad becomes the cursor
+    smear.classList.add("show");
+    frame = 0;                                        // restart the safety-cap countdown
+    if (raf === null) raf = requestAnimationFrame(step);
   };
 })();
 
@@ -1081,12 +1106,17 @@ function measureGlyphWidth(pos) {
   const a = view.coordsAtPos(pos);
   const b = view.coordsAtPos(pos + 1);
   if (a && b && Math.abs(b.top - a.top) < 1 && b.left > a.left) return b.left - a.left;
+  // At a line end / wrap, pos+1 sits on the next row — fall back to the glyph
+  // BEFORE the caret so the block keeps the line's rhythm instead of popping to
+  // the (wider) default character width.
+  const p = view.coordsAtPos(pos - 1);
+  if (a && p && Math.abs(a.top - p.top) < 1 && a.left > p.left) return a.left - p.left;
   return view.defaultCharacterWidth;
 }
 function updateCursorBlockWidth() {
   if (!cursorBlock) return;
   cursorBlockW = measureGlyphWidth(view.state.selection.main.head);
-  view.dom.style.setProperty("--cursor-w", `${cursorBlockW}px`);
+  editorHost.style.setProperty("--cursor-w", `${cursorBlockW}px`);
 }
 
 /* Reading progress — fill the searchbar's bottom border (--read, 0–1) by how
@@ -1808,6 +1838,7 @@ const setMono = document.getElementById("setMono");
 const settingsSwatches = document.getElementById("settingsSwatches");
 const setCursor = document.getElementById("setCursor");
 const setSmear = document.getElementById("setSmear");
+const setTheme = document.getElementById("setTheme");
 
 // Curated Google Fonts. "" = the bundled iA Writer default (no network load).
 // Fallback chains mirror the stylesheet's --font / --font-mono.
@@ -1832,7 +1863,7 @@ function loadGFont(id, name, italic) {
 }
 
 const SETTINGS_KEY = "jd:settings";
-const SETTINGS_DEFAULTS = { tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: true };
+const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: true };
 const SWATCHES = ["#007aff", "#0a84ff", "#5e5ce6", "#34c759", "#ff9f0a", "#ff375f", "#bf5af2", "#1a1a1a"];
 let settingsOpen = false;
 let settings = loadSettings();
@@ -1846,6 +1877,10 @@ function saveSettings() {
 }
 function applySettings() {
   const root = document.documentElement.style;
+  // theme: "auto" follows the OS (CSS media query handles it); "light"/"dark"
+  // force the palette via a class on <html>. The crossfade is CSS transitions.
+  document.documentElement.classList.toggle("theme-light", settings.theme === "light");
+  document.documentElement.classList.toggle("theme-dark", settings.theme === "dark");
   // --tint cascades into --selection / links automatically (they're var(--tint))
   settings.tint ? root.setProperty("--tint", settings.tint) : root.removeProperty("--tint");
   settings.dim ? root.setProperty("--dim", settings.dim) : root.removeProperty("--dim");
@@ -1866,8 +1901,8 @@ function applySettings() {
   // cursor look + smear
   cursorBlock = settings.cursor !== "line";
   smearEnabled = settings.smear !== false;
-  view.dom.classList.toggle("cursor-block", cursorBlock);
-  if (cursorBlock) updateCursorBlockWidth(); else view.dom.style.removeProperty("--cursor-w");
+  editorHost.classList.toggle("cursor-block", cursorBlock);
+  if (cursorBlock) updateCursorBlockWidth(); else editorHost.style.removeProperty("--cursor-w");
 }
 
 function hexOf(v) {
@@ -1885,6 +1920,8 @@ function syncSettingsControls() {
   setMono.value = settings.mono || "";
   settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
     b.classList.toggle("on", b.dataset.c === setTint.value));
+  const theme = settings.theme || "auto";
+  setTheme.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === theme));
   const curMode = settings.cursor === "line" ? "line" : "block";
   setCursor.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === curMode));
   const smearOn = settings.smear !== false;
@@ -1922,6 +1959,8 @@ setDim.addEventListener("input", () => { settings.dim = ((100 - +setDim.value) /
 setFade.addEventListener("input", () => { settings.fadeDist = `${+setFade.value}vh`; applySettings(); saveSettings(); });
 setFont.addEventListener("change", () => { settings.font = setFont.value; applySettings(); saveSettings(); });
 setMono.addEventListener("change", () => { settings.mono = setMono.value; applySettings(); saveSettings(); });
+setTheme.querySelectorAll("button").forEach((b) =>
+  b.addEventListener("click", () => { settings.theme = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setCursor.querySelectorAll("button").forEach((b) =>
   b.addEventListener("click", () => { settings.cursor = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setSmear.addEventListener("click", () => { settings.smear = settings.smear === false; applySettings(); saveSettings(); syncSettingsControls(); });

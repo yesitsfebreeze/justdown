@@ -124,15 +124,38 @@ fn env_or(key: &str, default: &str) -> String {
         .unwrap_or_else(|| default.to_string())
 }
 
+/// A justdown root holds either the source `<lib>/` tree or a built
+/// `.bombshell/jd` cache. Projects nest that under `.jd/`; source repos keep it
+/// at the top. Either shape makes `dir` a root.
+fn is_root(dir: &std::path::Path, lib: &str) -> bool {
+    dir.join(lib).is_dir() || dir.join(".bombshell").join("jd").is_dir()
+}
+
+/// Resolve the root git-style: an explicit `JUSTDOWN_ROOT` always wins; else
+/// walk up from the cwd and take the nearest ancestor that is a root (preferring
+/// its `.jd/` subdir), so `jd` works from anywhere inside a project. Falls back
+/// to the cwd when nothing is found — preserving `init`/`build` in a fresh dir.
+fn resolve_root(lib: &str) -> PathBuf {
+    if let Some(r) = std::env::var("JUSTDOWN_ROOT").ok().filter(|s| !s.is_empty()) {
+        return PathBuf::from(r);
+    }
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    for ancestor in cwd.ancestors() {
+        let nested = ancestor.join(".jd");
+        if is_root(&nested, lib) {
+            return nested;
+        }
+        if is_root(ancestor, lib) {
+            return ancestor.to_path_buf();
+        }
+    }
+    cwd
+}
+
 impl Config {
     pub fn from_env() -> Config {
-        // root defaults to the current dir (where `just` used justfile_directory).
-        let root = std::env::var("JUSTDOWN_ROOT")
-            .ok()
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let lib = env_or("JUSTDOWN_LIB", "library");
+        let root = resolve_root(&lib);
         let index = env_or("JUSTDOWN_INDEX", "graph.db");
         let repo = env_or("JUSTDOWN_REPO", "yesitsfebreeze/justdown");
         let branch = env_or("JUSTDOWN_BRANCH", "main");

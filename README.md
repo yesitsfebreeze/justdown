@@ -134,6 +134,25 @@ it is used** — an agent can call the verbs directly, or wrap them (`search`,
 `get`, `ls`, `links`, `path`) as an MCP tool lookup. The library is the contract;
 the wiring is yours. See [`install.jd`](install.jd).
 
+### MCP server & Claude Code plugin
+
+`jd mcp` *is* that wrapper — a stdio JSON-RPC 2.0 server that exposes the five
+read verbs (`search`, `get`, `ls`, `links`, `path`) as MCP tools, each a perfect
+mirror of the CLI (same merge, scoring, and `--json` schemas; no logic
+duplicated). Wire it into any client:
+
+```json
+{ "mcpServers": { "justdown": { "command": "jd", "args": ["mcp"] } } }
+```
+
+For Claude Code, install it as a plugin (needs the `jd` binary on `PATH` — see
+the install steps above):
+
+```sh
+/plugin marketplace add yesitsfebreeze/justdown
+/plugin install justdown@justdown
+```
+
 ## Why
 
 MCP servers, hand-written tool functions, and copy-pasted docs all drift from

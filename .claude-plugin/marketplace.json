@@ -1,0 +1,17 @@
+{
+	"name": "justdown",
+	"owner": {
+		"name": "febreeze",
+		"url": "https://github.com/yesitsfebreeze"
+	},
+	"plugins": [
+		{
+			"name": "justdown",
+			"source": {
+				"source": "github",
+				"repo": "yesitsfebreeze/justdown"
+			},
+			"description": "One MCP server for library lookup over the .jd graph — search, get, ls, links, path. Needs the jd binary on PATH."
+		}
+	]
+}

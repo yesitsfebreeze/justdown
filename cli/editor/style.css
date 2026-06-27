@@ -494,8 +494,9 @@ body,
    so give it the slow even ease-in-out so the prose crossfades with the page. */
 .cm-line { transition: opacity 0.5s var(--ease), color 0.7s ease-in-out; }
 .cm-line.cm-dim { opacity: var(--dim); }
-/* the stretch of the active block past the caret fades like inactive text */
-.cm-dim-after { opacity: var(--dim); transition: opacity 0.5s var(--ease); }
+/* the active block's tail fades progressively: 1.0 at the caret, easing to the
+   focus-dim colour at the block's last glyph (--t is the per-char position). */
+.cm-dim-after { opacity: calc(1 - var(--t, 0) * (1 - var(--dim))); transition: opacity 0.5s var(--ease); }
 
 /* ---- progressive "glass" blur at the top & bottom edges ----------- *
  *  Each band stacks several backdrop-filter layers with growing blur,

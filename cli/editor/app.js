@@ -668,7 +668,22 @@ function buildDecorations(view) {
   const tail = caretBlockTail(state);          // dim the active block past the caret
   const decos = [];
 
-  if (tail) decos.push(Decoration.mark({ class: "cm-dim-after" }).range(tail.from, tail.to));
+  if (tail) {
+    // Gradient fade across the active block's tail: full text colour right at
+    // the caret, easing to the focus-dim colour at the block's last glyph. One
+    // mark per character carries its position fraction (--t); CSS interpolates
+    // the opacity so --dim stays the single source of truth.
+    const text = state.doc.sliceString(tail.from, tail.to);
+    const span = Math.max(text.length - 1, 1);
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === "\n") continue;
+      const t = i / span;
+      decos.push(Decoration.mark({
+        class: "cm-dim-after",
+        attributes: { style: `--t:${t.toFixed(4)}` },
+      }).range(tail.from + i, tail.from + i + 1));
+    }
+  }
 
   for (const { from, to } of view.visibleRanges) {
     eachLine(state, from, to, (line) => {
@@ -1053,7 +1068,9 @@ const view = new EditorView({
  *  coords so the smear rides typewriter scrolling, re-projected each frame.
  * ------------------------------------------------------------------ */
 (function smearCursor() {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  // Always wire up the engine; whether it actually animates is gated per-move by
+  // `smearEnabled` (the Smear setting). Reduced-motion only steers the DEFAULT
+  // (see SETTINGS_DEFAULTS) — an explicit opt-in in Settings must still take.
   const layer = document.createElement("div");
   layer.className = "cm-smear-layer";
   const smear = document.createElement("div");
@@ -1938,7 +1955,10 @@ function loadGFont(id, name, italic) {
 }
 
 const SETTINGS_KEY = "jd:settings";
-const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: true, smearTrail: 78, smearSpeed: 62 };
+// Smear defaults OFF when the OS asks for reduced motion, ON otherwise. A stored
+// choice (loadSettings spreads it over these defaults) always wins, so flipping
+// the Smear toggle takes effect regardless of the OS preference.
+const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: !matchMedia("(prefers-reduced-motion: reduce)").matches, smearTrail: 78, smearSpeed: 62 };
 const SWATCHES = ["#007aff", "#0a84ff", "#5e5ce6", "#34c759", "#ff9f0a", "#ff375f", "#bf5af2", "#1a1a1a"];
 let settingsOpen = false;
 let settings = loadSettings();

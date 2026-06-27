@@ -1,0 +1,86 @@
+---
+name: odin_lang
+description: The Odin language grammar — declarations and constants, builtin and composite types (arrays/slices/dynamic arrays/maps/struct/union/enum/bit_set), procedures with multiple returns and parametric polymorphism, control flow, pointers, packages, and the naming convention. The syntax reference behind the @odin/build toolchain.
+kind: knowledge
+tags: [odin, language, syntax, types, procedures, struct, enum, slices, pointers]
+use_when: [odin syntax, how to declare a variable in odin, odin types, odin struct union enum, odin slice vs dynamic array, odin procedure multiple return, odin parametric polymorphism, odin for loop switch, odin pointers, odin packages import, odin naming convention]
+---
+
+# Odin language
+
+A data-oriented systems language: no implicit allocations, no hidden control
+flow, value semantics by default. Every file opens with `package <name>`; a
+package is all `.odin` files in one directory. The runtime model — the implicit
+`context`, allocators, `defer`, and the `or_return` error idiom — lives in
+@odin/runtime; this .jd is the grammar.
+
+## Declarations & constants
+
+| Form | Meaning |
+|------|---------|
+| `x := 10` | declare + infer type |
+| `x: int = 10` | declare with explicit type |
+| `x, y := 1, 2` | multiple assignment |
+| `X :: 5` | compile-time constant (untyped) |
+| `Y : int : 5` | typed constant |
+| `x, y: int` | declare zero-initialized |
+
+Everything is zero-initialized; there is no `null`/garbage default.
+
+## Builtin types
+
+- Signed `i8 i16 i32 i64 i128`, unsigned `u8 u16 u32 u64 u128`, sized `int uint uintptr`.
+- Floats `f16 f32 f64`. Endian variants exist (`i32le`, `f64be`).
+- `bool string rune byte any rawptr typeid`. `byte` aliases `u8`; `rune` is a 32-bit Unicode codepoint.
+
+## Composite types
+
+| Type | Declaration | Note |
+|------|-------------|------|
+| fixed array | `[5]int{1,2,3,4,5}` | length is part of the type; `[?]int{1,2,3}` infers it |
+| slice | `s: []int = arr[1:4]` | a pointer+length view, no ownership |
+| dynamic array | `x: [dynamic]int` then `append(&x, 9)` | grows via `context.allocator` |
+| map | `m := make(map[string]int)` | `m["bob"] = 2` |
+| struct | `Vector3 :: struct {x, y, z: f32}` | literal `Vector3{1,2,3}` |
+| union (tagged) | `Value :: union {bool, i32, string}` | discriminated at runtime |
+| enum | `Direction :: enum {North, East, South, West}` | members are `Ada_Case` |
+| bit_set | `bit_set[Direction]` | `{.North, .West}` is a literal set |
+
+## Procedures
+
+```odin
+multiply :: proc(x, y: int) -> int { return x * y }
+swap     :: proc(x, y: int) -> (int, int) { return y, x }   // multiple returns
+split    :: proc(in: int) -> (a, b: int) { a = in/2; b = in-a; return }  // named, bare return
+greet    :: proc(name: string, loud := false) {}            // default args
+sum      :: proc(nums: ..int) -> int {}                     // variadic
+clone    :: proc($T: typeid, x: T) -> T {}                  // parametric polymorphism via $
+```
+
+`$T` (and `$N` for constant values) makes a proc generic; `$T/Constraint`
+specializes. `loc := #caller_location` captures the call site
+(`runtime.Source_Code_Location`).
+
+## Control flow
+
+- `if x := f(); x < 0 { } else { }` — optional init statement.
+- Three `for` forms: C-style `for i := 0; i < 10; i += 1 {}`, while-form `for cond {}`, bare `for {}` (infinite), and range `for v, i in arr {}` / `for x in 0..<10 {}`. `#reverse for` walks backward.
+- `switch` does **not** fall through (use `fallthrough`); group cases `case .a, .b:`. Type switch: `switch v in x { case string: ; case int: }`.
+- `when COND {}` is the compile-time branch — dead arms are eliminated, no `context` needed.
+
+## Pointers
+
+`^T` is the pointer type, `&v` takes an address, `p^` dereferences. Selector
+access auto-dereferences: `p.x = 4` needs no explicit `p^.x`.
+
+## Packages & imports
+
+`import "core:fmt"` then `fmt.println(...)`; alias with `import os2 "core:os"`.
+Collections: `base:` `core:` `vendor:` ship with Odin; user collections are
+added with `-collection:name=path` (see @odin/build) and imported `name:sub`.
+Visibility: `@(private)` is package-local, `@(private="file")` is file-local.
+
+## Naming convention (official)
+
+Procedures and variables `snake_case`; types `Ada_Case`/`Pascal_Case`;
+compile-time config constants `SCREAMING_SNAKE`.

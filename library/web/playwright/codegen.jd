@@ -1,0 +1,41 @@
+---
+name: playwright_codegen
+description: Record a browser session into Playwright test code, and open a failed run's trace in the Trace Viewer. Use to generate a spec by clicking through a page, capture an authenticated storage state, or inspect a saved trace.zip step-by-step. The recorded code uses the @playwright/api locators; runs via @playwright/cli.
+kind: tool
+tags: [playwright, codegen, record, trace, trace-viewer, storage-state]
+use_when: [record a playwright test, generate playwright code by clicking, playwright codegen, save authenticated storage state, open a playwright trace, inspect why a playwright test failed, show-trace]
+danger: medium
+side_effects: [process, network, gui, file-write]
+requires: [npx]
+run: codegen
+provides: [codegen, trace]
+---
+
+# playwright codegen & trace
+
+`codegen` launches a browser, watches you interact, and emits a working spec
+(using the locators in @playwright/api) — the fastest way to start a test, which
+you then run and trim with @playwright/cli. `trace` opens the time-travel debugger
+on a `trace.zip` captured by `--trace=…` (see @playwright/cli), showing each
+action with a DOM snapshot, console, and network.
+
+Options passed as trailing `flags` to `codegen`:
+
+| Flag | Effect |
+|------|--------|
+| `--target=python\|java\|csharp\|javascript` | output language (default is the TS test runner) |
+| `-o file` | write the generated code to a file |
+| `--save-storage=auth.json` | save cookies/localStorage at session end |
+| `--load-storage=auth.json` | start inside a saved (logged-in) session |
+| `--device="iPhone 13"` | emulate a device descriptor |
+| `--save-trace=trace.zip` | record a trace of the codegen session |
+
+```just
+# record interactions at a URL into test code; trailing flags pick language (--target) or output (-o file)
+codegen url +flags="":
+  npx playwright codegen {{quote(url)}} {{flags}}
+
+# open a trace zip in the Trace Viewer; no path launches the drag-and-drop viewer
+trace path="":
+  npx playwright show-trace {{ if path != "" { quote(path) } else { "" } }}
+```

@@ -1,0 +1,85 @@
+---
+name: odin_runtime
+description: Odin's runtime model — the implicit context that carries the allocator/logger, the first-class allocator system (heap/arena/temp), defer for scope cleanup, the or_return / or_else error-propagation idiom over plain return values, and foreign blocks for C FFI. The "how an Odin program manages memory and errors" reference, paired with @odin/lang.
+kind: knowledge
+tags: [odin, context, allocator, defer, error-handling, or_return, ffi, foreign]
+use_when: [odin context system, odin allocators, how does odin manage memory, odin temp_allocator, odin defer, odin error handling, odin or_return or_else, how to call C from odin, odin foreign import, odin calling convention]
+---
+
+# Odin runtime model
+
+Odin has no exceptions, no garbage collector, and no hidden allocations. Memory
+and errors are explicit and travel as ordinary values; the one piece of implicit
+machinery is `context`. This is the companion to the grammar in @odin/lang.
+
+## The context
+
+Every proc using the default `"odin"` calling convention silently carries a
+`context` — a per-scope record holding `context.allocator`,
+`context.temp_allocator`, `context.logger`, `context.user_ptr`, and more.
+`make`, `new`, `append`, and `delete` use `context.allocator` implicitly. Swap
+it for a scope just by assigning:
+
+```odin
+context.allocator = my_arena_allocator   // scoped to the enclosing block
+buf := make([]u8, 1024)                   // now allocated from the arena
+```
+
+`"contextless"` and `"c"` convention procs do **not** carry a context.
+
+## Allocators
+
+Allocators are first-class values. The standard ones:
+
+| Allocator | Use |
+|-----------|-----|
+| default heap | general-purpose (the initial `context.allocator`) |
+| `mem.Arena` / `virtual.Arena` | bump-allocate, free everything at once |
+| `context.temp_allocator` | scratch memory; reclaim with `free_all(context.temp_allocator)` |
+
+Pass one explicitly when you don't want the context's: `make([]int, 6, my_alloc)`.
+The compiler flags `-default-to-nil-allocator` / `-default-to-panic-allocator`
+(see @odin/build) catch accidental implicit allocations.
+
+## defer
+
+`defer stmt` runs the statement at scope exit, in LIFO order — the idiom for
+pairing acquire/release:
+
+```odin
+f, err := os.open("data")
+defer os.close(f)
+```
+
+## Error handling — `or_return` / `or_else`
+
+Errors are return values, usually an enum or union as the last result. `or_return`
+propagates: if the trailing value is non-zero it returns it from the enclosing
+proc, zero-valuing the other named results.
+
+```odin
+load :: proc() -> (n: int, err: Error) {
+    data := read_file() or_return    // returns err on failure
+    parse(data)        or_return
+    n = 123
+    return                            // bare return uses the named results
+}
+```
+
+`or_else` supplies a default for the ok-style two-value forms:
+`i := m[key] or_else -1`, `v := x.(int) or_else 0`. Loop variants `or_continue` /
+`or_break` accept an optional label.
+
+## Foreign blocks (C FFI)
+
+```odin
+foreign import lib "system:Kernel32.lib"
+@(default_calling_convention="std")
+foreign lib {
+    MessageBoxA :: proc(hwnd: rawptr, text, caption: cstring, type: u32) -> i32 ---
+}
+```
+
+Calling conventions: `"odin"` (default, carries context), `"contextless"`,
+`"c"`, `"stdcall"`, `"fastcall"`. Link extra libraries via
+`-extra-linker-flags:` in @odin/build.

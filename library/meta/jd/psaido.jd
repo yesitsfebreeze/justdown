@@ -1,6 +1,6 @@
 ---
 name: jd_psaido
-description: The PSAIDO scaffold dialect used in ```psaido``` blocks — imports, schemas, functions, statements, control flow, and @-references. Read, not compiled — a model translates it into the project's real language. Use to author a scaffold shard or read one a knowledge/agent file carries.
+description: The PSAIDO scaffold dialect used in ```psaido``` blocks — imports, schemas, functions, statements, control flow, and @-references. Read, not compiled — a model translates it into the project's real language. Use to author a scaffold .jd or read one a knowledge/agent file carries.
 kind: knowledge
 tags: [jd, psaido, scaffold, dialect, schema, agent]
 use_when: [write a psaido scaffold, what does !sc or !fn mean, scaffold dialect syntax, how to sketch logic in a jd file, psaido imports and references, translate a scaffold]
@@ -69,6 +69,6 @@ while x < 100 do
 `@` links work inline and *are* the import — put one where a type or call
 belongs (`@auth/user#User`, `@db/users#findByEmail(...)`), or alias a path once
 with `!im` and use the short name below. See @jd/authoring for where scaffolds
-fit among the other shard kinds, and @jd/cli for how the runnable side executes.
+fit among the other .jd kinds, and @jd/cli for how the runnable side executes.
 Unlike prose, a scaffold link is translated into the target language's normal
 import or call — never left as a literal `@`.

@@ -1,0 +1,72 @@
+---
+name: playwright_cli
+description: Drive the Playwright test runner — install browsers, scaffold a project, run the suite with project/grep/headed/trace/retry filtering, and open the HTML report. Use to run @playwright/test specs, install browsers, or open the last report. The spec API is in @playwright/api; recording in @playwright/codegen.
+kind: tool
+tags: [playwright, test, e2e, runner, cli, browser, npx]
+use_when: [run playwright tests, npx playwright test, install playwright browsers, run a single playwright spec, run playwright headed, filter tests by title or project, open the playwright html report, set up playwright in a project]
+danger: medium
+side_effects: [process, network, file-write]
+requires: [npx]
+run: test
+provides: [test, install, init, headed, ui, report]
+---
+
+# playwright test
+
+The runner executes `*.spec.ts` files against real browsers. Tests are written
+with the locator/assertion API in @playwright/api; specs are usually recorded
+first with @playwright/codegen. Behaviour (browsers, baseURL, trace, retries) is
+configured once in `playwright.config.ts`.
+
+Most flags are filters on top of `test`, passed as trailing `args`:
+
+| Flag | Effect |
+|------|--------|
+| `<path>` / `<path>:<line>` | run one file (or one test at a line) |
+| `-g "regex"` / `-G "regex"` | run tests whose title matches / doesn't match |
+| `--project=chromium` | run only the named browser/device project |
+| `--headed` | show the browser (default headless) |
+| `--ui` / `--debug` | interactive UI mode / step debugger (Inspector) |
+| `--workers=N` | parallelism (`--workers=1` to serialize, accepts `%`) |
+| `--retries=N` / `--repeat-each=N` | retry flaky / run each test N times |
+| `--trace=on\|on-first-retry\|retain-on-failure` | capture a trace (view with @playwright/codegen) |
+| `--reporter=list,html,json,junit` | reporter(s) |
+| `--last-failed` | re-run only the previous failures |
+| `--list` | print the tests without running |
+| `-x` / `--max-failures=N` | stop on first / Nth failure |
+| `--update-snapshots` | accept current screenshots/snapshots |
+
+| Recipe | Maps to | Does |
+|--------|---------|------|
+| `test` | `npx playwright test` | run the suite, trailing args filter (default) |
+| `install` | `npx playwright install --with-deps` | download browsers + OS deps |
+| `init` | `npm init playwright@latest` | scaffold config + tests (interactive) |
+| `headed` | `… test --headed` | run with a visible browser |
+| `ui` | `… test --ui` | open the interactive UI runner |
+| `report` | `npx playwright show-report` | open the last HTML report |
+
+```just
+# run the test suite; trailing args filter by path/title or pass flags (e.g. -g login --headed)
+test +args="":
+  npx playwright test {{args}}
+
+# download the browser binaries plus their OS dependencies (optional subset, e.g. chromium)
+install +browsers="":
+  npx playwright install --with-deps {{browsers}}
+
+# scaffold Playwright into the current project (interactive)
+init:
+  npm init playwright@latest
+
+# run the suite with a visible browser; trailing args filter further
+headed +args="":
+  npx playwright test --headed {{args}}
+
+# open the interactive UI mode runner
+ui:
+  npx playwright test --ui
+
+# open the HTML report from the last run (optional report dir)
+report dir="":
+  npx playwright show-report {{ if dir != "" { quote(dir) } else { "" } }}
+```

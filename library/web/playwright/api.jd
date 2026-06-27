@@ -1,0 +1,108 @@
+---
+name: playwright_api
+description: The Playwright spec API — test/fixtures structure, role-first locators and how they auto-wait and enforce strictness, actions (click/fill/press/check/selectOption), web-first auto-retrying assertions, and the playwright.config.ts essentials. The authoring reference behind the @playwright/cli runner.
+kind: knowledge
+tags: [playwright, locators, assertions, getByRole, expect, fixtures, config, api]
+use_when: [how to write a playwright test, playwright locators getByRole getByText, playwright fill click press, playwright expect toBeVisible toHaveText, playwright auto-waiting, playwright fixtures page context, playwright config projects baseURL webServer, why use locators over selectors]
+---
+
+# Playwright spec API
+
+Tests are run by @playwright/cli; this is what goes inside a spec. The whole API
+is built on **locators** — lazy, re-resolving handles that auto-wait and throw
+on ambiguity — and **web-first assertions** that retry until the UI settles. You
+almost never write a manual `wait`.
+
+## Test structure & fixtures
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test.describe('login', () => {
+  test.beforeEach(async ({ page }) => { await page.goto('/'); });
+
+  test('signs in', async ({ page }) => {
+    await test.step('submit', async () => { /* ... */ });
+  });
+});
+```
+
+Built-in fixtures arrive by destructuring the test args: `page`, `context`
+(BrowserContext), `browser`, `request` (API testing), `browserName`. Modifiers:
+`test.only`, `test.skip`, `test.fixme`, `test.fail`, `test.slow`.
+
+## Locators (prefer these)
+
+| Locator | Targets |
+|---------|---------|
+| `page.getByRole('button', { name: 'Save' })` | accessible role + name — the default choice |
+| `getByText` / `getByLabel` | visible text / form label |
+| `getByPlaceholder` / `getByTitle` / `getByAltText` | by that attribute |
+| `getByTestId('id')` | `data-testid` (configurable) |
+| `page.locator('css or xpath')` | escape hatch |
+
+Refine: `.filter({ hasText })`, `.first()`/`.last()`/`.nth(n)`, `.and()`/`.or()`,
+and chaining to narrow scope:
+`page.getByRole('listitem').filter({ hasText: 'Pro' }).getByRole('button')`.
+Locators beat raw selectors because each action **re-resolves** the live element,
+**auto-waits** for it to be actionable, and is **strict** — matching multiple
+elements throws instead of silently picking one.
+
+## Actions (auto-waiting)
+
+`click()`, `fill(value)` (the way to set inputs), `press('Enter')`,
+`pressSequentially(text)` (char-by-char; `type()` is deprecated), `check()` /
+`uncheck()`, `selectOption(...)`, `setInputFiles(paths)`, `hover()`,
+`dragTo(target)`, `page.goto(url)`. Before acting Playwright waits for the
+element to be visible, stable, enabled, unobscured, and editable — within the
+timeout, so explicit sleeps are unnecessary.
+
+## Web-first assertions (auto-retrying)
+
+`expect(locator)` matchers re-fetch and re-check until they pass or hit the
+timeout (default 5s):
+
+```ts
+await expect(page.getByRole('alert')).toBeVisible();
+await expect(page.getByLabel('Email')).toHaveValue('a@b.com');
+await expect(page.getByRole('listitem')).toHaveCount(3);
+await expect(page).toHaveURL(/dashboard/);
+```
+
+Common matchers: `toBeVisible/Hidden/Enabled/Disabled/Checked/Editable/Focused`,
+`toHaveText/toContainText/toHaveValue/toHaveCount/toHaveAttribute/toHaveClass`,
+`toHaveScreenshot`, `expect(page).toHaveTitle`. Negate with `.not`. The plain
+`expect(value)` matchers (`toBe`, `toEqual`, `toContain`, …) run once; wrap
+arbitrary polling with `expect.poll(fn)` or `expect(fn).toPass()`.
+
+## playwright.config.ts essentials
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  retries: process.env.CI ? 2 : 0,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit',   use: { ...devices['Desktop Safari'] } },
+  ],
+  webServer: { command: 'npm run start', url: 'http://localhost:3000', reuseExistingServer: true },
+});
+```
+
+`projects` is the browser/device matrix (engines: `chromium`, `firefox`,
+`webkit`); `use` sets shared context options (`baseURL`, `trace`, `screenshot`,
+`video`, `viewport`, `storageState`, `testIdAttribute`); `webServer` boots the
+app before the run. These flags are overridable per-invocation in @playwright/cli.
+
+> Python parity: `pytest-playwright` exposes a `page` fixture and the same model
+> with snake_case names (`page.get_by_role`, `expect(...).to_be_visible()`).

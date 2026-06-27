@@ -14,18 +14,18 @@ provides: [search, get, ls, links, path, lint, build]
 
 justdown describing *itself* — the one tool whose recipes operate the library
 that contains it. The whole point of justdown is the reflex from `install.jd`:
-before doing a task by hand, `search` the library for a shard that already does it,
+before doing a task by hand, `search` the library for a .jd that already does it,
 then `get` it and run its recipe. This file makes that reflex a retrievable tool
 like any other. The CLI is the **`jd`** binary; these recipes shell out to it.
 
 | Recipe | CLI verb | Does |
 |--------|----------|------|
-| `search` | `search <q> [kind] [num] [cat]` | rank shards by need (name/use_when > tags > prose), graph-aware |
+| `search` | `search <q> [kind] [num] [cat]` | rank .jds by need (name/use_when > tags > prose), graph-aware |
 | `get` | `get <ref> [profile]` | a file as ordered sections, or one profile: `--frontmatter` / `--human` / `--agent` / `--justfile` |
 | `ls` | `ls` | categories and their member files |
 | `links` | `links <ref>` | inbound + outbound `@links` of a file |
 | `path` | `path <a> <b>` | the shortest `@link` chain connecting two files |
-| `lint` | `lint` | validate every shard's frontmatter (CI-gateable) |
+| `lint` | `lint` | validate every .jd's frontmatter (CI-gateable) |
 | `build` | `build` | rescan `<lib>/**/*.jd` → rewrite the local `graph.db` |
 
 ## The argument grammar
@@ -36,7 +36,7 @@ that same key with an `@` prefix.
 outweigh prose, and a `not_when` match vetoes a hit; ties break by graph
 connectivity. `get`'s output profile is `--frontmatter` | `--human` | `--agent`
 | `--justfile`; the file's `kind` decides which are allowed — a types/events
-shard refuses `--justfile` (exit 3), so it is never emitted as a script.
+.jd refuses `--justfile` (exit 3), so it is never emitted as a script.
 
 Queries **merge** the LOCAL store over the ONLINE one — local entries trump
 online ones by key, so your `jd build` output shadows the published graph
@@ -48,7 +48,7 @@ The non-zero codes are how an agent tells "found nothing" from "you called me
 wrong" from "the network is down" — branch on them, don't parse the text.
 
 ```just
-# rank library shards by a natural-language need (the first move on any task)
+# rank library .jds by a natural-language need (the first move on any task)
 search query kind="" num="5":
   jd search {{quote(query)}} {{quote(kind)}} {{quote(num)}}
 
@@ -69,7 +69,7 @@ links ref:
 path a b:
   jd path {{quote(a)}} {{quote(b)}}
 
-# validate every shard's frontmatter (run before any push)
+# validate every .jd's frontmatter (run before any push)
 lint:
   jd lint
 

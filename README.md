@@ -34,10 +34,10 @@ delivered (stdout / a live sidecar / a written path) is the recipe's
 
 The first time you do a task, an agent reasons it out — slow, expensive,
 nondeterministic. justdown is the bet that you pay that cost **once**. Crystallize
-the proven procedure into a `.jd` shard and every run after the first is a shell
+the proven procedure into a `.jd` and every run after the first is a shell
 dispatch — `just --justfile - <recipe> <args>` — with **no model in the loop**.
 The agent's budget moves to the frontier (novel work, exceptions, composing
-existing shards) instead of re-deriving what's already solved. It's *compile the
+existing .jds) instead of re-deriving what's already solved. It's *compile the
 hot path*: promote a task from interpreted (an LLM reasons each time) to compiled
 (a recipe runs each time).
 
@@ -47,13 +47,13 @@ once, and the savings compound with every run:
 - **Cost** — tokens-per-call collapse to a near-free shell exec.
 - **Latency** — seconds of generation collapse to milliseconds of execution.
 - **Determinism** — same args, same output. A failure is *reproducible*, so you
-  root-cause it once and the fix is **permanent** — committed back into the shard,
+  root-cause it once and the fix is **permanent** — committed back into the .jd,
   next to the recipe that failed. Versus an LLM-per-call, where every run can fail
   a new way and yesterday's fix doesn't persist.
 
 That third axis is the flywheel: run → a non-zero exit with real stderr →
 diagnose → add a guard (a precondition, a `gate` dependency, an input check) →
-commit. Each pass hardens the shard, so the system gets **more** reliable the
+commit. Each pass hardens the .jd, so the system gets **more** reliable the
 more it runs — the opposite of re-rolling the dice on every invocation.
 
 The ratio of warm dispatches (shell) to cold ones (agent) is the number to watch:

@@ -1,17 +1,17 @@
 ---
 name: jd_authoring
-description: How to author a .jd shard — the frontmatter retrieval contract, the four kinds, the three invocation modes, recipe conventions, and the lint gate. The meta-shard for writing more shards. Use when adding a tool to the library, choosing a kind, or fixing a lint error.
+description: How to author a .jd — the frontmatter retrieval contract, the four kinds, the three invocation modes, recipe conventions, and the lint gate. The meta-.jd for writing more .jds. Use when adding a tool to the library, choosing a kind, or fixing a lint error.
 kind: knowledge
 tags: [jd, justdown, authoring, frontmatter, kind, invocation-mode, lint]
-use_when: [how to write a jd file, what frontmatter fields does a shard need, choose a kind for a shard, run vs sidecar vs artifact, why does lint fail, recipe conventions for a tool shard, add a tool to the library]
+use_when: [how to write a jd file, what frontmatter fields does a .jd need, choose a kind for a .jd, run vs sidecar vs artifact, why does lint fail, recipe conventions for a tool .jd, add a tool to the library]
 ---
 
 # Authoring
 
-Writing a new shard for the library @jd/cli queries. One `.jd` file serves four
+Writing a new .jd for the library @jd/cli queries. One `.jd` file serves four
 readers — humans, indexers, agents, runners — so the frontmatter is a *retrieval
 contract*, not decoration: it decides when the tool gets pulled. Get it right and
-the shard surfaces on the right need; get it vague and it never ranks.
+the .jd surfaces on the right need; get it vague and it never ranks.
 
 ## The four kinds
 
@@ -20,9 +20,9 @@ the shard surfaces on the right need; get it vague and it never ranks.
 | `tool` | a runnable ```just``` recipe | `run:` + the recipe; `requires:` |
 | `knowledge` | reference prose / tables, maybe a scaffold | nothing beyond the basics |
 | `agent` | a ```psaido``` scaffold (@jd/psaido) for a model to translate | `provides:` names |
-| `workflow` | a recipe orchestrating other shards | `run:` |
+| `workflow` | a recipe orchestrating other .jds | `run:` |
 
-Basics every shard needs: `name`, `description`, `kind`, `tags`, `use_when`. A
+Basics every .jd needs: `name`, `description`, `kind`, `tags`, `use_when`. A
 `kind: tool` **must** have a `run:` field naming the default recipe *and* a
 ```just``` block — the single most common lint error is a tool with no recipe
 (make it `knowledge` if it is reference-only).
@@ -32,10 +32,10 @@ Basics every shard needs: `name`, `description`, `kind`, `tags`, `use_when`. A
 | Field | Weight in search | Purpose |
 |-------|------------------|---------|
 | `name` | highest | the canonical handle |
-| `use_when` | highest | the needs that should pull this shard |
+| `use_when` | highest | the needs that should pull this .jd |
 | `tags` | medium | topical keywords |
 | prose body | low | full context for the agent after retrieval |
-| `not_when` | veto | needs that should *exclude* this shard |
+| `not_when` | veto | needs that should *exclude* this .jd |
 
 Write `use_when` as the user's words ("free a busy port", not "lsof -i"). The
 field-weighting means a need phrased in `use_when` outranks the same word buried
@@ -54,7 +54,7 @@ out" — the *mode* says where the payload goes.
 
 Recipe conventions: positional params with `quote(...)` on every interpolated
 value, a leading `#!/usr/bin/env sh` + `set -eu` for multi-line bodies, and a
-one-line `# comment` above each recipe. Mirror an existing shard in the same
+one-line `# comment` above each recipe. Mirror an existing .jd in the same
 directory.
 
 ## Before you push

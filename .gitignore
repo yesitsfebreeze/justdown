@@ -42,5 +42,12 @@ vicky/
 # harness-local, never part of the project.
 .claude/
 
+# git-fs plugin's local snapshot store — a separate, unrelated git history;
+# never part of the project and must never be committed or pushed.
+.git-fs/
+
+# session safety-net file (owning session id) — harness-local, never committed.
+.claude-session
+
 # cargo workspace build output
 /target/

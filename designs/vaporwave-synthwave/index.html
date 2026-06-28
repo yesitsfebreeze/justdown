@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vaporwave / Synthwave — Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --vw-bg-deep:    #0d0221;
+      --vw-bg-panel:   #1a0938;
+      --vw-bg-panel-2: #241046;
+      --vw-magenta:    #ff2e97;
+      --vw-pink-soft:  #ff77c8;
+      --vw-cyan:       #00f0ff;
+      --vw-purple:     #b14aed;
+      --vw-sun-orange: #ff8a3d;
+      --vw-sun-pink:   #ff3c8e;
+      --vw-sun-purple: #9b2fe0;
+      --vw-text:       #f5e9ff;
+      --vw-text-dim:   #b69ad6;
+      --vw-font:       "Orbitron", "Arial Narrow", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--vw-bg-deep);
+      color: var(--vw-text);
+      font-family: var(--vw-font);
+      letter-spacing: 0.04em;
+    }
+
+    /* ---------- Backdrop: sky, sun, grid floor ---------- */
+    .scene {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    /* night-sky vertical gradient */
+    .sky {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(120% 80% at 50% 78%, rgba(155,47,224,.35), transparent 60%),
+        linear-gradient(180deg, #0d0221 0%, #2a0a4a 48%, #5a1170 60%, #0d0221 61%);
+    }
+
+    /* glowing sun with horizontal slits */
+    .sun {
+      position: absolute;
+      left: 50%;
+      top: 24%;
+      width: 280px;
+      height: 280px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: linear-gradient(180deg,
+        var(--vw-sun-orange) 0%,
+        var(--vw-sun-pink) 50%,
+        var(--vw-sun-purple) 100%);
+      box-shadow:
+        0 0 60px rgba(255,60,142,.7),
+        0 0 120px rgba(255,138,61,.45);
+    }
+    /* slits */
+    .sun::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: repeating-linear-gradient(
+        180deg,
+        transparent 0 16px,
+        var(--vw-bg-deep) 16px 22px
+      );
+      -webkit-mask: linear-gradient(180deg, transparent 55%, #000 55%);
+      mask: linear-gradient(180deg, transparent 55%, #000 55%);
+    }
+
+    /* perspective wireframe grid floor */
+    .grid-floor {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 45%;
+      overflow: hidden;
+      perspective: 280px;
+    }
+    .grid-floor::before {
+      content: "";
+      position: absolute;
+      left: -50%; right: -50%; bottom: 0;
+      top: -40%;
+      background-image:
+        linear-gradient(rgba(0,240,255,.55) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(255,46,151,.45) 2px, transparent 2px);
+      background-size: 44px 44px;
+      transform: rotateX(74deg);
+      transform-origin: center top;
+    }
+    /* fade grid into the horizon */
+    .grid-floor::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, var(--vw-bg-deep) 0%, transparent 35%);
+    }
+
+    /* VHS scanlines overlay */
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        180deg,
+        rgba(0,0,0,0) 0 2px,
+        rgba(0,0,0,.18) 2px 4px
+      );
+      mix-blend-mode: overlay;
+    }
+
+    /* ---------- Foreground content ---------- */
+    .page {
+      position: relative;
+      z-index: 2;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 20px 80px;
+    }
+
+    .glow-magenta {
+      text-shadow:
+        0 0 4px var(--vw-magenta),
+        0 0 12px var(--vw-magenta),
+        0 0 28px rgba(255,46,151,.6);
+    }
+    .glow-cyan {
+      text-shadow:
+        0 0 4px var(--vw-cyan),
+        0 0 12px var(--vw-cyan),
+        0 0 28px rgba(0,240,255,.55);
+    }
+
+    /* header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      margin-bottom: 56px;
+      border: 2px solid var(--vw-cyan);
+      border-radius: 10px;
+      background: rgba(13,2,33,.55);
+      backdrop-filter: blur(4px);
+      box-shadow:
+        0 0 8px var(--vw-cyan),
+        0 0 22px rgba(0,240,255,.45),
+        inset 0 0 14px rgba(0,240,255,.18);
+    }
+    header .brand {
+      font-weight: 900;
+      font-size: 22px;
+      letter-spacing: 0.12em;
+      color: #fff;
+    }
+    header nav {
+      display: flex;
+      gap: 22px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--vw-text-dim);
+      text-transform: uppercase;
+    }
+    header nav a {
+      color: var(--vw-text-dim);
+      text-decoration: none;
+      transition: color .2s, text-shadow .2s;
+    }
+    header nav a:hover { color: var(--vw-cyan); text-shadow: 0 0 10px var(--vw-cyan); }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .hero h1 {
+      margin: 0 0 12px;
+      font-weight: 900;
+      font-size: clamp(38px, 9vw, 64px);
+      letter-spacing: 0.06em;
+      color: #fff;
+    }
+    .hero p {
+      margin: 0 auto;
+      max-width: 460px;
+      color: var(--vw-text-dim);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* card */
+    .card {
+      background: linear-gradient(180deg, var(--vw-bg-panel), var(--vw-bg-panel-2));
+      border: 2px solid var(--vw-magenta);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow:
+        0 0 8px var(--vw-magenta),
+        0 0 26px rgba(255,46,151,.5),
+        0 12px 40px rgba(0,0,0,.55),
+        inset 0 0 18px rgba(255,46,151,.2);
+    }
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .card .sub {
+      margin: 0 0 22px;
+      font-size: 13px;
+      color: var(--vw-text-dim);
+    }
+
+    /* form field */
+    .field { margin-bottom: 22px; }
+    .field label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--vw-cyan);
+    }
+    .field input {
+      width: 100%;
+      padding: 13px 16px;
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--vw-text);
+      background: rgba(0,0,0,.35);
+      border: 2px solid rgba(0,240,255,.5);
+      border-radius: 10px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      box-shadow: inset 0 0 10px rgba(0,240,255,.15);
+    }
+    .field input::placeholder { color: #6f5a93; }
+    .field input:focus {
+      border-color: var(--vw-cyan);
+      box-shadow:
+        0 0 8px var(--vw-cyan),
+        0 0 20px rgba(0,240,255,.5),
+        inset 0 0 12px rgba(0,240,255,.3);
+    }
+
+    /* primary button */
+    .btn-primary {
+      width: 100%;
+      padding: 15px 20px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #fff;
+      cursor: pointer;
+      background: linear-gradient(90deg, var(--vw-magenta), var(--vw-purple));
+      border: 2px solid var(--vw-pink-soft);
+      border-radius: 999px;
+      text-shadow: 0 0 8px rgba(255,255,255,.6);
+      box-shadow:
+        0 0 10px var(--vw-magenta),
+        0 0 28px rgba(255,46,151,.6),
+        inset 0 0 14px rgba(255,255,255,.18);
+      transition: transform .15s, box-shadow .2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 14px var(--vw-magenta),
+        0 0 40px rgba(255,46,151,.8),
+        inset 0 0 18px rgba(255,255,255,.25);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    footer {
+      margin-top: 48px;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--vw-text-dim);
+    }
+  </style>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="sky"></div>
+    <div class="sun"></div>
+    <div class="grid-floor"></div>
+  </div>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <div class="page">
+    <header>
+      <div class="brand glow-cyan">NEON//DRIVE</div>
+      <nav>
+        <a href="#">Tracks</a>
+        <a href="#">Drops</a>
+        <a href="#">Crew</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1 class="glow-magenta">Ride the Sunset</h1>
+      <p>Late-night synth, infinite horizons, and a grid that never ends. Join the midnight cruise and get the next drop first.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="glow-magenta">Join the Midnight List</h2>
+      <p class="sub">Be first in line when the next neon drop goes live.</p>
+
+      <form onsubmit="return false">
+        <div class="field">
+          <label for="email">Email address</label>
+          <input id="email" type="email" name="email" placeholder="you@retrowave.fm" />
+        </div>
+        <button class="btn-primary" type="submit">Enter the Grid</button>
+      </form>
+    </section>
+
+    <footer>© 1984 · Powered by Synthwave</footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TUI / Terminal — design reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --term-bg:        #0b0f0a;
+    --term-bg-raised: #0f150e;
+    --green:          #33ff33;
+    --green-dim:      #1f9d1f;
+    --green-bright:   #b6ffb6;
+    --amber:          #ffb000;
+    --radius: 0;
+    --font-mono: "IBM Plex Mono", "JetBrains Mono", "DejaVu Sans Mono", "Consolas", monospace;
+    --lh: 1.2;
+    --gutter: 2ch;
+    --glow: 0 0 2px currentColor, 0 0 6px currentColor;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--term-bg);
+    color: var(--green);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: var(--lh);
+    letter-spacing: 0;
+  }
+
+  body {
+    text-shadow: var(--glow);
+    padding: 3ch 2ch;
+    min-height: 100%;
+  }
+
+  /* CRT scanline + vignette overlay, real CSS, no image */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0)   0px,
+        rgba(0,0,0,0)   2px,
+        rgba(0,0,0,.28) 3px,
+        rgba(0,0,0,.28) 3px
+      ),
+      radial-gradient(ellipse at center,
+        rgba(0,0,0,0) 60%,
+        rgba(0,0,0,.45) 100%);
+    opacity: .55;
+  }
+
+  .screen {
+    max-width: 78ch;
+    margin: 0 auto;
+  }
+
+  /* ---- Header ---- */
+  header.term-header {
+    border: 1px solid var(--green-dim);
+    border-radius: var(--radius);
+    padding: 0 var(--gutter);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2ch;
+    background: var(--term-bg-raised);
+  }
+  header.term-header .title {
+    color: var(--green-bright);
+    font-weight: 700;
+  }
+  header.term-header .title::before { content: "▌ "; color: var(--green); }
+  header.term-header .status { color: var(--green-dim); }
+  header.term-header .status .ok { color: var(--green-bright); }
+
+  /* ---- Box-drawing window/card ---- */
+  .window {
+    margin-bottom: 2ch;
+    color: var(--green);
+  }
+  .window pre.frame-top,
+  .window pre.frame-bottom {
+    margin: 0;
+    white-space: pre;
+    overflow: hidden;
+    color: var(--green-dim);
+    font-size: 16px;
+    line-height: var(--lh);
+  }
+  .window .frame-title { color: var(--green-bright); font-weight: 700; }
+  .window .body {
+    border-left: 1px solid var(--green-dim);
+    border-right: 1px solid var(--green-dim);
+    background: var(--term-bg-raised);
+    padding: 1.5ch var(--gutter);
+  }
+
+  .window .body p { margin: 0 0 1ch 0; }
+  .window .body .dim { color: var(--green-dim); }
+  .window .body .bright { color: var(--green-bright); }
+
+  /* ---- Form field as prompt line ---- */
+  .field { margin: 1.5ch 0; }
+  .field label {
+    display: block;
+    color: var(--green-dim);
+    margin-bottom: .4ch;
+  }
+  .field label::before { content: "» "; color: var(--green); }
+  .prompt {
+    display: flex;
+    align-items: baseline;
+    border: 1px solid var(--green-dim);
+    padding: .3ch 1ch;
+    background: #060906;
+  }
+  .prompt .sigil { color: var(--green-bright); margin-right: 1ch; }
+  .prompt input {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    outline: none;
+    color: var(--green);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: var(--lh);
+    text-shadow: var(--glow);
+    caret-color: transparent;
+    padding: 0;
+  }
+  /* block cursor that follows nothing-fancy: a steady blinking block */
+  .cursor {
+    display: inline-block;
+    width: 1ch;
+    background: var(--green);
+    color: var(--term-bg);
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---- Buttons in [ OK ] idiom ---- */
+  .actions { margin-top: 2ch; display: flex; gap: 2ch; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: var(--lh);
+    background: transparent;
+    color: var(--green);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    text-shadow: var(--glow);
+    border-radius: var(--radius);
+  }
+  .btn::before { content: "[ "; }
+  .btn::after  { content: " ]"; }
+  .btn.primary {
+    color: var(--term-bg);
+    background: var(--green);
+    text-shadow: none;
+    font-weight: 700;
+    padding: 0 .5ch;
+  }
+  .btn.primary::before,
+  .btn.primary::after { color: var(--term-bg); }
+  .btn:focus-visible { outline: 1px dashed var(--green-bright); outline-offset: 2px; }
+  .btn:hover { color: var(--green-bright); }
+  .btn.primary:hover { background: var(--green-bright); }
+
+  footer.term-footer {
+    margin-top: 3ch;
+    color: var(--green-dim);
+    border-top: 1px solid var(--green-dim);
+    padding-top: 1ch;
+    font-size: 14px;
+  }
+  footer.term-footer .key { color: var(--green-bright); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; }
+    .cursor { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="screen">
+
+    <header class="term-header">
+      <span class="title">JD-TERM v0.5.1</span>
+      <span class="status">conn: <span class="ok">ONLINE</span> · 80x24 · utf-8</span>
+    </header>
+
+    <section class="window" aria-label="New deployment">
+      <pre class="frame-top">┌─[ <span class="frame-title">NEW DEPLOYMENT</span> ]──────────────────────────────────────────┐</pre>
+      <div class="body">
+        <p class="bright">Provision a node on the mainframe.</p>
+        <p class="dim">All fields are required. Press TAB to move, ENTER to submit.</p>
+
+        <form onsubmit="return false;">
+          <div class="field">
+            <label for="host">target host</label>
+            <div class="prompt">
+              <span class="sigil">&gt;</span>
+              <input id="host" name="host" type="text" placeholder="db-primary.local" autocomplete="off" spellcheck="false">
+              <span class="cursor" aria-hidden="true">&nbsp;</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="btn primary">OK</button>
+            <button type="button" class="btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+      <pre class="frame-bottom">└──────────────────────────────────────────────────────────────────┘</pre>
+    </section>
+
+    <footer class="term-footer">
+      <span class="key">^C</span> quit&nbsp;&nbsp;
+      <span class="key">^R</span> reload&nbsp;&nbsp;
+      <span class="key">F1</span> help&nbsp;&nbsp;
+      <span class="key">TAB</span> next field
+    </footer>
+
+  </div>
+</body>
+</html>

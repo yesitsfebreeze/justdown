@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swiss / International Typographic Style</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #111111;
+    --white: #FFFFFF;
+    --red: #D6001C;
+    --grey: #9B9B9B;
+    --grid: 8px;
+    --gutter: 24px;
+    --maxw: 1200px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { -webkit-font-smoothing: antialiased; }
+
+  body {
+    font-family: "Inter", Helvetica, Arial, sans-serif;
+    color: var(--black);
+    background: var(--white);
+    line-height: 1.5;
+    font-weight: 400;
+  }
+
+  .page {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: calc(var(--grid) * 8) var(--gutter);
+    /* visible underlying 12-column grid */
+    background-image: repeating-linear-gradient(
+      to right,
+      rgba(155,155,155,0.10) 0,
+      rgba(155,155,155,0.10) 1px,
+      transparent 1px,
+      transparent calc((100% - 11 * var(--gutter)) / 12 + var(--gutter))
+    );
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--gutter);
+  }
+
+  /* Header */
+  header {
+    border-top: 4px solid var(--black);
+    padding-top: calc(var(--grid) * 2);
+    margin-bottom: calc(var(--grid) * 12);
+  }
+  .masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--black);
+    padding-bottom: calc(var(--grid) * 1.5);
+  }
+  .logo {
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+  }
+  .logo .mark { color: var(--red); }
+  nav {
+    display: flex;
+    gap: calc(var(--grid) * 4);
+    font-weight: 700;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  nav a { color: var(--black); text-decoration: none; }
+  nav a:hover { color: var(--red); }
+
+  /* Hero headline */
+  .hero { margin-bottom: calc(var(--grid) * 12); }
+  .kicker {
+    grid-column: 1 / 13;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--red);
+    margin-bottom: calc(var(--grid) * 2);
+  }
+  h1 {
+    grid-column: 1 / 10;
+    font-size: clamp(40px, 8vw, 88px);
+    font-weight: 900;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+  }
+  .lede {
+    grid-column: 1 / 7;
+    margin-top: calc(var(--grid) * 4);
+    font-size: 18px;
+    color: var(--black);
+  }
+
+  /* Card */
+  .card {
+    grid-column: 1 / 6;
+    border: 1px solid var(--black);
+    background: var(--white);
+    padding: calc(var(--grid) * 4);
+  }
+  .card .eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--grey);
+    margin-bottom: calc(var(--grid) * 2);
+  }
+  .card h2 {
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: calc(var(--grid) * 2);
+  }
+  .card p { font-size: 16px; margin-bottom: calc(var(--grid) * 3); }
+  .card .index {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--red);
+    border-top: 1px solid var(--black);
+    padding-top: calc(var(--grid) * 1.5);
+  }
+
+  /* Form */
+  .form {
+    grid-column: 7 / 13;
+    border-top: 4px solid var(--red);
+    padding-top: calc(var(--grid) * 4);
+  }
+  .form h2 {
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: calc(var(--grid) * 4);
+  }
+  .field { margin-bottom: calc(var(--grid) * 3); max-width: 420px; }
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: calc(var(--grid) * 1);
+  }
+  input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--black);
+    background: var(--white);
+    border: 1px solid var(--black);
+    border-radius: 0;
+    padding: calc(var(--grid) * 1.5) calc(var(--grid) * 2);
+    outline: none;
+  }
+  input::placeholder { color: var(--grey); }
+  input:focus { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+
+  .btn {
+    display: inline-block;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--white);
+    background: var(--red);
+    border: 1px solid var(--red);
+    border-radius: 0;
+    padding: calc(var(--grid) * 1.75) calc(var(--grid) * 4);
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--black); border-color: var(--black); }
+
+  footer {
+    margin-top: calc(var(--grid) * 16);
+    border-top: 1px solid var(--black);
+    padding-top: calc(var(--grid) * 2);
+    font-size: 12px;
+    color: var(--grey);
+    display: flex;
+    justify-content: space-between;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  @media (max-width: 720px) {
+    h1 { grid-column: 1 / 13; }
+    .lede, .card, .form { grid-column: 1 / 13; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="masthead">
+        <div class="logo">Grid<span class="mark">/</span>System</div>
+        <nav>
+          <a href="#">Work</a>
+          <a href="#">Studio</a>
+          <a href="#">Index</a>
+          <a href="#">Contact</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero grid">
+      <p class="kicker">Issue 04 — Typography</p>
+      <h1>Order through the grid.</h1>
+      <p class="lede">A reference layout in the Swiss International style: neutral grotesque type, a strict baseline grid, generous whitespace, and a single red accent against black.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <p class="eyebrow">Feature</p>
+        <h2>The objective page</h2>
+        <p>Clarity over decoration. Hierarchy is built from size and weight alone — no shadows, no rounded corners, no ornament.</p>
+        <a class="btn" href="#">Read article</a>
+        <div class="index" style="margin-top:calc(var(--grid) * 3)">01 / 12</div>
+      </article>
+
+      <form class="form" action="#" onsubmit="return false">
+        <h2>Subscribe to the index</h2>
+        <div class="field">
+          <label for="email">Email address</label>
+          <input id="email" type="email" name="email" placeholder="name@studio.ch" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="name">Full name</label>
+          <input id="name" type="text" name="name" placeholder="Josef Müller-Brockmann">
+        </div>
+        <button class="btn" type="submit">Subscribe</button>
+      </form>
+    </section>
+
+    <footer>
+      <span>Grid / System</span>
+      <span>Zürich — 2026</span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bauhaus — Design Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #E1251B;
+    --yellow: #FFD500;
+    --blue: #005BBB;
+    --black: #1A1A1A;
+    --paper: #F4F1EA;
+    --grid: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Archivo', sans-serif;
+    background: var(--paper);
+    color: var(--black);
+    line-height: 1.4;
+    padding: calc(var(--grid) * 3);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  /* ---- Header ---- */
+  header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: calc(var(--grid) * 2);
+    border-bottom: 6px solid var(--black);
+    padding-bottom: calc(var(--grid) * 2);
+    margin-bottom: calc(var(--grid) * 4);
+  }
+
+  .mark {
+    width: 56px;
+    height: 56px;
+    background: var(--blue);
+    position: relative;
+  }
+  .mark::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--red);
+    border-radius: 50%;
+    transform: scale(0.62) translate(28%, -28%);
+  }
+  .mark::after {
+    content: "";
+    position: absolute;
+    left: 0; bottom: 0;
+    border-left: 28px solid transparent;
+    border-bottom: 28px solid var(--yellow);
+  }
+
+  header h1 {
+    font-weight: 900;
+    font-size: 28px;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
+  }
+
+  nav {
+    display: flex;
+    gap: calc(var(--grid) * 2);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  nav span:nth-child(1) { color: var(--red); }
+  nav span:nth-child(2) { color: var(--blue); }
+  nav span:nth-child(3) { color: var(--black); }
+
+  /* ---- Asymmetric grid ---- */
+  .grid {
+    display: grid;
+    grid-template-columns: 5fr 4fr;
+    gap: calc(var(--grid) * 3);
+    align-items: start;
+  }
+
+  /* ---- Hero block ---- */
+  .hero {
+    background: var(--yellow);
+    padding: calc(var(--grid) * 4);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero h2 {
+    font-weight: 900;
+    font-size: 52px;
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+    text-transform: uppercase;
+  }
+  .hero p {
+    margin-top: calc(var(--grid) * 2);
+    max-width: 32ch;
+    font-weight: 400;
+  }
+  .hero .circle {
+    position: absolute;
+    right: -40px;
+    bottom: -40px;
+    width: 140px;
+    height: 140px;
+    background: var(--red);
+    border-radius: 50%;
+  }
+
+  /* ---- Card ---- */
+  .card {
+    background: #fff;
+    border: 4px solid var(--black);
+    box-shadow: 6px 6px 0 var(--black);
+    padding: calc(var(--grid) * 3);
+  }
+  .card .tag {
+    display: inline-block;
+    background: var(--blue);
+    color: #fff;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    margin-bottom: calc(var(--grid) * 2);
+  }
+  .card h3 {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--grid);
+  }
+  .card p { font-size: 14px; }
+
+  /* ---- Form ---- */
+  .form {
+    margin-top: calc(var(--grid) * 3);
+    border-top: 3px solid var(--black);
+    padding-top: calc(var(--grid) * 3);
+  }
+  label {
+    display: block;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: var(--grid);
+  }
+  input[type="email"] {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    padding: calc(var(--grid) * 1.5);
+    border: 3px solid var(--black);
+    border-radius: 0;
+    background: var(--paper);
+    outline: none;
+  }
+  input[type="email"]:focus {
+    border-color: var(--blue);
+    background: #fff;
+  }
+
+  /* ---- Button ---- */
+  .btn {
+    margin-top: calc(var(--grid) * 2);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--grid);
+    background: var(--red);
+    color: #fff;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: calc(var(--grid) * 1.5) calc(var(--grid) * 3);
+    border: 3px solid var(--black);
+    border-radius: 0;
+    box-shadow: 5px 5px 0 var(--black);
+    cursor: pointer;
+    transition: transform 0.05s ease, box-shadow 0.05s ease;
+  }
+  .btn:hover { transform: translate(2px, 2px); box-shadow: 3px 3px 0 var(--black); }
+  .btn:active { transform: translate(5px, 5px); box-shadow: 0 0 0 var(--black); }
+  .btn .sq { width: 12px; height: 12px; background: var(--yellow); }
+
+  /* ---- Diagonal footer band ---- */
+  footer {
+    margin-top: calc(var(--grid) * 4);
+    height: 48px;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--black) 0, var(--black) 16px,
+      var(--paper) 16px, var(--paper) 32px
+    );
+    border-top: 4px solid var(--black);
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <header>
+      <div class="mark" aria-hidden="true"></div>
+      <h1>Formwerk</h1>
+      <nav>
+        <span>Work</span>
+        <span>Studio</span>
+        <span>Contact</span>
+      </nav>
+    </header>
+
+    <div class="grid">
+      <section class="hero">
+        <h2>Form Follows Function</h2>
+        <p>A design studio building rational, geometric systems. No ornament. Just structure, color, and intent.</p>
+        <div class="circle" aria-hidden="true"></div>
+      </section>
+
+      <section class="card">
+        <span class="tag">Newsletter</span>
+        <h3>Join the grid</h3>
+        <p>Monthly notes on geometry, type, and the discipline of less.</p>
+
+        <form class="form" onsubmit="return false">
+          <label for="email">Email address</label>
+          <input type="email" id="email" name="email" placeholder="you@studio.com" required>
+          <button class="btn" type="submit">
+            <span class="sq" aria-hidden="true"></span>
+            Subscribe
+          </button>
+        </form>
+      </section>
+    </div>
+
+    <footer aria-hidden="true"></footer>
+  </div>
+</body>
+</html>

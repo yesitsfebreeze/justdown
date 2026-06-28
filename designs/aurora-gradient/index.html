@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aurora Gradient — Style Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --base: #0B0B12;
+      --text: #F4F4FA;
+      --muted: #A9A8C0;
+      --glass: rgba(255, 255, 255, 0.07);
+      --glass-strong: rgba(255, 255, 255, 0.10);
+      --border: rgba(255, 255, 255, 0.16);
+      --accent: linear-gradient(135deg, #7C3AED 0%, #4F46E5 45%, #22D3EE 100%);
+      --radius-card: 24px;
+      --radius-ctrl: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Sora", system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--base);
+      position: relative;
+      overflow-x: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Aurora mesh — large blurred radial blobs */
+    .aurora {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.65;
+    }
+    .blob.violet {
+      width: 540px; height: 540px;
+      top: -140px; left: -100px;
+      background: #7C3AED;
+    }
+    .blob.blue {
+      width: 600px; height: 600px;
+      top: 10%; right: -160px;
+      background: #4F46E5;
+      opacity: 0.55;
+    }
+    .blob.teal {
+      width: 520px; height: 520px;
+      bottom: -180px; left: 18%;
+      background: #22D3EE;
+      opacity: 0.5;
+    }
+    .blob.pink {
+      width: 480px; height: 480px;
+      bottom: -120px; right: 8%;
+      background: #EC4899;
+      opacity: 0.45;
+    }
+    .blob.peach {
+      width: 360px; height: 360px;
+      top: 32%; left: 38%;
+      background: #FB923C;
+      opacity: 0.30;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    header.brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+      padding-left: 4px;
+    }
+    .logo {
+      width: 38px; height: 38px;
+      border-radius: 12px;
+      background: var(--accent);
+      box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+    }
+    .brand h1 {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+    .brand span {
+      display: block;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+
+    /* Frosted glass card */
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(22px) saturate(150%);
+      -webkit-backdrop-filter: blur(22px) saturate(150%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 40px 36px;
+      box-shadow:
+        0 8px 40px rgba(17, 12, 46, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+    }
+    .card p.lede {
+      margin: 0 0 28px;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--muted);
+    }
+
+    .field {
+      margin-bottom: 22px;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .field input {
+      width: 100%;
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--text);
+      padding: 14px 16px;
+      border-radius: var(--radius-ctrl);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .field input::placeholder { color: rgba(169, 168, 192, 0.7); }
+    .field input:focus {
+      border-color: rgba(124, 58, 237, 0.8);
+      background: rgba(255, 255, 255, 0.10);
+      box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.18);
+    }
+
+    .btn {
+      width: 100%;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #fff;
+      padding: 15px 20px;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      background: var(--accent);
+      box-shadow: 0 8px 26px rgba(124, 58, 237, 0.5);
+      transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.06);
+      box-shadow: 0 12px 34px rgba(124, 58, 237, 0.6);
+    }
+    .btn:active { transform: translateY(0); }
+
+    .foot {
+      margin-top: 22px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .foot a { color: #C4B5FD; text-decoration: none; }
+    .foot a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true">
+    <div class="blob violet"></div>
+    <div class="blob blue"></div>
+    <div class="blob teal"></div>
+    <div class="blob pink"></div>
+    <div class="blob peach"></div>
+  </div>
+
+  <div class="shell">
+    <header class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <h1>Nebula
+        <span>workspace for builders</span>
+      </h1>
+    </header>
+
+    <main class="card">
+      <h2>Welcome back</h2>
+      <p class="lede">Sign in to your workspace and pick up exactly where you left off.</p>
+
+      <form onsubmit="return false">
+        <div class="field">
+          <label for="email">Work email</label>
+          <input id="email" type="email" placeholder="you@company.com" autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button class="btn" type="submit">Continue</button>
+      </form>
+
+      <p class="foot">New here? <a href="#">Create an account</a></p>
+    </main>
+  </div>
+</body>
+</html>

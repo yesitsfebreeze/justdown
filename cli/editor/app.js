@@ -1988,6 +1988,11 @@ function saveSettings() {
 }
 function applySettings() {
   const root = document.documentElement.style;
+  // Theme: force light/dark via a class on <html>; "auto" (neither class) lets the
+  // stylesheet's prefers-color-scheme media query follow the OS.
+  const cl = document.documentElement.classList;
+  cl.toggle("theme-light", settings.theme === "light");
+  cl.toggle("theme-dark", settings.theme === "dark");
   // --tint cascades into --selection / links automatically (they're var(--tint))
   settings.tint ? root.setProperty("--tint", settings.tint) : root.removeProperty("--tint");
   settings.dim ? root.setProperty("--dim", settings.dim) : root.removeProperty("--dim");
@@ -2056,6 +2061,7 @@ function syncSettingsControls() {
   settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
     b.classList.toggle("on", b.dataset.c === setTint.value));
   setCursor.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === settings.cursor));
+  setTheme.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === settings.theme));
   const smearOn = settings.smear !== false;
   setSmear.classList.toggle("on", smearOn);
   setSmear.textContent = smearOn ? "On" : "Off";
@@ -2096,6 +2102,8 @@ setFont.addEventListener("change", () => { settings.font = setFont.value; applyS
 setMono.addEventListener("change", () => { settings.mono = setMono.value; applySettings(); saveSettings(); });
 setCursor.querySelectorAll("button").forEach((b) =>
   b.addEventListener("click", () => { settings.cursor = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
+setTheme.querySelectorAll("button").forEach((b) =>
+  b.addEventListener("click", () => { settings.theme = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setSmear.addEventListener("click", () => { settings.smear = settings.smear === false; applySettings(); saveSettings(); syncSettingsControls(); });
 setTrail.addEventListener("input", () => { settings.smearTrail = +setTrail.value; applySettings(); saveSettings(); });
 setSmearSpeed.addEventListener("input", () => { settings.smearSpeed = +setSmearSpeed.value; applySettings(); saveSettings(); });

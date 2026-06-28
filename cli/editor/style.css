@@ -39,7 +39,8 @@
   --variable-fg: #444444;               /* grayscale chip text */
   --tint: #007aff;                      /* the single accent hue — caret, selection, links */
   --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
-  --dim: 0.34;                          /* focus mode: opacity of inactive text */
+  --dim: 0.52;                          /* focus mode: opacity of inactive text. Higher than dark's because
+                                           fading toward a light bg washes out faster than toward a dark one. */
   --rule: rgba(0, 0, 0, 0.10);
   --swatch-ring: rgba(0, 0, 0, 0.18);   /* swatch edge — pure black in light */
   --code-bg: rgba(0, 0, 0, 0.045);

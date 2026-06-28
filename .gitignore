@@ -49,5 +49,8 @@ vicky/
 # session safety-net file (owning session id) — harness-local, never committed.
 .claude-session
 
+# mesh plugin runtime roster/state — local-only, rebuilt per session.
+.mesh/
+
 # cargo workspace build output
 /target/

@@ -48,6 +48,7 @@
   --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.30);
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);   /* modern, gentle overshoot-free */
+  --theme-fade: 0.35s ease-in-out;          /* shared light/dark crossfade — symmetric, not --ease */
   --font: "iA Writer Quattro", ui-rounded, "Helvetica Neue", -apple-system, sans-serif;
   --font-mono: "iA Writer Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
@@ -114,13 +115,22 @@ body {
 }
 
 /* Smooth theme crossfade. Custom properties flip instantly, so the fade lives on
-   the concrete colour properties of the surfaces that consume them. The duration
-   is long and the curve is a SYMMETRIC ease-in-out — NOT the app's --ease, which
-   is front-loaded (reaches ~95% in ~100ms) and makes any crossfade look instant.
-   (.cm-line keeps its own focus-fade rule and gets the slow colour curve there.) */
-body,
-.cm-editor, .cm-scroller, .cm-content {
-  transition: background-color 0.7s ease-in-out, color 0.7s ease-in-out;
+   the concrete colour properties. Rather than per-rule (which leaves every element's
+   own hover/focus easing + duration to govern the flip, so the UI changes in a dozen
+   mismatched speeds), JS adds `.theming` to <html> for the flip's duration only and
+   EVERY element crossfades its colour surfaces on the single shared --theme-fade — a
+   SYMMETRIC ease-in-out, NOT the front-loaded --ease that makes a crossfade look
+   instant. Outside the flip the class is gone, so hover/focus keep their snappy feel.
+   Caveats, both fine for a deliberate one-shot flip: this `transition` shorthand
+   replaces each element's whole transition list for the ~420ms window, so any
+   in-flight motion (smear, caret, dim-fade) snaps; and gradient backgrounds use
+   background-image, which can't transition, so they still snap. */
+html.theming, html.theming * {
+  transition: background-color var(--theme-fade),
+              color var(--theme-fade),
+              border-color var(--theme-fade),
+              fill var(--theme-fade),
+              stroke var(--theme-fade) !important;
 }
 
 /* --- top search line (also the file title) ----------------------- */
@@ -517,8 +527,8 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
  *  Strong iA-style dim — inactive text fades well back so the block
  *  under the cursor clearly dominates. Tunable via --dim. */
 /* opacity = focus-fade dim (snappy --ease); colour only changes on a theme flip,
-   so give it the slow even ease-in-out so the prose crossfades with the page. */
-.cm-line { transition: opacity 0.5s var(--ease), color 0.7s ease-in-out; }
+   handled globally by the .theming crossfade above. */
+.cm-line { transition: opacity 0.5s var(--ease); }
 .cm-line.cm-dim { opacity: var(--dim); }
 /* the active block's tail fades progressively: 1.0 at the caret, easing to the
    focus-dim colour at the block's last glyph (--t is the per-char position). */

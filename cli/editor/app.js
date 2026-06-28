@@ -2102,8 +2102,16 @@ setFont.addEventListener("change", () => { settings.font = setFont.value; applyS
 setMono.addEventListener("change", () => { settings.mono = setMono.value; applySettings(); saveSettings(); });
 setCursor.querySelectorAll("button").forEach((b) =>
   b.addEventListener("click", () => { settings.cursor = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
+// Arm the global colour crossfade (.theming on <html>) just for the flip, then drop
+// it so hover/focus keep their own easing. ~420ms = --theme-fade (350ms) + buffer.
+let themingTimer;
+function flashThemeFade() {
+  document.documentElement.classList.add("theming");
+  clearTimeout(themingTimer);
+  themingTimer = setTimeout(() => document.documentElement.classList.remove("theming"), 420);
+}
 setTheme.querySelectorAll("button").forEach((b) =>
-  b.addEventListener("click", () => { settings.theme = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
+  b.addEventListener("click", () => { flashThemeFade(); settings.theme = b.dataset.v; applySettings(); saveSettings(); syncSettingsControls(); }));
 setSmear.addEventListener("click", () => { settings.smear = settings.smear === false; applySettings(); saveSettings(); syncSettingsControls(); });
 setTrail.addEventListener("input", () => { settings.smearTrail = +setTrail.value; applySettings(); saveSettings(); });
 setSmearSpeed.addEventListener("input", () => { settings.smearSpeed = +setSmearSpeed.value; applySettings(); saveSettings(); });
@@ -2111,6 +2119,7 @@ document.addEventListener("mousedown", (e) => {
   if (settingsOpen && !settingsPanel.contains(e.target)) closeSettings();
 });
 document.getElementById("settingsReset").addEventListener("click", () => {
+  flashThemeFade();
   settings = { ...SETTINGS_DEFAULTS };
   applySettings(); saveSettings(); syncSettingsControls();
 });
@@ -2118,7 +2127,7 @@ document.getElementById("settingsReset").addEventListener("click", () => {
 applySettings();   // restore persisted look on launch
 // On auto theme with the default tint, an OS light/dark flip changes the resolved
 // --tint, so re-derive --cursor-fg (the only theme-dependent value JS computes).
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { flashThemeFade(); applySettings(); });
 
 function escapeHtml(text) {
   const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };

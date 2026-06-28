@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flat Design Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2980B9;
+      --primary-dark: #1F6391;
+      --secondary: #16A085;
+      --secondary-dark: #11806A;
+      --accent: #E74C3C;
+      --accent-dark: #C0392B;
+      --bg: #ECF0F1;
+      --surface: #FFFFFF;
+      --text: #2C3E50;
+      --muted: #7F8C8D;
+      --border: #DDE4E6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Montserrat", "Open Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header {
+      background: var(--primary);
+      color: var(--surface);
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .brand {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    nav {
+      display: flex;
+      gap: 8px;
+    }
+
+    nav a {
+      color: var(--surface);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 16px;
+      background: var(--primary-dark);
+    }
+
+    nav a:hover {
+      background: var(--text);
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+
+    .intro {
+      grid-column: 1 / -1;
+    }
+
+    .intro h1 {
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+
+    .intro p {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 60ch;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-banner {
+      background: var(--secondary);
+      color: var(--surface);
+      padding: 24px;
+    }
+
+    .card-banner .eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.9;
+    }
+
+    .card-banner h2 {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-top: 4px;
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    .card-body p {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .btn {
+      display: inline-block;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--surface);
+      background: var(--accent);
+      border: none;
+      padding: 12px 24px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: var(--accent-dark);
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 24px;
+    }
+
+    .panel h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .field input {
+      width: 100%;
+      font-family: inherit;
+      font-size: 16px;
+      color: var(--text);
+      background: var(--bg);
+      border: 2px solid var(--bg);
+      padding: 12px;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: var(--primary);
+      background: var(--surface);
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      padding: 14px;
+      font-size: 16px;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .swatches {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+    }
+
+    .swatch {
+      padding: 24px 16px;
+      color: var(--surface);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .s-primary { background: var(--primary); }
+    .s-secondary { background: var(--secondary); }
+    .s-accent { background: var(--accent); }
+    .s-text { background: var(--text); }
+
+    @media (max-width: 720px) {
+      main { grid-template-columns: 1fr; }
+      .swatches { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">FLATKIT</span>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">Projects</a>
+      <a href="#">Team</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="intro">
+      <h1>Bold, honest, flat.</h1>
+      <p>No gradients, no shadows, no fake depth. Just confident solid color, strong type, and clear space doing all the work.</p>
+    </section>
+
+    <article class="card">
+      <div class="card-banner">
+        <span class="eyebrow">Featured</span>
+        <h2>Quarterly Report</h2>
+      </div>
+      <div class="card-body">
+        <p>A flat card: defined by a solid color banner and a thin border instead of elevation or shadow.</p>
+        <a href="#" class="btn">View report</a>
+      </div>
+    </article>
+
+    <section class="panel">
+      <h2>Sign in</h2>
+      <form>
+        <div class="field">
+          <label for="email">Email address</label>
+          <input id="email" type="email" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary">Continue</button>
+      </form>
+    </section>
+
+    <section class="swatches">
+      <div class="swatch s-primary">Primary</div>
+      <div class="swatch s-secondary">Secondary</div>
+      <div class="swatch s-accent">Accent</div>
+      <div class="swatch s-text">Text</div>
+    </section>
+  </main>
+</body>
+</html>

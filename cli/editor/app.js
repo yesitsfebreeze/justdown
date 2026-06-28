@@ -129,6 +129,7 @@ function activeBlockLines(state) {
 function caretBlockTail(state) {
   const r = state.selection.main;
   if (!r.empty) return null;
+  if (caretInFmKey(state)) return null;   // don't split the key's inline-block column
   const tree = syntaxTree(state);
   let block = null;
   for (const side of [-1, 1]) {
@@ -142,6 +143,23 @@ function caretBlockTail(state) {
   if (!block) return null;
   const end = Math.min(block.to, state.doc.length);
   return end > r.head ? { from: r.head, to: end } : null;
+}
+
+// The key renders as a fixed-width right-aligned inline-block (.cm-fm-key-col);
+// ANY char-level decoration overlapping it (dim-after gradient, block-cursor glyph,
+// find-match) splits it into several such boxes and wrecks the layout. So callers
+// that emit those skip the key region. posInFmKey: pos sits in a frontmatter key.
+function posInFmKey(state, pos) {
+  const fm = frontmatter(state);
+  if (!fm) return false;
+  const ln = state.doc.lineAt(pos);
+  if (ln.number <= fm.open || ln.number >= fm.close) return false;
+  const m = FM_KEY_RE.exec(ln.text);
+  return !!m && pos >= ln.from && pos <= ln.from + m[1].length + m[2].length;
+}
+function caretInFmKey(state) {
+  const r = state.selection.main;
+  return r.empty && posInFmKey(state, r.head);
 }
 
 // True when any selection range touches [from, to] (inclusive). Drives
@@ -529,6 +547,15 @@ function buildDecorations(view) {
   const active = activeLineSet(state);          // per-line — drives marker reveal
   const dimOn = activeBlockLines(state);        // deepest block — drives focus dim
   const fm = frontmatter(state);
+  // --fm-key-w: the longest frontmatter key (in ch); drives the right-aligned key
+  // column (see .cm-fm-key-col in style.css).
+  let fmKeyW = 0;
+  if (fm) {
+    for (let i = fm.open + 1; i < fm.close; i++) {
+      const mm = FM_KEY_RE.exec(state.doc.line(i).text);
+      if (mm) fmKeyW = Math.max(fmKeyW, mm[2].length);
+    }
+  }
   const tableSkip = inactiveTableLines(state); // lines rendered as <table> widgets
   const tail = caretBlockTail(state);          // dim the active block past the caret
   const decos = [];
@@ -568,21 +595,22 @@ function buildDecorations(view) {
             decos.push(Decoration.replace({}).range(line.from, line.to));
           }
         } else {
-          decos.push(Decoration.line({ class: "cm-fm cm-fm-field" }).range(line.from));
+          decos.push(Decoration.line({ class: "cm-fm cm-fm-field", attributes: { style: `--fm-key-w:${fmKeyW}ch` } }).range(line.from));
           const m = FM_KEY_RE.exec(line.text);
           if (m) {
             const ks = line.from + m[1].length;
-            const ke = ks + m[2].length;            // end of key word
-            const afterKey = line.from + m[0].length; // end of `key:` (incl. colon)
-            if (onLine) {
-              // editing this field → show raw `key: value`
-              decos.push(Decoration.mark({ class: "cm-fm-key" }).range(ks, ke));
-            } else {
-              // rendered field: key becomes a column label, colon hidden
-              decos.push(Decoration.mark({ class: "cm-fm-label" }).range(ks, ke));
+            const ke = ks + m[2].length;              // end of key word
+            const colonPos = line.from + m[0].length - 1; // the ':' char
+            const afterKey = line.from + m[0].length;     // after `key:`
+            // key right-aligned in the left-margin column, colon at the text edge,
+            // value in the normal text column — always (incl. while editing). The
+            // key stays an editable span; the caret clamp (fmCaretClamp) skips the
+            // colon/space so Left/Right jump between the key span and the value.
+            decos.push(Decoration.mark({ class: "cm-fm-key-col" }).range(ks, ke));
+            decos.push(Decoration.mark({ class: "cm-fm-colon" }).range(colonPos, colonPos + 1));
+            if (!onLine) {
               let end = afterKey;
               if (state.doc.sliceString(afterKey, afterKey + 1) === " ") end += 1;
-              if (end > ke) decos.push(Decoration.replace({}).range(ke, end));
               const valueText = line.text.slice(end - line.from);
               const am = /^\s*\[(.+)\]\s*$/.exec(valueText);
               if (am && end < line.to) {
@@ -777,6 +805,7 @@ const cursorGlyphMark = Decoration.mark({ class: "cm-cursor-glyph" });
 function cursorGlyphDeco(view) {
   const sel = view.state.selection.main;
   if (!sel.empty) return Decoration.none;
+  if (caretInFmKey(view.state)) return Decoration.none;   // don't split the key column
   const line = view.state.doc.lineAt(sel.head);
   if (sel.head >= line.to) return Decoration.none;
   return Decoration.set([cursorGlyphMark.range(sel.head, sel.head + 1)]);
@@ -855,12 +884,43 @@ function endSmart(view) {
   return true;
 }
 
+// Frontmatter caret clamp: the key renders right-aligned in the left margin and
+// the value in the text column, with the `: ` between them hidden/structural. Skip
+// that dead zone on plain caret moves so Left/Right jump straight between the key
+// span and the value (a caret can't strand on the colon/space). Only acts on
+// non-doc-changing transactions so typing is untouched.
+const fmCaretClamp = EditorState.transactionFilter.of((tr) => {
+  if (tr.docChanged || !tr.selection) return tr;
+  const state = tr.startState;
+  const fm = frontmatter(state);
+  if (!fm) return tr;
+  const prev = state.selection.main.head;
+  let changed = false;
+  const ranges = tr.selection.ranges.map((r) => {
+    if (!r.empty) return r;
+    const ln = state.doc.lineAt(r.head);
+    if (ln.number <= fm.open || ln.number >= fm.close) return r;
+    const m = FM_KEY_RE.exec(ln.text);
+    if (!m) return r;
+    const keyEnd = ln.from + m[1].length + m[2].length;
+    let valueStart = ln.from + m[0].length;
+    if (state.doc.sliceString(valueStart, valueStart + 1) === " ") valueStart += 1;
+    if (r.head > keyEnd && r.head < valueStart) {
+      changed = true;
+      return EditorSelection.cursor(r.head >= prev ? valueStart : keyEnd);
+    }
+    return r;
+  });
+  return changed ? [tr, { selection: EditorSelection.create(ranges, tr.selection.mainIndex) }] : tr;
+});
+
 const view = new EditorView({
   parent: editorHost,
   state: EditorState.create({
     doc: "",
     extensions: [
       history(),
+      fmCaretClamp,
       drawSelection(),
       EditorView.lineWrapping,
       markdown({ base: markdownLanguage, addKeymap: true }),
@@ -900,6 +960,7 @@ const view = new EditorView({
       }),
       EditorView.updateListener.of((u) => {
         if (u.selectionSet || u.docChanged) { scheduleCenter(); updateCursorBlockWidth(); smearMove(); redrawSelection(); updateRead(); }
+        else if (u.viewportChanged || u.geometryChanged) redrawSelection();   // scroll reveals new rows
         if (findOpen && u.docChanged) updateFindCount();   // field recomputed; sync the n/m counter
         if (!u.docChanged) return;
         markDirty();
@@ -1205,10 +1266,10 @@ function insetRectilinear(pts, r) {
 
 /* ------------------------------------------------------------------ *
  *  Custom selection: CM draws the selection as plain per-line rectangles. We hide
- *  those and redraw the same geometry as ONE rounded outline per contiguous line
- *  stack — a joined "blob" with arced corners. The SVG lives inside the scroller
- *  so it rides scrolling exactly like CM's own (now-hidden) selection rects, and
- *  we read those rects for placement so it always lines up with the text.
+ *  those and redraw each contiguous block of selected rows as a rounded outline — a
+ *  joined "blob" with arced corners. Placement comes from the selected TEXT's own client rects
+ *  (a DOM range measured per line), so it hugs the glyphs and lines up even on
+ *  styled rows. The SVG lives inside the scroller so it rides scrolling with content.
  * ------------------------------------------------------------------ */
 (function selectionBlob() {
   const NS = "http://www.w3.org/2000/svg";
@@ -1220,8 +1281,9 @@ function insetRectilinear(pts, r) {
 
   const R = 3;   // corner radius — every edge rounds by this via the inset+stroke trick (see CSS)
 
+  // Staircase outline of a top-sorted rect stack (one rect per row): down the right
+  // edges, back up the left edges.
   const outline = (rs) => {
-    rs = rs.slice().sort((a, b) => a.t - b.t);
     const pts = [];
     for (const r of rs) pts.push([r.r, r.t], [r.r, r.b]);
     for (let i = rs.length - 1; i >= 0; i--) pts.push([rs[i].l, rs[i].b], [rs[i].l, rs[i].t]);
@@ -1232,30 +1294,69 @@ function insetRectilinear(pts, r) {
     : "M " + pts.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" L ") + " Z";
 
   const paint = () => {
-    const divs = view.scrollDOM.querySelectorAll(".cm-selectionBackground");
-    if (!divs.length) { path.setAttribute("d", ""); return; }
-    // Size the SVG viewport to the full scroll area: the path is in content coords,
-    // so a 0×0 viewport would clip every shape away.
-    svg.setAttribute("width", view.scrollDOM.scrollWidth);
-    svg.setAttribute("height", view.scrollDOM.scrollHeight);
+    const ranges = view.state.selection.ranges.filter((r) => !r.empty);
+    if (!ranges.length) { path.setAttribute("d", ""); return; }
     const sb = view.scrollDOM.getBoundingClientRect();
     const sx = view.scrollDOM.scrollLeft, sy = view.scrollDOM.scrollTop;
-    const rects = Array.from(divs).map((el) => {
-      const r = el.getBoundingClientRect();
-      return { l: r.left - sb.left + sx, t: r.top - sb.top + sy, r: r.right - sb.left + sx, b: r.bottom - sb.top + sy };
-    });
-    rects.sort((a, b) => a.t - b.t || a.l - b.l);
+    // groups holds one shape per contiguous run of rows (a range with interior blank
+    // lines splits into several). Rects come from the selected TEXT's per-line client
+    // rects — NOT CM's .cm-selectionBackground/RectangleMarker, which coalesce to
+    // full width and misalign over styled rows (frontmatter mono). Per-line ranges
+    // hug the glyphs; empty/off-viewport lines yield no rect. Clamped to viewport.
+    const doc = view.state.doc, vp = view.viewport;
     const groups = [];
-    for (const r of rects) {
-      const g = groups[groups.length - 1];
-      if (g && r.t <= g[g.length - 1].b + 1) g.push(r); else groups.push([r]);
+    for (const range of ranges) {
+      const g = [];
+      const lo = Math.max(range.from, vp.from), hi = Math.min(range.to, vp.to);
+      if (hi <= lo) continue;
+      for (let n = doc.lineAt(lo).number, end = doc.lineAt(hi).number; n <= end; n++) {
+        const line = doc.line(n);
+        const from = Math.max(line.from, range.from), to = Math.min(line.to, range.to);
+        if (to <= from) continue;
+        let a, b;
+        try { a = view.domAtPos(from); b = view.domAtPos(to); } catch { continue; }
+        const dr = document.createRange();
+        try { dr.setStart(a.node, a.offset); dr.setEnd(b.node, b.offset); } catch { continue; }
+        for (const cr of dr.getClientRects()) {
+          if (cr.width < 0.5 || cr.height < 0.5) continue;
+          g.push({ l: cr.left - sb.left + sx, t: cr.top - sb.top + sy, r: cr.right - sb.left + sx, b: cr.bottom - sb.top + sy });
+        }
+      }
+      // Coalesce same-row fragments into one rect per visual row: inline spans (code,
+      // links) split a row into several client rects; without this, outline() reads
+      // them as a vertical stack and self-intersects into spikes.
+      g.sort((a, b) => a.t - b.t || a.l - b.l);
+      const rows = [];
+      for (const r of g) {
+        const cur = rows[rows.length - 1];
+        if (cur && r.t < cur.b - 1) { cur.l = Math.min(cur.l, r.l); cur.r = Math.max(cur.r, r.r); cur.b = Math.max(cur.b, r.b); }
+        else rows.push({ ...r });
+      }
+      // Split into runs at big vertical gaps (skipped blank lines), and within a run
+      // snap adjacent rows flush at the gap midpoint. Flush rows make the outline
+      // purely axis-aligned — every connector is horizontal/vertical, never a diagonal
+      // across a line-height gap. Each run is its own merged-rectangle shape.
+      let run = [];
+      const pushRun = (rs) => {
+        for (let i = 0; i < rs.length - 1; i++) { const mid = (rs[i].b + rs[i + 1].t) / 2; rs[i].b = mid; rs[i + 1].t = mid; }
+        if (rs.length) groups.push(rs);
+      };
+      for (const r of rows) {
+        const prev = run[run.length - 1];
+        if (prev && r.t - prev.b > (prev.b - prev.t) * 0.6) { pushRun(run); run = []; }
+        run.push(r);
+      }
+      pushRun(run);
     }
-    // One filled shape per contiguous line-stack: the outline polygon inset by r,
-    // then stroked 2r with round joins so every corner — convex and the staircase's
-    // reflex ones — rounds uniformly. r clamps to half the smallest rect dim so tiny
-    // selections don't invert; stroke-width tracks 2r (set here, not CSS) so inset and
-    // stroke always cancel back to the true bounds.
-    const minDim = Math.min(...rects.map((c) => Math.min(c.r - c.l, c.b - c.t)));
+    if (!groups.length) { path.setAttribute("d", ""); return; }
+    // SVG sized to the scroll area: paths are in content coords, a 0×0 viewport clips them.
+    svg.setAttribute("width", view.scrollDOM.scrollWidth);
+    svg.setAttribute("height", view.scrollDOM.scrollHeight);
+    // Each run → one shape: outline inset by r, then stroked 2r with round joins to
+    // round every corner. r clamps to half the smallest rect (tiny selections can't
+    // invert); stroke-width tracks 2r so the inset and stroke cancel to the true bounds.
+    const all = groups.flat();
+    const minDim = Math.min(...all.map((c) => Math.min(c.r - c.l, c.b - c.t)));
     const r = Math.max(0, Math.min(R, minDim / 2));
     path.setAttribute("stroke-width", 2 * r);
     path.setAttribute("d", groups.map((g) => polyPath(insetRectilinear(outline(g), r))).join(" "));
@@ -1749,9 +1850,11 @@ const findField = StateField.define({
     else if (queryChanged || tr.docChanged) index = pickIndex(matches, tr.state.selection.main.head);
     if (index >= matches.length) index = matches.length ? 0 : -1;
     const deco = matches.length
-      ? Decoration.set(matches.map((m, i) =>
-          Decoration.mark({ class: i === index ? "cm-find-match cm-find-current" : "cm-find-match" })
-            .range(m.from, m.to)), true)
+      ? Decoration.set(matches
+          .filter((m) => !posInFmKey(tr.state, m.from))   // a mark inside a key splits its inline-block column
+          .map((m) =>
+            Decoration.mark({ class: m === matches[index] ? "cm-find-match cm-find-current" : "cm-find-match" })
+              .range(m.from, m.to)), true)
       : Decoration.none;
     return { query, cs, matches, index, deco };
   },
@@ -2008,8 +2111,7 @@ rgInput.addEventListener("keydown", (e) => {
 
 const settingsPanel = document.getElementById("settings");
 const setTint = document.getElementById("setTint");
-const setDim = document.getElementById("setDim");
-const setFade = document.getElementById("setFade");
+const setFocus = document.getElementById("setFocus");
 const setFont = document.getElementById("setFont");
 const setMono = document.getElementById("setMono");
 const settingsSwatches = document.getElementById("settingsSwatches");
@@ -2045,7 +2147,12 @@ const SETTINGS_KEY = "jd:settings";
 // Smear defaults OFF when the OS asks for reduced motion, ON otherwise. A stored
 // choice (loadSettings spreads it over these defaults) always wins, so flipping
 // the Smear toggle takes effect regardless of the OS preference.
-const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: !matchMedia("(prefers-reduced-motion: reduce)").matches, smearTrail: 78, smearSpeed: 62 };
+const SETTINGS_DEFAULTS = { theme: "auto", tint: "", focus: "", font: "", mono: "", cursor: "block", smear: !matchMedia("(prefers-reduced-motion: reduce)").matches, smearTrail: 78, smearSpeed: 62 };
+// One "Focus" slider (0–100) drives both the inactive-text fade (--dim) and the
+// top/bottom edge blur (--fade-dist): 0 = all sharp, 100 = max fade + blur.
+const focusToDim = (f) => (1 - f * 0.009).toFixed(2);    // 0→1.0 (no fade) … 100→0.10
+const focusToFade = (f) => `${Math.round(f * 0.45)}vh`;  // 0→0 … 100→45vh
+const dimToFocus = (dim) => Math.round((1 - dim) / 0.009);
 const SWATCHES = ["#81a2be", "#de935f", "#b5bd68", "#b294bb"];
 let settingsOpen = false;
 let settings = loadSettings();
@@ -2056,6 +2163,9 @@ function loadSettings() {
     // Legacy: the standalone `outline` toggle folded into the cursor style.
     if (s.outline === true && s.cursor !== "line") s.cursor = "outline";
     delete s.outline;
+    // Legacy: separate `dim` + `fadeDist` folded into the single `focus` slider.
+    if ((s.focus === "" || s.focus == null) && s.dim) s.focus = String(dimToFocus(parseFloat(s.dim)));
+    delete s.dim; delete s.fadeDist;
     return s;
   } catch { return { ...SETTINGS_DEFAULTS }; }
 }
@@ -2071,8 +2181,10 @@ function applySettings() {
   cl.toggle("theme-dark", settings.theme === "dark");
   // --tint cascades into --selection / links automatically (they're var(--tint))
   settings.tint ? root.setProperty("--tint", settings.tint) : root.removeProperty("--tint");
-  settings.dim ? root.setProperty("--dim", settings.dim) : root.removeProperty("--dim");
-  settings.fadeDist ? root.setProperty("--fade-dist", settings.fadeDist) : root.removeProperty("--fade-dist");
+  if (settings.focus !== "" && settings.focus != null) {
+    root.setProperty("--dim", focusToDim(+settings.focus));
+    root.setProperty("--fade-dist", focusToFade(+settings.focus));
+  } else { root.removeProperty("--dim"); root.removeProperty("--fade-dist"); }
   // fonts: load the webfont on demand, then point the CSS var at it (with the
   // stylesheet's fallback chain); empty → drop the link and the override.
   loadGFont("gfont-body", settings.font, true);
@@ -2128,10 +2240,10 @@ function contrastOf(color) {
 function syncSettingsControls() {
   const cs = getComputedStyle(document.documentElement);
   setTint.value = hexOf(settings.tint || cs.getPropertyValue("--tint"));
-  const dim = parseFloat(settings.dim || cs.getPropertyValue("--dim")) || 0.34;
-  setDim.value = String(Math.round((1 - dim) * 100));            // higher slider = stronger fade
-  const dist = parseFloat(settings.fadeDist || cs.getPropertyValue("--fade-dist") || "30");
-  setFade.value = String(Math.round(dist));
+  const focus = settings.focus !== "" && settings.focus != null
+    ? +settings.focus
+    : dimToFocus(parseFloat(cs.getPropertyValue("--dim")) || 0.34);
+  setFocus.value = String(focus);
   setFont.value = settings.font || "";
   setMono.value = settings.mono || "";
   settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
@@ -2172,8 +2284,7 @@ setFont.innerHTML = BODY_FONTS.map(fontOption).join("");
 setMono.innerHTML = MONO_FONTS.map(fontOption).join("");
 
 setTint.addEventListener("input", () => { settings.tint = setTint.value; applySettings(); saveSettings(); syncSettingsControls(); });
-setDim.addEventListener("input", () => { settings.dim = ((100 - +setDim.value) / 100).toFixed(2); applySettings(); saveSettings(); });
-setFade.addEventListener("input", () => { settings.fadeDist = `${+setFade.value}vh`; applySettings(); saveSettings(); });
+setFocus.addEventListener("input", () => { settings.focus = String(+setFocus.value); applySettings(); saveSettings(); });
 setFont.addEventListener("change", () => { settings.font = setFont.value; applySettings(); saveSettings(); });
 setMono.addEventListener("change", () => { settings.mono = setMono.value; applySettings(); saveSettings(); });
 setCursor.querySelectorAll("button").forEach((b) =>

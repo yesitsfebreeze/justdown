@@ -519,8 +519,8 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
 /* while the springing quad is the cursor, hide CM's native caret so the two
    don't double up or teleport past each other; the caret takes back over on settle. */
 .editor-host.smearing .cm-cursor { opacity: 0 !important; }
-/* CM still lays out .cm-selectionBackground (we read its rects for geometry) but
-   we paint the selection ourselves as a rounded blob, so keep its box transparent. */
+/* CM still lays out .cm-selectionBackground but we paint our own rounded blob
+   (cm-sel-blob) from the selected text's rects, so keep its box transparent. */
 .cm-selectionBackground { background: transparent !important; }
 .cm-content ::selection { background: var(--selection) !important; }
 /* The joined rounded selection blob — soft tint fill, slightly stronger edge. */
@@ -743,26 +743,25 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
   font-size: 0.9em;
   color: var(--text);
 }
-/* each property is its own row; hanging indent keeps wrapped value lines
-   aligned under the value column instead of falling back to the margin.
-   6.6em ≈ the label column width (label min-width:8em × its 0.82em font).
-   Scoped under .cm-editor to beat CodeMirror's injected .cm-line padding. */
-.cm-editor .cm-fm-field { padding: 2px 0 2px 6.6em; text-indent: -6.6em; }
+/* each property is its own row; the value sits in the normal text column and the
+   key hangs in the left margin (like the code line-numbers). --fm-key-w (the
+   longest key, in ch) is set per line in JS. Scoped under .cm-editor to beat
+   CodeMirror's injected .cm-line padding. */
+.cm-editor .cm-fm-field { padding: 2px 0; }
 .cm-fm-fence { color: var(--faint); min-height: 0.4em; }
-.cm-fm-key { color: var(--accent); }          /* raw key when editing the row */
-/* the hanging indent's text-indent inherits into inline children — reset it
-   so the label/badge/chips paint inside their own box, not the left margin. */
-.cm-fm-label, .cm-fm-badge, .cm-tags, .cm-fm-key { text-indent: 0; }
-/* rendered field label: a left-aligned column, like a properties table */
-.cm-fm-label {
+/* key column: right-aligned in a fixed-width box pulled into the left margin by
+   its own width + the colon gap, so the value lands at the text column (x=0) and
+   wrapped value lines align there too. The text stays editable. */
+.cm-fm-key-col {
   display: inline-block;
-  min-width: 8em;
+  width: var(--fm-key-w, 6ch);
+  margin-left: calc(-1 * (var(--fm-key-w, 6ch) + 2.5ch));
+  text-align: right;
+  white-space: nowrap;   /* the longest key fills the box exactly — never wrap it */
   color: var(--muted);
-  font-size: 0.82em;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
+.cm-activeLine .cm-fm-key-col { color: var(--accent); }   /* editing this row */
+.cm-fm-colon { padding-left: 0.5ch; color: var(--faint); }
 /* enum-like frontmatter values (kind/status/type) rendered as a badge */
 .cm-fm-badge {
   font-size: 0.78em;

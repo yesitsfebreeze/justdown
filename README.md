@@ -202,20 +202,25 @@ times.
 name: tools_release
 description: Cut and publish a release. Use when the user asks to ship a version.
 kind: tool
-tags: [release, publish, ci]
+tags: [release, publish, ci, cargo]
+requires: [cargo, git]
 run: release
 ---
 
 # Release
 
-Builds, gates, tags, and publishes. `gate` runs first as a just dependency, so a
-red gate aborts before `npm version`. The runner folds the linked file's recipe
-into the justfile, so the dependency resolves. For the gate itself see @tools/gate.
+Gates, bumps every manifest, tags, and pushes — CI builds the binaries from the
+tag. It composes @tools/gate and @tools/version at runtime through `jd` (the
+pipeable entry point); `jd … --justfile` emits one file's recipes, so a recipe
+that needs another tool pipes it rather than declaring a cross-file `just` dep.
 
 ```just
-release version="patch": gate
-  npm version {{version}}
-  git push --follow-tags
+release version:
+  #!/usr/bin/env sh
+  set -eu
+  jd get tools_gate    --justfile | just --justfile - gate
+  jd get tools_version --justfile | just --justfile - bump {{version}}
+  git tag -a "v{{version}}" -m "v{{version}}" && git push --follow-tags
 ```
 ````
 
@@ -224,9 +229,9 @@ release version="patch": gate
 1. This README.
 2. [`justdown.md`](justdown.md) — the spec, end to end.
 3. [`.jd/library/`](.jd/library/) — see it on disk. Start with
-   [`.jd/library/tools/gate.jd`](.jd/library/tools/gate.jd) (a plain `run` tool),
-   then [`.jd/library/tools/serve.jd`](.jd/library/tools/serve.jd) (`sidecar`) and
-   [`.jd/library/tools/report.jd`](.jd/library/tools/report.jd) (`artifact`).
+   [`.jd/library/meta/tools/gate.jd`](.jd/library/meta/tools/gate.jd) (a plain `run` tool),
+   then [`.jd/library/meta/tools/serve.jd`](.jd/library/meta/tools/serve.jd) (`sidecar`) and
+   [`.jd/library/meta/tools/report.jd`](.jd/library/meta/tools/report.jd) (`artifact`).
 
 ## Star history
 

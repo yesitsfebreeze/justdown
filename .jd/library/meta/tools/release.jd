@@ -1,23 +1,41 @@
 ---
 name: tools_release
-description: Cut and publish a release. Use when the user asks to ship a version (patch/minor/major).
+description: Cut and publish a release — gate, bump every manifest, commit, tag, and push so CI builds the binaries. Use when the user asks to ship a specific MAJOR.MINOR.PATCH version.
 kind: tool
-tags: [release, publish, ci]
-use_when: [publish a version, cut a release, tag and publish, bump the version]
+tags: [release, publish, ci, cargo, tag]
+use_when: [publish a version, cut a release, tag and publish, ship it]
 danger: high
 side_effects: [network, git-push, publish]
-requires: [npm, git]
+requires: [cargo, git]
 run: release
 ---
 
 # Release
 
-Gates, tags, and publishes. `version` defaults to `patch`. `@tools/gate` runs
-first as a dependency — a red gate aborts before `npm version` runs.
+Gates the tree, syncs every manifest to `version` via `@tools/version`, then
+commits, tags `vX.Y.Z`, and pushes. The pushed tag is what the release CI
+(`.github/workflows/release.yml`) builds the prebuilt binaries from — there is no
+`cargo publish` step; the binaries *are* the release.
+
+It composes `@tools/gate` and `@tools/version` at runtime through `jd` (the
+pipeable entry point) rather than cross-file `just` deps, which `jd … --justfile`
+does not inline. `@tools/gate` runs first — a red gate aborts before anything is
+bumped or pushed — then `@tools/version` syncs every manifest. `version` is
+required and must be `MAJOR.MINOR.PATCH`. Write the `CHANGELOG.md` entry **before**
+running this (the `/release` command does that for you); the commit picks it up.
 
 ```just
-release version="patch": gate
-  npm version {{version}}
+release version:
+  #!/usr/bin/env sh
+  set -eu
+  case "{{version}}" in
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) echo "version must be MAJOR.MINOR.PATCH, got '{{version}}'" >&2; exit 1 ;;
+  esac
+  jd get tools_gate    --justfile | just --justfile - gate
+  jd get tools_version --justfile | just --justfile - bump {{version}}
+  git add CHANGELOG.md cli/Cargo.toml core/Cargo.toml Cargo.lock .claude-plugin/plugin.json
+  git commit -m "chore: release v{{version}}"
+  git tag -a "v{{version}}" -m "v{{version}}"
   git push --follow-tags
-  npm publish
 ```

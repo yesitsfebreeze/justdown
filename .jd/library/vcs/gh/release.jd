@@ -13,9 +13,9 @@ provides: [create, list, view, upload, download]
 
 # GitHub Releases
 
-Releases on GitHub for a git tag — distinct from @tools/release, which bumps and
-publishes a package version. Use this to attach binaries to a tag and ship release
-notes. `create` is the default; the rest are callable by name. Repo targeting and
+Releases on GitHub for a git tag — distinct from @tools/release, which bumps every
+manifest and pushes the tag that CI builds the binaries from. Use this to attach
+binaries to a tag and ship release notes. `create` is the default; the rest are callable by name. Repo targeting and
 JSON output come from @gh/cli.
 
 `create` publishes a release and `upload` attaches assets — both touch the remote

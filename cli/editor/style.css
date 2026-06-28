@@ -35,15 +35,15 @@
   --code-pill: #1a1a1a;
   --var-pill: #6f6f6f;
   --pill-text: #ffffff;
-  --variable-bg: rgba(0, 0, 0, 0.06);   /* grayscale chip fill */
+  --variable-bg: rgba(0, 0, 0, 0.13);   /* grayscale chip fill — strong enough to read even when dimmed */
   --variable-fg: #444444;               /* grayscale chip text */
   --tint: #007aff;                      /* the single accent hue — caret, selection, links */
   --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
   --dim: 0.52;                          /* focus mode: opacity of inactive text. Higher than dark's because
                                            fading toward a light bg washes out faster than toward a dark one. */
-  --rule: rgba(0, 0, 0, 0.10);
+  --rule: rgba(0, 0, 0, 0.16);          /* hairlines / table column rules — visible even under the table's dim */
   --swatch-ring: rgba(0, 0, 0, 0.18);   /* swatch edge — pure black in light */
-  --code-bg: rgba(0, 0, 0, 0.045);
+  --code-bg: rgba(0, 0, 0, 0.10);       /* inline-code chip + table header fill — a clear light-gray tint */
   --overlay: rgba(20, 20, 22, 0.28);
   --panel: #ffffff;
   --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.30);
@@ -67,14 +67,14 @@
   --code-pill: #f4f4f6;
   --var-pill: #a6a6b0;
   --pill-text: #0e0e10;
-  --variable-bg: rgba(255, 255, 255, 0.10);
+  --variable-bg: rgba(255, 255, 255, 0.16);
   --variable-fg: #d0d0d6;
   --tint: #0a84ff;
   --selection: color-mix(in srgb, var(--tint) 30%, transparent);
   --dim: 0.40;
-  --rule: rgba(255, 255, 255, 0.10);
+  --rule: rgba(255, 255, 255, 0.16);
   --swatch-ring: rgba(255, 255, 255, 0.22);
-  --code-bg: rgba(255, 255, 255, 0.05);
+  --code-bg: rgba(255, 255, 255, 0.10);
   --overlay: rgba(0, 0, 0, 0.55);
   --panel: #222226;
   --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.65);
@@ -89,14 +89,14 @@
     --code-pill: #f4f4f6;
     --var-pill: #a6a6b0;
     --pill-text: #0e0e10;
-    --variable-bg: rgba(255, 255, 255, 0.10);   /* grayscale chip fill */
+    --variable-bg: rgba(255, 255, 255, 0.16);   /* grayscale chip fill */
     --variable-fg: #d0d0d6;                      /* grayscale chip text */
     --tint: #0a84ff;                             /* brighter accent for dark */
     --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
     --dim: 0.40;                                  /* a touch higher so dark dim stays legible */
-    --rule: rgba(255, 255, 255, 0.10);
+    --rule: rgba(255, 255, 255, 0.16);
     --swatch-ring: rgba(255, 255, 255, 0.22);   /* swatch edge — pure white in dark (lifts the near-black chip) */
-    --code-bg: rgba(255, 255, 255, 0.05);
+    --code-bg: rgba(255, 255, 255, 0.10);
     --overlay: rgba(0, 0, 0, 0.55);
     --panel: #222226;
     --shadow: 0 24px 70px -16px rgba(0, 0, 0, 0.65);

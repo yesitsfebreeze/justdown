@@ -9,6 +9,7 @@
 //                     (--human|--agent|--frontmatter|--justfile)
 //   jd ls             categories and their members
 //   jd links <ref>    inbound + outbound @links of a file (graph traversal)
+//   jd resolve <term> live @link completion (direct prefix / --fuzzy ranker)
 //   jd lint           validate library .jd frontmatter (CI-gateable)
 //   jd version        CLI + store-schema versions
 //
@@ -63,6 +64,7 @@ fn main() {
         "ls" => query::ls(&cfg),
         "links" => query::links(&cfg, rest),
         "path" => query::path(&cfg, rest),
+        "resolve" => query::resolve(&cfg, rest),
         "explore" => explore::run(rest),
         "mcp" => mcp::run(rest),
         "lint" => lint::run(&cfg),
@@ -125,6 +127,10 @@ USAGE  jd <command> [args]
   ls                           categories and their member files
   links  <ref>                 inbound + outbound @links of a file
   path   <a> <b>               shortest @link connection between two files
+  resolve <term> [num] [--fuzzy]
+                               live @link completion: ranked key/name/leaf prefix
+                               matches (direct), or the field-weighted ranker
+                               (--fuzzy, for @?term). Feeds the editor popup.
   explore [--port=N] [--dev]   serve the built-in .jd explorer and open it in the
                                browser. One shared website per port (default
                                3001): the first process hosts, every later one

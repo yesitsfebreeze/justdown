@@ -7,6 +7,7 @@
 
 use crate::config::Config;
 use justdown::jd::{self, Node};
+use justdown::links::{classify, Link, NameIndex, Resolve};
 use justdown::lint::{lint_node, Finding};
 use std::collections::HashMap;
 
@@ -50,6 +51,9 @@ pub fn run(cfg: &Config) -> i32 {
             *namecount.entry(n.name.as_str()).or_insert(0) += 1;
         }
     }
+    // corpus name index, so a bare `@name` is checked the same way the store
+    // resolves it (shared core, no drift).
+    let idx = NameIndex::build(nodes.iter().map(|n| (n.key.as_str(), n.name.as_str())));
 
     let mut errs = 0usize;
     let mut warns = 0usize;
@@ -66,16 +70,35 @@ pub fn run(cfg: &Config) -> i32 {
                 findings.push(Finding::error(format!("duplicate key: {}", n.key)));
             }
             for l in &n.links {
-                if !keys.contains(l.as_str()) {
-                    // knowledge files legitimately reference the user's own
-                    // modules; only flag real .jd composition as an error.
-                    if n.kind == "knowledge" {
-                        findings.push(Finding::warn(format!(
-                            "unresolved @link: {l} (external reference?)"
-                        )));
-                    } else {
-                        findings.push(Finding::error(format!("broken @link: {l}")));
+                match classify(l) {
+                    // fuzzy `@?term` is inherently one-to-many and re-resolved on
+                    // read — not a fixed edge, so nothing to validate here.
+                    Link::Fuzzy(_) => {}
+                    // `@dir/name` names an exact key: a miss is a real broken edge
+                    // (knowledge files may reference external modules → warn).
+                    Link::Key(k) => {
+                        if !keys.contains(k) {
+                            if n.kind == "knowledge" {
+                                findings.push(Finding::warn(format!(
+                                    "unresolved @link: {k} (external reference?)"
+                                )));
+                            } else {
+                                findings.push(Finding::error(format!("broken @link: {k}")));
+                            }
+                        }
                     }
+                    // bare `@name` resolves via the corpus; unresolved/ambiguous
+                    // is a warning (the spec says direct links lint-warn).
+                    Link::Name(name) => match idx.resolve(name) {
+                        Resolve::Unique(_) => {}
+                        Resolve::None => findings.push(Finding::warn(format!(
+                            "unresolved @link: {name}"
+                        ))),
+                        Resolve::Ambiguous(keys) => findings.push(Finding::warn(format!(
+                            "ambiguous @link: {name} (matches {})",
+                            keys.join(", ")
+                        ))),
+                    },
                 }
             }
         }

@@ -52,6 +52,51 @@ pub struct Scored<'a> {
     pub row: &'a Row,
 }
 
+/// Direct-link completion: rows whose key, name, or leaf matches `prefix`,
+/// ranked by match quality (exact > prefix > substring), then graph
+/// connectivity, then name. This is the `@name` autocomplete source — distinct
+/// from [`rank`] (the field-weighted ranker that powers `@?` fuzzy links). An
+/// empty prefix returns every row (degree-then-name ordered).
+pub fn resolve_prefix<'a>(rows: &'a [Row], prefix: &str) -> Vec<&'a Row> {
+    let p = prefix.to_lowercase();
+    let deg = degree_map(rows);
+    let dg = |k: &str| deg.get(k).copied().unwrap_or(0);
+
+    // 0 = exact, 1 = prefix, 2 = substring; lower is better.
+    let quality = |row: &Row| -> Option<u8> {
+        if p.is_empty() {
+            return Some(3);
+        }
+        let leaf = crate::links::leaf(&row.key).to_lowercase();
+        let fields = [row.key.to_lowercase(), row.name.to_lowercase(), leaf];
+        let mut best: Option<u8> = None;
+        for f in &fields {
+            let q = if *f == p {
+                0
+            } else if f.starts_with(&p) {
+                1
+            } else if f.contains(&p) {
+                2
+            } else {
+                continue;
+            };
+            best = Some(best.map_or(q, |b| b.min(q)));
+        }
+        best
+    };
+
+    let mut hits: Vec<(u8, &Row)> = rows
+        .iter()
+        .filter_map(|r| quality(r).map(|q| (q, r)))
+        .collect();
+    hits.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| dg(&b.1.key).cmp(&dg(&a.1.key)))
+            .then_with(|| a.1.name.cmp(&b.1.name))
+    });
+    hits.into_iter().map(|(_, r)| r).collect()
+}
+
 /// Field-weighted ranking. Filters by `kind` / `category` (empty = no filter),
 /// applies the `not_when` veto, scores name/use_when (3) > tags (2) > purpose
 /// (1). Sorts score-desc, then by graph connectivity (a well-connected tool
@@ -142,7 +187,21 @@ mod tests {
             run: String::new(),
             has_fm: true,
             links: Vec::new(),
+            fuzzy: Vec::new(),
         }
+    }
+
+    #[test]
+    fn resolve_prefix_ranks_exact_then_prefix_then_substring() {
+        let rows = vec![
+            row("soft-ui/glass", "glass", "tool", "", "", ""),
+            row("ui/glassmorphism", "glassmorphism", "tool", "", "", ""),
+            row("x/subglass", "subglass", "tool", "", "", ""),
+        ];
+        let out = resolve_prefix(&rows, "glass");
+        let keys: Vec<&str> = out.iter().map(|r| r.key.as_str()).collect();
+        // exact leaf `glass` first, then prefix `glassmorphism`, then substring `subglass`.
+        assert_eq!(keys, vec!["soft-ui/glass", "ui/glassmorphism", "x/subglass"]);
     }
 
     #[test]

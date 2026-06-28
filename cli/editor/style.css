@@ -1183,3 +1183,73 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
    under OS `prefers-reduced-motion` — that was collapsing every eased colour /
    opacity change (focus dim, fades) to instant. Travelling motions that still
    honour the OS preference (typewriter glide, smear default) are gated in app.js. */
+
+/* ================================================================== *
+ *  @link operators — resolved/unresolved/fuzzy inline styling + the
+ *  as-you-type completion popup. The single accent hue (--tint) marks a
+ *  live link; unresolved is a muted dotted underline; fuzzy is the tint
+ *  in a dashed underline (one-to-many, ranked live).
+ * ================================================================== */
+.cm-jdlink {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.02em 0.12em;
+}
+.cm-jdlink-ok {
+  color: var(--tint);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--tint) 45%, transparent);
+  text-underline-offset: 2px;
+}
+.cm-jdlink-ok:hover { text-decoration-color: var(--tint); background: var(--selection); }
+.cm-jdlink-bad {
+  color: var(--muted);
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, var(--muted) 55%, transparent);
+  text-underline-offset: 2px;
+}
+.cm-jdlink-fuzzy {
+  color: var(--tint);
+  background: color-mix(in srgb, var(--tint) 12%, transparent);
+  text-decoration: underline dashed;
+  text-decoration-color: color-mix(in srgb, var(--tint) 60%, transparent);
+  text-underline-offset: 2px;
+}
+.cm-jdlink-fuzzy:hover { background: var(--selection); }
+
+#jdpop {
+  position: fixed;
+  z-index: 50;
+  min-width: 240px;
+  max-width: 460px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--muted) 28%, transparent);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 5px;
+  font-size: 13px;
+}
+#jdpop .jdpop-head {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 4px 8px 6px;
+}
+#jdpop .jdpop-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#jdpop .jdpop-row.sel { background: var(--variable-bg); }
+#jdpop .jdpop-name { font-family: var(--font-mono); color: var(--tint); font-weight: 600; }
+#jdpop .jdpop-key { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+#jdpop .jdpop-kind { margin-left: auto; color: var(--muted); font-size: 10.5px; opacity: 0.8; }

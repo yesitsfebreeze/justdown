@@ -10,6 +10,8 @@
 //! - `?term` — a **fuzzy** link (`@?term`). Ranked live by the search ranker,
 //!   one-to-many, re-resolved on read; the source text keeps `@?term` verbatim.
 
+use crate::search::{rank, resolve_prefix};
+use crate::store::Row;
 use std::collections::HashMap;
 
 /// Marker prefix `scan_links` emits for a fuzzy `@?term` link.
@@ -90,6 +92,36 @@ impl NameIndex {
             Some(many) if many.len() > 1 => Resolve::Ambiguous(many.to_vec()),
             _ => Resolve::None,
         }
+    }
+}
+
+/// Resolve a `@link` term to its ordered candidate rows — the one place the CLI
+/// `resolve` command and the editor's `/api/resolve` endpoint share, so the two
+/// never drift. `fuzzy` selects the field-weighted ranker (`@?term`) over direct
+/// key/name/leaf prefix matching (`@name`); `limit` caps the list. The second
+/// return is the unique canonical key a direct term resolves to, if any (always
+/// `None` when fuzzy).
+pub fn resolve_term<'a>(
+    rows: &'a [Row],
+    term: &str,
+    fuzzy: bool,
+    limit: usize,
+) -> (Vec<&'a Row>, Option<String>) {
+    if fuzzy {
+        let matches = rank(rows, term, "", "")
+            .into_iter()
+            .take(limit)
+            .map(|s| s.row)
+            .collect();
+        (matches, None)
+    } else {
+        let idx = NameIndex::build(rows.iter().map(|r| (r.key.as_str(), r.name.as_str())));
+        let resolved = match idx.resolve(term) {
+            Resolve::Unique(k) => Some(k),
+            _ => None,
+        };
+        let matches = resolve_prefix(rows, term).into_iter().take(limit).collect();
+        (matches, resolved)
     }
 }
 

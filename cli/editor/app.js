@@ -39,7 +39,7 @@ const VAR_RE = /\{\{[^}\n]+\}\}|<<[^>\n]+>>/g;
 // @link operators: fuzzy `@?term` or direct `@name` / `@dir/name`. Matches the
 // core scanner's segment chars ([a-z0-9_-]); scanned in prose only (code spans
 // are skipped, like the backend), so just's `@echo` / `user@host` aren't links.
-const JDLINK_RE = /@\?[\w-]+|@[\w-]+(?:\/[\w-]+)?/g;
+const JDLINK_RE = /@\?[a-z0-9_-]+|@[a-z0-9_-]+(?:\/[a-z0-9_-]+)?/g;
 // Known direct-link identifiers (keys, names, leaves), lowercased — drives the
 // resolved/unresolved inline styling. Filled from /api/jdtargets, refreshed
 // periodically; jdRefresh forces a decoration rebuild when the set changes.
@@ -2479,7 +2479,7 @@ function jdTokenAtCaret(state) {
   if (fm && line.number >= fm.open && line.number <= fm.close) return null;
   if (fenceLineSet(state).has(line.number)) return null;
   const before = line.text.slice(0, sel.head - line.from);
-  const m = /@(\??)([\w-]*(?:\/[\w-]*)?)$/.exec(before);
+  const m = /@(\??)([a-z0-9_-]*(?:\/[a-z0-9_-]*)?)$/.exec(before);
   if (!m) return null;
   const at = sel.head - m[0].length;
   if (inInlineCode(line.text, at - line.from, sel.head - line.from)) return null;

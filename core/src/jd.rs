@@ -94,7 +94,6 @@ fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
 /// link. Fenced code blocks are skipped one level up, in [`parse`].
 fn scan_links(line: &str, out: &mut Vec<String>) {
     let b = line.as_bytes();
-    let body = line;
     let is_word =
         |c: u8| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-';
     let mut in_code = false;
@@ -137,9 +136,9 @@ fn scan_links(line: &str, out: &mut Vec<String>) {
         }
         // Token form: `?term` for fuzzy, else `dir/name` or bare `name`.
         let token = if fuzzy {
-            format!("?{}", &body[s1..end])
+            format!("?{}", &line[s1..end])
         } else {
-            body[i + 1..end].to_string()
+            line[i + 1..end].to_string()
         };
         if !out.contains(&token) {
             out.push(token);

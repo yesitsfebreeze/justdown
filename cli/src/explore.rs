@@ -20,8 +20,7 @@
 //!   website survives as long as one `jd` process is alive.
 
 use justdown::jd;
-use justdown::links::{leaf, NameIndex, Resolve};
-use justdown::search::{rank, resolve_prefix};
+use justdown::links::{self, leaf};
 use justdown::store::{Row, Source};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -373,7 +372,7 @@ fn api_search(request: tiny_http::Request, state: &State, query: &str) {
     let total = files.len();
     let mut scored: Vec<(PathBuf, u128)> =
         files.into_iter().map(|f| (f.clone(), mtime_ms(&f))).collect();
-    scored.sort_by(|a, b| b.1.cmp(&a.1)); // latest touched first
+    scored.sort_by_key(|(_, mtime)| std::cmp::Reverse(*mtime)); // latest touched first
     scored.truncate(50);
 
     let results: Vec<_> = scored
@@ -432,20 +431,13 @@ fn parse_rows(files: &[PathBuf]) -> Vec<Row> {
 
 /// One match row for the editor popup: enough to render the row and to open the
 /// target file on selection / Cmd-click.
-fn match_json(r: &Row, score: Option<i64>) -> serde_json::Value {
-    let pb = PathBuf::from(&r.path);
-    let display = display_path(&pb);
-    let dir = Path::new(&display)
-        .parent()
-        .map(|p| p.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_default();
+/// The one resolve-hit shape the editor consumes: key/kind/path. Shared with
+/// the CLI `resolve` command's `ResolveMatch`.
+fn match_json(r: &Row) -> serde_json::Value {
     json!({
-        "path": r.path,
-        "name": r.name,
         "key": r.key,
         "kind": r.kind,
-        "dir": dir,
-        "score": score,
+        "path": r.path,
     })
 }
 
@@ -460,26 +452,9 @@ fn api_resolve(request: tiny_http::Request, state: &State, query: &str) {
         return respond_json(request, 200, &json!({ "matches": [], "resolved": null, "fuzzy": fuzzy }));
     }
     let rows = state.rows.lock().unwrap();
-    let (matches, resolved) = if fuzzy {
-        let m: Vec<_> = rank(&rows, &q, "", "")
-            .into_iter()
-            .take(12)
-            .map(|s| match_json(s.row, Some(s.score)))
-            .collect();
-        (m, serde_json::Value::Null)
-    } else {
-        let idx = NameIndex::build(rows.iter().map(|r| (r.key.as_str(), r.name.as_str())));
-        let resolved = match idx.resolve(&q) {
-            Resolve::Unique(k) => json!(k),
-            _ => serde_json::Value::Null,
-        };
-        let m: Vec<_> = resolve_prefix(&rows, &q)
-            .into_iter()
-            .take(12)
-            .map(|r| match_json(r, None))
-            .collect();
-        (m, resolved)
-    };
+    let (rows_matched, resolved) = links::resolve_term(&rows, &q, fuzzy, 12);
+    let matches: Vec<_> = rows_matched.into_iter().map(match_json).collect();
+    let resolved = resolved.map(|k| json!(k)).unwrap_or(serde_json::Value::Null);
     respond_json(
         request,
         200,
@@ -681,10 +656,11 @@ fn walk_jd(roots: &[PathBuf]) -> Vec<PathBuf> {
                     continue;
                 }
                 stack.push(path);
-            } else if ft.is_file() && path.extension().map(|e| e == "jd").unwrap_or(false) {
-                if seen.insert(path.clone()) {
-                    out.push(path);
-                }
+            } else if ft.is_file()
+                && path.extension().map(|e| e == "jd").unwrap_or(false)
+                && seen.insert(path.clone())
+            {
+                out.push(path);
             }
         }
     }

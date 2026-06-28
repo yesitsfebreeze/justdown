@@ -5,9 +5,9 @@
 // scope shadowing farther by key (local > global > online).
 
 use crate::config::{Config, Format};
-use justdown::links::{NameIndex, Resolve};
+use justdown::links;
 use justdown::render::{self, Vars};
-use justdown::search::{degree_map, rank, resolve_prefix, words, Scored, STOPWORDS};
+use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
 use justdown::store::{Row, Source, Store};
 use serde::Serialize;
 
@@ -121,16 +121,13 @@ struct ResolveOut<'a> {
     matches: Vec<ResolveMatch<'a>>,
 }
 
+/// A resolve hit, in the one shape both the CLI and the editor's `/api/resolve`
+/// emit: the editor consumes only `key`/`kind`/`path`.
 #[derive(Serialize)]
 struct ResolveMatch<'a> {
-    name: &'a str,
     key: &'a str,
     kind: &'a str,
     path: &'a str,
-    source: &'a str,
-    /// Present only for fuzzy matches (the ranker score).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    score: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -1544,8 +1541,6 @@ pub fn resolve(cfg: &Config, args: &[String]) -> i32 {
         let a = &args[i];
         if a == "--fuzzy" {
             fuzzy = true;
-        } else if let Some(n) = a.strip_prefix("--limit=") {
-            pos.push(n.to_string()); // treat as the num positional
         } else {
             pos.push(a.clone());
         }
@@ -1578,41 +1573,15 @@ pub fn resolve(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    let (matches, resolved): (Vec<ResolveMatch>, Option<String>) = if fuzzy {
-        let scored = rank(&rows, &term, "", "");
-        let m = scored
-            .iter()
-            .take(num)
-            .map(|s| ResolveMatch {
-                name: &s.row.name,
-                key: &s.row.key,
-                kind: &s.row.kind,
-                path: &s.row.path,
-                source: s.row.source.label(),
-                score: Some(s.score),
-            })
-            .collect();
-        (m, None)
-    } else {
-        let idx = NameIndex::build(rows.iter().map(|r| (r.key.as_str(), r.name.as_str())));
-        let resolved = match idx.resolve(&term) {
-            Resolve::Unique(k) => Some(k),
-            _ => None,
-        };
-        let m = resolve_prefix(&rows, &term)
-            .into_iter()
-            .take(num)
-            .map(|r| ResolveMatch {
-                name: &r.name,
-                key: &r.key,
-                kind: &r.kind,
-                path: &r.path,
-                source: r.source.label(),
-                score: None,
-            })
-            .collect();
-        (m, resolved)
-    };
+    let (rows_matched, resolved) = links::resolve_term(&rows, &term, fuzzy, num);
+    let matches: Vec<ResolveMatch> = rows_matched
+        .iter()
+        .map(|r| ResolveMatch {
+            key: &r.key,
+            kind: &r.kind,
+            path: &r.path,
+        })
+        .collect();
 
     match cfg.format {
         Format::Json => {
@@ -1629,9 +1598,11 @@ pub fn resolve(cfg: &Config, args: &[String]) -> i32 {
         }
         Format::Text => {
             for m in &matches {
-                match m.score {
-                    Some(s) => println!("{}  [{}]  score {}  @?{}", m.name, m.kind, s, term),
-                    None => println!("{}  [{}]  @{}", m.name, m.kind, m.key),
+                let leaf = links::leaf(m.key);
+                if fuzzy {
+                    println!("{}  [{}]  @?{}  ({})", leaf, m.kind, term, m.key);
+                } else {
+                    println!("{}  [{}]  @{}", leaf, m.kind, m.key);
                 }
             }
         }

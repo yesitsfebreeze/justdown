@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.sh | sh
 #
 # Env: JD_INSTALL_DIR (default ~/.local/bin) · JD_VERSION (default: latest tag).
-# Windows: use `cargo install --git https://github.com/yesitsfebreeze/justdown jd`.
+# Windows: run scripts/install.ps1 in PowerShell.
 set -eu
 
 REPO="yesitsfebreeze/justdown"
@@ -21,7 +21,7 @@ arch=$(uname -m)
 case "$os" in
   Linux)  os_t=unknown-linux-gnu ;;
   Darwin) os_t=apple-darwin ;;
-  *) err "unsupported OS: $os — on Windows use 'cargo install --git https://github.com/$REPO jd'" ;;
+  *) err "unsupported OS: $os — on Windows run scripts/install.ps1 in PowerShell (or 'cargo install --git https://github.com/$REPO jd')" ;;
 esac
 case "$arch" in
   x86_64|amd64)   arch_t=x86_64 ;;

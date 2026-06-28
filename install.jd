@@ -29,6 +29,14 @@ the latest release, verifies its checksum, and installs to `~/.local/bin`:
 curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.sh | sh
 ```
 
+**One-liner (Windows, PowerShell)** — same flow, drops `jd.exe` in `~\.local\bin`
+and adds it to your user `PATH`. Re-run either installer any time to **update** to
+the latest release:
+
+```powershell
+irm https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.ps1 | iex
+```
+
 **Or grab a prebuilt binary** straight from the
 [releases page](https://github.com/yesitsfebreeze/justdown/releases):
 `jd-<version>-<target>.tar.gz` (`.zip` on Windows), checksummed in `SHA256SUMS`.

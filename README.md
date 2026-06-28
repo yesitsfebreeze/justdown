@@ -89,8 +89,14 @@ SQLite graph store ([`graph.db`](graph.db)) from `.jd` files and **queries** it,
 no `npm install`, no node, no model.
 
 ```sh
-# install: prebuilt binary (Linux/macOS) — verifies checksum, drops jd in ~/.local/bin
+# install or update (Linux/macOS) — verifies checksum, drops jd in ~/.local/bin
 curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.sh | sh
+```
+```powershell
+# install or update (Windows) — verifies checksum, drops jd.exe in ~\.local\bin and adds it to PATH
+irm https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.ps1 | iex
+```
+```sh
 # …or from source, any platform (Rust toolchain)
 cargo install --git https://github.com/yesitsfebreeze/justdown jd
 
@@ -125,8 +131,9 @@ Override the port with `--port=N` or `JD_PORT`, and a process's searched root
 with `JD_ROOT` (default `$HOME`).
 
 Prebuilt binaries cover Linux and macOS (x86_64 + arm64) and Windows (x86_64),
-each checksummed in the release's `SHA256SUMS`. The installer verifies the
-checksum before installing.
+each checksummed in the release's `SHA256SUMS`. Both installers verify the
+checksum before installing (re-run either to update), falling back to the
+`cargo`/source path on any other platform.
 
 `jd` finds tools; [`just`](https://just.systems) runs them (a tool's recipe is
 just-syntax, executed as `just --justfile - <recipe>`). `jd` **does not define how

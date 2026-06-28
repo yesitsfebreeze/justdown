@@ -1,7 +1,7 @@
 {
 	"$schema": "https://code.claude.com/schemas/plugin.json",
 	"name": "justdown",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"description": "One library-lookup MCP server over the .jd graph. Search the library by need, fetch a shard as ordered sections, trace its @links — instead of an MCP server per capability. Wraps the jd binary's read verbs (search/get/ls/links/path).",
 	"author": {
 		"name": "febreeze",

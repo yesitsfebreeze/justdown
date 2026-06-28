@@ -1,6 +1,6 @@
 [package]
 name = "justdown"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 description = "justdown — the .jd spec as a library: parser + <<var>> context injection (the library graph moves here next)"
 license = "MIT"

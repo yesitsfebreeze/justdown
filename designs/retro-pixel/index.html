@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retro Pixel — Style Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --rp-bg:      #0f0f1b;
+    --rp-surface: #1d2b53;
+    --rp-ink:     #fff1e8;
+    --rp-primary: #ff004d;
+    --rp-accent:  #ffec27;
+    --rp-success: #00e436;
+    --rp-info:    #29adff;
+    --rp-shadow:  #000000;
+    --rp-muted:   #5f574f;
+
+    --rp-radius: 0;
+    --rp-border: 4px solid var(--rp-ink);
+    --rp-shadow-1: 4px 4px 0 0 var(--rp-shadow);
+    --rp-shadow-2: 8px 8px 0 0 var(--rp-shadow);
+
+    --rp-font: "Press Start 2P", monospace;
+    --rp-size-sm: 10px;
+    --rp-size-md: 12px;
+    --rp-size-lg: 16px;
+    --rp-size-xl: 24px;
+    --rp-line: 1.8;
+
+    --rp-space-2: 8px;
+    --rp-space-3: 12px;
+    --rp-space-4: 16px;
+    --rp-space-5: 24px;
+    --rp-space-6: 32px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--rp-bg);
+    color: var(--rp-ink);
+    font-family: var(--rp-font);
+    font-size: var(--rp-size-md);
+    line-height: var(--rp-line);
+    /* dithered checkerboard backdrop — pure CSS, hard edges */
+    background-image:
+      linear-gradient(45deg, #14142a 25%, transparent 25%),
+      linear-gradient(-45deg, #14142a 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #14142a 75%),
+      linear-gradient(-45deg, transparent 75%, #14142a 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+
+  img, canvas, svg { image-rendering: pixelated; }
+  svg.pixel * { shape-rendering: crispEdges; }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: var(--rp-space-6) var(--rp-space-4) var(--rp-space-6);
+  }
+
+  /* ---- Header ---- */
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: var(--rp-space-4);
+    background: var(--rp-surface);
+    border: var(--rp-border);
+    box-shadow: var(--rp-shadow-2);
+    padding: var(--rp-space-4);
+    margin-bottom: var(--rp-space-6);
+  }
+  .logo {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+  }
+  .site-header h1 {
+    margin: 0;
+    font-size: var(--rp-size-xl);
+    color: var(--rp-accent);
+    text-shadow: 3px 3px 0 var(--rp-shadow);
+    letter-spacing: 1px;
+  }
+  .site-header .tag {
+    margin-left: auto;
+    font-size: var(--rp-size-sm);
+    color: var(--rp-info);
+  }
+
+  /* ---- Card ---- */
+  .card {
+    background: var(--rp-surface);
+    border: var(--rp-border);
+    box-shadow: var(--rp-shadow-2);
+    padding: var(--rp-space-5);
+    margin-bottom: var(--rp-space-6);
+  }
+  .card h2 {
+    margin: 0 0 var(--rp-space-4);
+    font-size: var(--rp-size-lg);
+    color: var(--rp-success);
+  }
+  .card p {
+    margin: 0 0 var(--rp-space-4);
+    font-size: var(--rp-size-sm);
+    color: var(--rp-ink);
+  }
+  .stats {
+    display: flex;
+    gap: var(--rp-space-3);
+    margin-top: var(--rp-space-4);
+  }
+  .stat {
+    flex: 1;
+    border: 4px solid var(--rp-muted);
+    box-shadow: var(--rp-shadow-1);
+    padding: var(--rp-space-3);
+    text-align: center;
+    background: var(--rp-bg);
+  }
+  .stat .num { font-size: var(--rp-size-lg); color: var(--rp-accent); }
+  .stat .lbl { font-size: var(--rp-size-sm); color: var(--rp-info); margin-top: var(--rp-space-2); }
+
+  /* ---- Form field ---- */
+  .field {
+    display: block;
+    margin-bottom: var(--rp-space-5);
+  }
+  .field label {
+    display: block;
+    font-size: var(--rp-size-sm);
+    color: var(--rp-accent);
+    margin-bottom: var(--rp-space-3);
+  }
+  .field input {
+    width: 100%;
+    font-family: var(--rp-font);
+    font-size: var(--rp-size-md);
+    color: var(--rp-ink);
+    background: var(--rp-bg);
+    border: var(--rp-border);
+    border-radius: var(--rp-radius);
+    box-shadow: var(--rp-shadow-1);
+    padding: var(--rp-space-3);
+    outline: none;
+  }
+  .field input::placeholder { color: var(--rp-muted); }
+  .field input:focus {
+    border-color: var(--rp-accent);
+    box-shadow: 4px 4px 0 0 var(--rp-info);
+  }
+
+  /* ---- Primary button — chunky & pressable ---- */
+  .btn {
+    font-family: var(--rp-font);
+    font-size: var(--rp-size-md);
+    color: var(--rp-ink);
+    background: var(--rp-primary);
+    border: var(--rp-border);
+    border-radius: var(--rp-radius);
+    box-shadow: var(--rp-shadow-1);
+    padding: var(--rp-space-4) var(--rp-space-5);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: none;
+  }
+  .btn:hover { background: #ff2e6e; }
+  .btn:active {
+    /* collapse the offset to fake a physical press */
+    transform: translate(4px, 4px);
+    box-shadow: 0 0 0 0 var(--rp-shadow);
+  }
+  .btn:focus-visible { outline: 4px solid var(--rp-accent); outline-offset: 4px; }
+
+  footer {
+    text-align: center;
+    font-size: var(--rp-size-sm);
+    color: var(--rp-muted);
+    margin-top: var(--rp-space-6);
+  }
+</style>
+</head>
+<body>
+  <main class="page">
+
+    <!-- Header -->
+    <header class="site-header">
+      <!-- pixel-art heart logo, crisp SVG -->
+      <svg class="pixel logo" viewBox="0 0 8 8" width="32" height="32" aria-hidden="true">
+        <g fill="#ff004d">
+          <rect x="1" y="1" width="2" height="1"/>
+          <rect x="5" y="1" width="2" height="1"/>
+          <rect x="0" y="2" width="8" height="2"/>
+          <rect x="1" y="4" width="6" height="1"/>
+          <rect x="2" y="5" width="4" height="1"/>
+          <rect x="3" y="6" width="2" height="1"/>
+        </g>
+        <rect x="1" y="2" width="1" height="1" fill="#ffec27"/>
+      </svg>
+      <h1>PIXEL QUEST</h1>
+      <span class="tag">LV.99</span>
+    </header>
+
+    <!-- Card -->
+    <section class="card">
+      <h2>&gt; PLAYER STATUS</h2>
+      <p>Welcome back, hero. Your party rested at the inn. HP and MP fully restored. A new quest awaits in the Crystal Caverns.</p>
+      <div class="stats">
+        <div class="stat">
+          <div class="num">240</div>
+          <div class="lbl">HP</div>
+        </div>
+        <div class="stat">
+          <div class="num">88</div>
+          <div class="lbl">MP</div>
+        </div>
+        <div class="stat">
+          <div class="num">1337</div>
+          <div class="lbl">GOLD</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Form -->
+    <section class="card">
+      <h2>&gt; SAVE GAME</h2>
+      <form onsubmit="return false">
+        <label class="field">
+          <span>HERO NAME</span>
+          <input type="text" name="hero" placeholder="ENTER NAME..." value="LINKLE" autocomplete="off">
+        </label>
+        <button class="btn" type="submit">Start &gt;</button>
+      </form>
+    </section>
+
+    <footer>&copy; 198X PIXEL QUEST — INSERT COIN</footer>
+
+  </main>
+</body>
+</html>

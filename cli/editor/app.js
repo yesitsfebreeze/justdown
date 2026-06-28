@@ -1,12 +1,15 @@
 import { EditorView, Decoration, ViewPlugin, WidgetType, keymap, drawSelection,
          placeholder } from "@codemirror/view";
-import { EditorState, StateField, StateEffect } from "@codemirror/state";
+import { EditorState, EditorSelection, StateField, StateEffect } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { SearchCursor } from "@codemirror/search";
 import { history, defaultKeymap, historyKeymap,
          cursorGroupLeft, cursorGroupRight,
-         selectGroupLeft, selectGroupRight } from "@codemirror/commands";
+         selectGroupLeft, selectGroupRight,
+         cursorCharRight,
+         cursorLineBoundaryBackward, cursorLineBoundaryForward,
+         selectLineBoundaryBackward, selectLineBoundaryForward } from "@codemirror/commands";
 import { markdownTable } from "markdown-table";
 
 /* ================================================================== *
@@ -191,7 +194,7 @@ function inactiveTableLines(state) {
   const set = new Set();
   const activeSet = activeLineSet(state);
   for (const b of findTableBlocks(state)) {
-    if (blockActive(b, activeSet) || isRawBlock(state, b)) continue;
+    if (blockActive(b, activeSet)) continue;
     for (let ln = b.from; ln <= b.to; ln++) set.add(ln);
   }
   return set;
@@ -243,116 +246,177 @@ function serializeTable(rows, aligns) {
   return markdownTable(esc, { align: aligns.map((a) => ALIGN_MT[a] ?? null) });
 }
 
-// After a structural edit re-renders the widget, restore the caret to a
-// sensible cell. Only one table is edited at a time, so a module-level handoff
-// is enough: the re-rendered widget's toDOM consumes it.
-let pendingFocus = null;
+/* Raw-markdown table editing. The caret edits the source directly (live preview
+ * reveals it when you enter the block); these keys make rows/columns quick and
+ * keep the source aligned. Tab → next cell (wraps to the next row, never adds a
+ * column); Shift-Tab → insert a column before the caret; Enter → row after (empty
+ * row exits); Shift-Enter → insert a row before; Backspace/Delete in an empty cell
+ * whose whole column or row is empty → drop that column/row. Re-serialized aligned. */
 
-/* Per-table "show the raw markdown" toggle. We remember which tables the user
- * flipped to source view as a set of doc positions (one inside each such
- * block) and map them through every edit so the choice survives typing. A
- * block whose range contains a remembered position renders as plain editable
- * markdown instead of the interactive widget. */
-const setRawTable = StateEffect.define();   // { on: bool, from?, lo?, hi? }
-const rawTablesField = StateField.define({
-  create() { return []; },
-  update(val, tr) {
-    let next = tr.docChanged
-      ? val.map((p) => tr.changes.mapPos(p, 1)).filter((p) => p != null)
-      : val;
-    for (const e of tr.effects) {
-      if (!e.is(setRawTable)) continue;
-      if (e.value.on) {
-        if (!next.includes(e.value.from)) next = [...next, e.value.from];
-      } else {
-        next = next.filter((p) => p < e.value.lo || p > e.value.hi);
-      }
-    }
-    return next;
-  },
-});
-function isRawBlock(state, b) {
-  const marks = state.field(rawTablesField, false);
-  if (!marks || !marks.length) return false;
-  const lo = state.doc.line(b.from).from, hi = state.doc.line(b.to).to;
-  return marks.some((p) => p >= lo && p <= hi);
+// The table block at the caret (collapsed only) + the caret's grid row/column.
+// grid === [header, ...dataRows]; gr 0 is the header line, gr≥1 the data rows.
+function tableCtx(state) {
+  const sel = state.selection.main;
+  if (!sel.empty) return null;
+  const line = state.doc.lineAt(sel.head);
+  const block = findTableBlocks(state).find((b) => line.number >= b.from && line.number <= b.to);
+  if (!block) return null;
+  const { rows, aligns } = parseTableBlock(state, block.from, block.to);
+  const onSeparator = line.number === block.from + 1;
+  const gr = line.number <= block.from + 1 ? 0 : line.number - (block.from + 1);
+  let pipes = 0;
+  const off = sel.head - line.from;
+  for (let i = 0; i < off && i < line.text.length; i++) if (line.text[i] === "|" && line.text[i - 1] !== "\\") pipes++;
+  const lead = line.text.trimStart().startsWith("|") ? 1 : 0;
+  const col = Math.max(0, Math.min(pipes - lead, aligns.length - 1));
+  return {
+    rows, aligns, gr, col, onSeparator,
+    fromPos: state.doc.line(block.from).from,
+    toPos: state.doc.line(block.to).to,
+  };
 }
 
-function placeCaretEnd(el) {
-  const r = document.createRange();
-  r.selectNodeContents(el);
-  r.collapse(false);
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(r);
+// Content-start offset of column `c` within an already-serialized `| … | … |` row.
+function cellStart(lineText, c) {
+  const pipes = [];
+  for (let i = 0; i < lineText.length; i++) if (lineText[i] === "|" && lineText[i - 1] !== "\\") pipes.push(i);
+  if (pipes.length < 2) return lineText.length;
+  const ci = Math.min(c, pipes.length - 2);
+  return Math.min(pipes[ci] + 2, pipes[ci + 1]);
 }
 
-// Is the caret at the very start / end of a cell's editable text?
-function caretAtEnd(el) {
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return true;
-  const range = sel.getRangeAt(0);
-  if (!range.collapsed) return false;
-  const after = document.createRange();
-  after.selectNodeContents(el);
-  after.setStart(range.endContainer, range.endOffset);
-  return after.toString().length === 0;
-}
-function caretAtStart(el) {
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return true;
-  const range = sel.getRangeAt(0);
-  if (!range.collapsed) return false;
-  const before = document.createRange();
-  before.selectNodeContents(el);
-  before.setEnd(range.startContainer, range.startOffset);
-  return before.toString().length === 0;
+// Re-serialize the mutated grid, replace the block, drop the caret in (gr, col).
+function commitTable(view, ctx, grid, aligns, gr, col) {
+  const text = serializeTable(grid, aligns);
+  const lines = text.split("\n");
+  const li = Math.min(gr === 0 ? 0 : gr + 1, lines.length - 1);   // header, sep, then data
+  let off = 0;
+  for (let i = 0; i < li; i++) off += lines[i].length + 1;
+  const anchor = ctx.fromPos + off + cellStart(lines[li], col);
+  view.dispatch({ changes: { from: ctx.fromPos, to: ctx.toPos, insert: text }, selection: { anchor }, scrollIntoView: true });
+  return true;
 }
 
-// Move keyboard focus into a rendered table's cell — used when the CM caret
-// arrows into a table from the surrounding prose. `r`/`c` accept "last" to mean
-// the final row/column. Returns true if a cell was focused.
-function focusTableCell(view, fromPos, r, c) {
-  const wrap = view.dom.querySelector(`.cm-md-table-wrap[data-from="${fromPos}"]`);
-  if (!wrap) return false;
-  const maxOf = (attr, within) =>
-    Math.max(0, ...[...(within || wrap).querySelectorAll(`[data-${attr}]`)].map((el) => +el.dataset[attr]));
-  const rr = r === "last" ? maxOf("r") : r;
-  let cc = c;
-  if (c === "last") {
-    const row = wrap.querySelector(`[data-r="${rr}"]`)?.parentElement;
-    cc = maxOf("c", row);
+function tableTab(view) {
+  const ctx = tableCtx(view.state);
+  if (!ctx) return false;
+  const grid = ctx.rows.map((r) => r.slice()), aligns = ctx.aligns.slice();
+  let gr = ctx.gr, col = ctx.col;
+  if (col < aligns.length - 1) col++;                  // next cell in the row
+  else if (gr < grid.length - 1) { gr++; col = 0; }    // wrap to the next row — never a new column
+  // else: last cell — stay put. Columns are created only with Shift-Tab.
+  return commitTable(view, ctx, grid, aligns, gr, col);
+}
+function tableShiftTab(view) {
+  const ctx = tableCtx(view.state);
+  if (!ctx) return false;
+  const grid = ctx.rows.map((r) => r.slice()), aligns = ctx.aligns.slice();
+  const at = ctx.col + 1;                           // insert a column AFTER the caret (behind, not in front)
+  grid.forEach((r) => r.splice(at, 0, ""));
+  aligns.splice(at, 0, "");
+  return commitTable(view, ctx, grid, aligns, ctx.gr, at);
+}
+function tableEnter(view) {
+  const ctx = tableCtx(view.state);
+  if (!ctx) return false;
+  const grid = ctx.rows.map((r) => r.slice()), aligns = ctx.aligns.slice();
+  if (ctx.gr >= 1 && grid[ctx.gr].every((c) => c.trim() === "")) {   // empty row → leave the table
+    grid.splice(ctx.gr, 1);
+    const text = serializeTable(grid, aligns);
+    const atEOF = ctx.toPos >= view.state.doc.length;
+    view.dispatch({
+      changes: { from: ctx.fromPos, to: ctx.toPos, insert: atEOF ? text + "\n" : text },
+      selection: { anchor: ctx.fromPos + text.length + 1 },
+      scrollIntoView: true,
+    });
+    return true;
   }
-  const cell = wrap.querySelector(`[data-r="${rr}"][data-c="${cc}"]`) ||
-               wrap.querySelector(`[data-r="${rr}"]`);
-  if (cell) { cell.focus(); return true; }
+  const at = ctx.gr + 1;
+  grid.splice(at, 0, new Array(aligns.length).fill(""));
+  return commitTable(view, ctx, grid, aligns, at, 0);
+}
+function tableShiftEnter(view) {
+  const ctx = tableCtx(view.state);
+  if (!ctx) return false;
+  const grid = ctx.rows.map((r) => r.slice()), aligns = ctx.aligns.slice();
+  const at = Math.max(1, ctx.gr + 1);   // insert a row AFTER the caret (behind, not in front; never above the header)
+  grid.splice(at, 0, new Array(aligns.length).fill(""));
+  return commitTable(view, ctx, grid, aligns, at, 0);
+}
+// Backspace/Delete inside the table: if the caret sits in an empty cell whose
+// whole column (or whole data row) is also empty, drop that column/row in one
+// keypress instead of chewing through pipes — so an accidental empty column (e.g.
+// a stray Shift-Tab) or empty row cleans up cleanly. Otherwise fall through to the
+// normal character delete (returns false so the default keymap handles it).
+function tableDelete(view) {
+  const ctx = tableCtx(view.state);
+  if (!ctx || ctx.onSeparator) return false;
+  const grid = ctx.rows.map((r) => r.slice()), aligns = ctx.aligns.slice();
+  const { gr, col } = ctx;
+  if ((grid[gr]?.[col] ?? "").trim() !== "") return false;   // cell has content → normal delete
+  const colEmpty = grid.every((r) => (r[col] ?? "").trim() === "");
+  if (colEmpty && aligns.length > 1) {
+    grid.forEach((r) => r.splice(col, 1));
+    aligns.splice(col, 1);
+    return commitTable(view, ctx, grid, aligns, gr, Math.min(col, aligns.length - 1));
+  }
+  const rowEmpty = (grid[gr] ?? []).every((c) => c.trim() === "");
+  if (rowEmpty && gr >= 1 && grid.length > 1) {
+    grid.splice(gr, 1);
+    return commitTable(view, ctx, grid, aligns, Math.min(gr, grid.length - 1), col);
+  }
   return false;
 }
-
-// Keymap handlers: arrowing the CM caret toward a rendered table steps INTO it
-// (focusing a cell) instead of skipping over the block. Raw-view tables are
-// left to normal text motion. `edge` checks the caret sits where the key would
-// cross into the table; `entry` decides which cell to land on.
-function enterTable(view, pick, entry) {
+const tableEditKeymap = [
+  { key: "Tab", run: tableTab, shift: tableShiftTab },
+  { key: "Enter", run: tableEnter, shift: tableShiftEnter },
+  { key: "Backspace", run: (v) => tableDelete(v) },
+  { key: "Delete", run: (v) => tableDelete(v) },
+];
+// Vertical arrows ENTER a rendered table (revealing it as raw markdown to edit)
+// rather than skating past the rendered block; horizontal arrows still glide over
+// it at a line edge. Both only fire from OUTSIDE a table — once the caret is on a
+// raw table line these bail, so motion within the source is untouched.
+const lineInTable = (state, n) => findTableBlocks(state).find((b) => n >= b.from && n <= b.to);
+const pastTable = (state, b, forward) => forward
+  ? (b.to < state.doc.lines ? state.doc.line(b.to + 1).from : state.doc.line(b.to).to)
+  : (b.from > 1 ? state.doc.line(b.from - 1).to : 0);
+function tableEnterVertical(view, forward) {
   const s = view.state.selection.main;
   if (!s.empty) return false;
-  const ln = view.state.doc.lineAt(s.head);
-  const b = pick(view.state, ln, s);
-  if (!b || isRawBlock(view.state, b)) return false;
-  return focusTableCell(view, view.state.doc.line(b.from).from, entry.r, entry.c);
+  const curN = view.state.doc.lineAt(s.head).number;
+  if (lineInTable(view.state, curN)) return false;   // already editing raw inside → default motion
+  const target = view.moveVertically(s, forward);
+  const tgtN = view.state.doc.lineAt(target.head).number;
+  // Catch a table this step reaches OR jumps over (the rendered block has no text
+  // rows of its own, so moveVertically can land past it) — then enter its near edge.
+  const blk = findTableBlocks(view.state).find((b) => forward
+    ? b.from > curN && b.from <= Math.max(tgtN, curN + 1)
+    : b.to < curN && b.to >= Math.min(tgtN, curN - 1));
+  if (!blk) return false;
+  const entry = forward ? blk.from : blk.to;
+  view.dispatch({ selection: { anchor: view.state.doc.line(entry).from }, scrollIntoView: true });
+  return true;
 }
-const tableBelow = (st, ln) => findTableBlocks(st).find((b) => b.from === ln.number + 1);
-const tableAbove = (st, ln) => findTableBlocks(st).find((b) => b.to === ln.number - 1);
-const tableNavKeymap = [
-  { key: "ArrowDown", run: (v) => enterTable(v, tableBelow, { r: 0, c: 0 }) },
-  { key: "ArrowUp", run: (v) => enterTable(v, tableAbove, { r: "last", c: 0 }) },
-  { key: "ArrowRight", run: (v) => enterTable(v, (st, ln, s) => (s.head === ln.to ? tableBelow(st, ln) : null), { r: 0, c: 0 }) },
-  { key: "ArrowLeft", run: (v) => enterTable(v, (st, ln, s) => (s.head === ln.from ? tableAbove(st, ln) : null), { r: "last", c: "last" }) },
+function tableSkipHorizontal(view, forward) {
+  const s = view.state.selection.main;
+  if (!s.empty) return false;
+  const line = view.state.doc.lineAt(s.head);
+  if (lineInTable(view.state, line.number)) return false;
+  if (forward ? s.head !== line.to : s.head !== line.from) return false;            // only at a line edge
+  const blk = lineInTable(view.state, line.number + (forward ? 1 : -1));
+  if (!blk) return false;
+  view.dispatch({ selection: { anchor: pastTable(view.state, blk, forward) }, scrollIntoView: true });
+  return true;
+}
+const tableMotionKeymap = [
+  { key: "ArrowDown", run: (v) => tableEnterVertical(v, true) },
+  { key: "ArrowUp", run: (v) => tableEnterVertical(v, false) },
+  { key: "ArrowRight", run: (v) => tableSkipHorizontal(v, true) },
+  { key: "ArrowLeft", run: (v) => tableSkipHorizontal(v, false) },
 ];
 
 class TableWidget extends WidgetType {
-  // `rows` is [header, ...dataRows] (the separator line is parsed into
-  // `aligns`); from/to are the block's source char range for write-back.
   constructor(rows, aligns, from, to) {
     super();
     this.rows = rows;
@@ -365,231 +429,45 @@ class TableWidget extends WidgetType {
            JSON.stringify(o.rows) === JSON.stringify(this.rows) &&
            JSON.stringify(o.aligns) === JSON.stringify(this.aligns);
   }
-  ignoreEvent() { return true; }   // CM ignores all events from the widget DOM
+  ignoreEvent() { return false; }   // let the mousedown below place the caret
   toDOM(view) {
-    // Working copy: every interaction mutates `work`/`workAligns`; we only
-    // dispatch a CM transaction (re-serializing the whole block) when focus
-    // leaves the table or a structural op fires. CM's WidgetView ignores DOM
-    // mutations inside the widget, so contentEditable cells are safe.
-    const work = this.rows.map((r) => r.slice());
-    const workAligns = this.aligns.slice();
-    const baseline = serializeTable(this.rows, this.aligns);
-    const cells = [];                 // parallel 2D grid of cell elements
-    let activeCell = null;            // {r, c} of the focused cell
-
-    const wrap = document.createElement("div");
-    wrap.className = "cm-md-table-wrap";
-    wrap.contentEditable = "false";   // atomic island inside CM's content
-    wrap.dataset.from = String(this.from);   // lets arrow-into-table find this widget
-
-    const dispatch = (focus) => {
-      const text = serializeTable(work, workAligns);
-      if (text === view.state.sliceDoc(this.from, this.to)) {
-        if (focus) { pendingFocus = focus; rerenderFocus(); }
-        return;
-      }
-      pendingFocus = focus || null;
-      view.dispatch({ changes: { from: this.from, to: this.to, insert: text } });
-    };
-    // No source change but we still want to move the caret (e.g. a no-op align).
-    const rerenderFocus = () => {
-      if (!pendingFocus) return;
-      const { r, c } = pendingFocus; pendingFocus = null;
-      const el = cells[r]?.[c];
-      if (el) { el.focus(); placeCaretEnd(el); }
-    };
-
-    const syncActive = () => {
-      if (!activeCell) return;
-      const el = cells[activeCell.r]?.[activeCell.c];
-      if (el && el.isContentEditable) stashCell(el, activeCell.r, activeCell.c);
-    };
-    const stashCell = (el, r, c) => {
-      work[r][c] = el.textContent.replace(/ /g, " ").replace(/\n/g, " ").trim();
-      el.innerHTML = renderCell(work[r][c]) || "<br>";
-    };
-
-    // ---- structural ops (operate on the working model, then commit) ----
-    const cols = () => workAligns.length;
-    const insertCol = (at) => { syncActive(); work.forEach((row) => row.splice(at, 0, "")); workAligns.splice(at, 0, ""); dispatch({ r: activeCell?.r ?? 0, c: at }); };
-    const deleteCol = (at) => { if (cols() <= 1) return; syncActive(); work.forEach((row) => row.splice(at, 1)); workAligns.splice(at, 1); dispatch({ r: activeCell?.r ?? 0, c: Math.min(at, cols() - 1) }); };
-    const insertRow = (at) => { at = Math.max(1, Math.min(at, work.length)); syncActive(); work.splice(at, 0, new Array(cols()).fill("")); dispatch({ r: at, c: activeCell?.c ?? 0 }); };
-    const deleteRow = (at) => { if (at < 1 || work.length <= 1) return; syncActive(); work.splice(at, 1); dispatch({ r: Math.min(at, work.length - 1), c: activeCell?.c ?? 0 }); };
-    const setAlign = (col, val) => { syncActive(); workAligns[col] = workAligns[col] === val ? "" : val; dispatch({ r: activeCell?.r ?? 0, c: col }); };
-
-    // ---- contextual toolbar (shown while a cell is focused) ----
-    const toolbar = document.createElement("div");
-    toolbar.className = "cm-tbl-toolbar";
-    const mkBtn = (label, title, fn, group) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "cm-tbl-btn" + (group ? " " + group : "");
-      b.textContent = label;
-      b.title = title;
-      // mousedown+preventDefault keeps the focused cell focused (no blur churn)
-      b.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopPropagation(); fn(); });
-      return b;
-    };
-    const sep = () => { const s = document.createElement("span"); s.className = "cm-tbl-sep"; return s; };
-    toolbar.append(
-      mkBtn("↥", "Insert row above", () => deleteSafeRowAbove()),
-      mkBtn("↧", "Insert row below", () => insertRow((activeCell?.r ?? 0) + 1)),
-      mkBtn("⊖", "Delete row", () => deleteRow(activeCell?.r ?? -1), "danger"),
-      sep(),
-      mkBtn("⇤", "Insert column left", () => insertCol(activeCell?.c ?? 0)),
-      mkBtn("⇥", "Insert column right", () => insertCol((activeCell?.c ?? 0) + 1)),
-      mkBtn("⊖", "Delete column", () => deleteCol(activeCell?.c ?? -1), "danger"),
-      sep(),
-      mkBtn("⇤", "Align left", () => setAlign(activeCell?.c ?? 0, "left"), "align"),
-      mkBtn("⇔", "Align center", () => setAlign(activeCell?.c ?? 0, "center"), "align"),
-      mkBtn("⇥", "Align right", () => setAlign(activeCell?.c ?? 0, "right"), "align"),
-      sep(),
-      mkBtn("</>", "Edit as markdown", () => {
-        syncActive();
-        if (serializeTable(work, workAligns) !== baseline) dispatch(null);
-        view.dispatch({ effects: setRawTable.of({ on: true, from: this.from }) });
-      }, "wide"),
-    );
-    const deleteSafeRowAbove = () => insertRow(Math.max(1, activeCell?.r ?? 1));
-    const reflectAlign = () => {
-      const a = activeCell ? workAligns[activeCell.c] : "";
-      const al = toolbar.querySelectorAll(".cm-tbl-btn.align");
-      ["left", "center", "right"].forEach((v, i) => al[i]?.classList.toggle("on", a === v));
-    };
-
-    // ---- build the table ----
+    const headerLine = view.state.doc.lineAt(this.from).number;
     const table = document.createElement("table");
     table.className = "cm-md-table";
-    // Leave the table via the keyboard, dropping the CM caret onto the line
-    // just before/after the source block (and committing any pending edits).
-    const exitTable = (where) => {
-      if (serializeTable(work, workAligns) !== baseline) dispatch(null);
-      const doc = view.state.doc;
-      const endNo = doc.lineAt(Math.min(this.to, doc.length)).number;
-      const startNo = doc.lineAt(this.from).number;
-      const target = where === "after"
-        ? (endNo < doc.lines ? doc.line(endNo + 1).from : doc.line(endNo).to)
-        : (startNo > 1 ? doc.line(startNo - 1).to : 0);
-      view.dispatch({ selection: { anchor: target } });
-      view.focus();
+    const mkRow = (cells, tag, lineNo) => {
+      const tr = document.createElement("tr");
+      tr.dataset.line = String(lineNo);
+      cells.forEach((c, ci) => {
+        const el = document.createElement(tag);
+        if (this.aligns[ci]) el.style.textAlign = this.aligns[ci];
+        el.innerHTML = renderCell(c) || "";
+        tr.appendChild(el);
+      });
+      return tr;
     };
-    const mkCell = (tag, r, c) => {
-      const el = document.createElement(tag);
-      el.className = "cm-tcell";
-      el.contentEditable = "true";
-      el.spellcheck = true;
-      el.dataset.r = r;
-      el.dataset.c = c;
-      el.innerHTML = renderCell(work[r][c]) || "<br>";
-      if (workAligns[c]) el.style.textAlign = workAligns[c];
-      el.addEventListener("focus", () => {
-        activeCell = { r, c };
-        el.textContent = work[r][c];      // reveal raw markdown for editing
-        placeCaretEnd(el);
-        wrap.classList.add("editing");
-        reflectAlign();
-      });
-      el.addEventListener("blur", (e) => {
-        stashCell(el, r, c);
-        const to = e.relatedTarget;
-        if (to && wrap.contains(to)) return;   // moving within the table
-        activeCell = null;
-        wrap.classList.remove("editing");
-        if (serializeTable(work, workAligns) !== baseline) dispatch(null);
-      });
-      el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          stashCell(el, r, c);
-          const next = cells[r + 1]?.[c];
-          if (next) next.focus(); else el.blur();
-        } else if (e.key === "Tab") {
-          e.preventDefault();
-          stashCell(el, r, c);
-          const next = e.shiftKey
-            ? (cells[r]?.[c - 1] || cells[r - 1]?.[cols() - 1])
-            : (cells[r]?.[c + 1] || cells[r + 1]?.[0]);
-          if (next) next.focus(); else if (!e.shiftKey) insertCol(cols());
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          el.innerHTML = renderCell(work[r][c]) || "<br>";
-          el.blur();
-        } else if (e.key === "ArrowDown") {
-          e.preventDefault();
-          stashCell(el, r, c);
-          const n = cells[r + 1]?.[c];
-          if (n) n.focus(); else exitTable("after");
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          stashCell(el, r, c);
-          const p = cells[r - 1]?.[c];
-          if (p) p.focus(); else exitTable("before");
-        } else if (e.key === "ArrowRight" && caretAtEnd(el)) {
-          e.preventDefault();
-          stashCell(el, r, c);
-          const n = cells[r]?.[c + 1] || cells[r + 1]?.[0];
-          if (n) n.focus(); else exitTable("after");
-        } else if (e.key === "ArrowLeft" && caretAtStart(el)) {
-          e.preventDefault();
-          stashCell(el, r, c);
-          const p = cells[r]?.[c - 1] || cells[r - 1]?.[cols() - 1];
-          if (p) p.focus(); else exitTable("before");
-        }
-      });
-      return el;
-    };
-
     const thead = document.createElement("thead");
-    const htr = document.createElement("tr");
-    cells[0] = [];
-    (work[0] || []).forEach((_, c) => { const el = mkCell("th", 0, c); cells[0][c] = el; htr.appendChild(el); });
-    thead.appendChild(htr);
+    thead.appendChild(mkRow(this.rows[0] || [], "th", headerLine));
     table.appendChild(thead);
     const tbody = document.createElement("tbody");
-    for (let r = 1; r < work.length; r++) {
-      const tr = document.createElement("tr");
-      cells[r] = [];
-      work[r].forEach((_, c) => { const el = mkCell("td", r, c); cells[r][c] = el; tr.appendChild(el); });
-      tbody.appendChild(tr);
-    }
+    for (let r = 1; r < this.rows.length; r++) tbody.appendChild(mkRow(this.rows[r], "td", headerLine + 1 + r));
     table.appendChild(tbody);
-
-    // ---- always-available append affordances (visible on table hover) ----
-    const addCol = document.createElement("button");
-    addCol.type = "button";
-    addCol.className = "cm-tbl-add cm-tbl-add-col";
-    addCol.title = "Add column";
-    addCol.textContent = "+";
-    addCol.addEventListener("mousedown", (e) => { e.preventDefault(); insertCol(cols()); });
-    const addRow = document.createElement("button");
-    addRow.type = "button";
-    addRow.className = "cm-tbl-add cm-tbl-add-row";
-    addRow.title = "Add row";
-    addRow.textContent = "+";
-    addRow.addEventListener("mousedown", (e) => { e.preventDefault(); insertRow(work.length); });
-
-    const grid = document.createElement("div");
-    grid.className = "cm-tbl-grid";
-    grid.append(table, addCol);
-    wrap.append(toolbar, grid, addRow);
-
-    // restore caret after a structural re-render
-    if (pendingFocus) {
-      const want = pendingFocus; pendingFocus = null;
-      requestAnimationFrame(() => {
-        const el = cells[want.r]?.[want.c] || cells[want.r]?.[cols() - 1] || cells[0]?.[0];
-        if (el) { el.focus(); placeCaretEnd(el); }
-      });
-    }
-    return wrap;
+    // Click a rendered cell -> drop the CM caret on that source line; the block
+    // goes active and reveals the raw markdown to edit.
+    table.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const tr = e.target.closest("tr");
+      const lineNo = tr ? Math.min(+tr.dataset.line, view.state.doc.lines) : null;
+      view.dispatch({ selection: { anchor: lineNo ? view.state.doc.line(lineNo).from : this.from } });
+      view.focus();
+    });
+    return table;
   }
 }
 
 const tableField = StateField.define({
   create(state) { return buildTableDecos(state); },
   update(value, tr) {
-    const rawToggled = tr.effects.some((e) => e.is(setRawTable));
-    return (tr.docChanged || tr.selection || rawToggled) ? buildTableDecos(tr.state) : value;
+    return (tr.docChanged || tr.selection) ? buildTableDecos(tr.state) : value;
   },
   provide: (f) => EditorView.decorations.from(f),
 });
@@ -598,45 +476,13 @@ function buildTableDecos(state) {
   const activeSet = activeLineSet(state);
   const decos = [];
   for (const b of findTableBlocks(state)) {
-    if (blockActive(b, activeSet)) continue;
+    if (blockActive(b, activeSet)) continue;   // caret inside -> leave raw source to edit
     const fromPos = state.doc.line(b.from).from;
     const toPos = state.doc.line(b.to).to;
-    if (isRawBlock(state, b)) {
-      // raw markdown view: leave the source lines visible & editable, just
-      // float a slim "rendered table" bar above them to toggle back.
-      decos.push(Decoration.widget({ block: true, side: -1, widget: new RawBarWidget(fromPos, toPos) }).range(fromPos));
-      continue;
-    }
     const { rows, aligns } = parseTableBlock(state, b.from, b.to);
     decos.push(Decoration.replace({ block: true, widget: new TableWidget(rows, aligns, fromPos, toPos) }).range(fromPos, toPos));
   }
   return Decoration.set(decos, true);
-}
-
-// Slim bar shown above a table that's flipped to raw-markdown view.
-class RawBarWidget extends WidgetType {
-  constructor(from, to) { super(); this.from = from; this.to = to; }
-  eq(o) { return o.from === this.from && o.to === this.to; }
-  ignoreEvent() { return true; }
-  toDOM(view) {
-    const bar = document.createElement("div");
-    bar.className = "cm-tbl-rawbar";
-    bar.contentEditable = "false";
-    const label = document.createElement("span");
-    label.className = "cm-tbl-rawbar-label";
-    label.textContent = "markdown source";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "cm-tbl-rawbar-btn";
-    btn.textContent = "⊞ rendered table";
-    btn.title = "Show the rendered, editable table";
-    btn.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      view.dispatch({ effects: setRawTable.of({ on: false, lo: this.from, hi: this.to }) });
-    });
-    bar.append(label, btn);
-    return bar;
-  }
 }
 
 function eachLine(state, from, to, fn) {
@@ -873,16 +719,16 @@ let loadedReflowed = "";  // reflowed view of it
 // one rAF so rapid cursor moves don't thrash.
 let centerCaret = () => {};
 let smearMove = () => {};   // Neovide-style cursor smear; real impl assigned below
+let redrawSelection = () => {};   // custom rounded selection blob; real impl below
 let centerRaf = null;
 function scheduleCenter() {
   if (centerRaf !== null) return;
   centerRaf = requestAnimationFrame(() => { centerRaf = null; centerCaret(true); });
 }
-// Hoisted here because the view's initial update fires updateRead()/scheduleFlash()
+// Hoisted here because the view's initial update fires updateRead()
 // during construction — a `let` declared after the editor would still be in its
 // temporal dead zone and throw, blanking the whole UI.
 let readRaf = null;
-let flashRaf = null;
 // Hoisted: the update listener reads findOpen during the view's initial
 // construction update, so it must be initialized before the view is built.
 let findOpen = false;
@@ -892,17 +738,103 @@ let findOpen = false;
 let cursorBlock = false;
 let smearEnabled = true;
 let cursorBlockW = 0;       // measured glyph width under the caret (block mode)
-// Smear feel, derived from the Trail/Speed settings (set in applySettings). The
-// LEADING corners run at smearLead (front snaps to the destination, Neovide's
-// trail_size 1.0), the TRAILING corners at smearTail — the lower it is, the
-// further the tail lags, so the trail reads longer and lives longer.
-let smearLead = 0.78, smearTail = 0.12;
+let smearSkipNext = false;  // suppress one smear (e.g. the programmatic load-time jump)
+// Smear feel, derived from the Trail/Speed settings (set in applySettings).
+// smearDuration is how long (ms) the source rect takes to catch the destination —
+// longer = a longer-lived trail; smearShrink is the diagonal taper sharpness.
+let smearDuration = 320, smearShrink = 0.77;
 
 // CM rewrites .cm-editor's className wholesale on focus/state changes, wiping
 // any class we add there. So the block-cursor flag and its measured width ride
 // the editor HOST (which CM never touches); --cursor-w inherits down into the
 // caret, and the selector is .editor-host.cursor-block .cm-cursor.
 const editorHost = document.getElementById("editor");
+
+// Block cursor legibility: tag the single glyph under an empty caret so CSS can
+// repaint it in --cursor-fg (the computed contrast colour). The mark is always
+// emitted; only the .cursor-block rule colours it, so switching cursor modes
+// needs no rebuild. Skips selections and line ends (no glyph sits under those).
+const cursorGlyphMark = Decoration.mark({ class: "cm-cursor-glyph" });
+function cursorGlyphDeco(view) {
+  const sel = view.state.selection.main;
+  if (!sel.empty) return Decoration.none;
+  const line = view.state.doc.lineAt(sel.head);
+  if (sel.head >= line.to) return Decoration.none;
+  return Decoration.set([cursorGlyphMark.range(sel.head, sel.head + 1)]);
+}
+// The glyph marks the char at the caret offset for block-cursor contrast. At a
+// soft-wrap seam that offset renders on the NEXT visual row while the caret draws
+// at the END of THIS one (assoc -1, e.g. after End) — recolouring it would blank
+// a char with no block behind it. Reading layout during update() is forbidden, so
+// the plugin marks optimistically and a measure pass (layout-legal, pre-paint)
+// flags the element when its row differs from the caret's; CSS cancels the recolour.
+const cursorGlyphPlugin = ViewPlugin.fromClass(class {
+  constructor(view) { this.decorations = cursorGlyphDeco(view); this.sync(view); }
+  update(u) {
+    if (u.selectionSet || u.docChanged || u.viewportChanged) this.decorations = cursorGlyphDeco(u.view);
+    if (u.selectionSet || u.docChanged || u.viewportChanged || u.geometryChanged) this.sync(u.view);
+  }
+  sync(view) {
+    view.requestMeasure({
+      key: "cursorGlyphSplit",
+      read: () => {
+        const sel = view.state.selection.main;
+        if (!sel.empty) return false;
+        const caret = view.coordsAtPos(sel.head, sel.assoc || -1);
+        const glyph = view.coordsAtPos(sel.head, 1);
+        return !!(caret && glyph && Math.abs(caret.top - glyph.top) > 1);
+      },
+      write: (split) => {
+        const el = view.dom.querySelector(".cm-cursor-glyph");
+        if (el) el.classList.toggle("cm-cursor-glyph-off", split);
+      },
+    });
+  }
+}, { decorations: (v) => v.decorations });
+
+// Soft-wrap seam: one document offset that renders on two visual rows (end of the
+// upper row / start of the lower). True only when the position straddles rows.
+function atWrapSeam(view, pos) {
+  const a = view.coordsAtPos(pos, -1), b = view.coordsAtPos(pos, 1);
+  return !!(a && b && Math.abs(a.top - b.top) > 1);
+}
+// Rightward motion that never skips a wrapped row's first character. CM shares the
+// seam offset between rows and biases rightward travel to the upper row's END, so
+// the lower row's first glyph gets jumped. Here we re-associate the caret to the
+// lower row's START (same offset, assoc +1) instead — both when already parked at
+// the seam (e.g. after End) and when a normal step lands on it.
+function cursorCharRightWrap(view) {
+  const r0 = view.state.selection.main;
+  if (r0.empty && (r0.assoc || 0) < 0 && atWrapSeam(view, r0.head)) {
+    view.dispatch({ selection: EditorSelection.cursor(r0.head, 1), scrollIntoView: true });
+    return true;
+  }
+  const handled = cursorCharRight(view);
+  const r = view.state.selection.main;
+  if (handled && r.empty && (r.assoc || 0) < 0 && atWrapSeam(view, r.head))
+    view.dispatch({ selection: EditorSelection.cursor(r.head, 1), scrollIntoView: true });
+  return handled;
+}
+
+// End: first press -> end of the visual wrapped row; if already there -> end of the
+// whole logical line (the reflowed paragraph), so a wrapped prose line still has a
+// reachable "true" end. Shift+End extends the same way.
+// Visual wrapped-row end of `head`. assoc -1 makes a soft-wrap seam resolve to the
+// row the caret is ENDING (so an offset shared by two rows isn't read as the lower
+// row's start), which is what lets the "already at row end?" test below converge.
+const visualRowEnd = (view, head) => view.moveToLineBoundary(EditorSelection.cursor(head, -1), true).head;
+// Target: the visual wrapped-row end; if the caret is already there, the end of the
+// whole logical line (paragraph) instead.
+function smartEndTarget(view, head) {
+  const rowEnd = visualRowEnd(view, head);
+  const logicalEnd = view.state.doc.lineAt(head).to;
+  return (head === rowEnd && head !== logicalEnd) ? logicalEnd : rowEnd;
+}
+function endSmart(view) {
+  const head = view.state.selection.main.head;
+  view.dispatch({ selection: EditorSelection.cursor(smartEndTarget(view, head), -1), scrollIntoView: true });
+  return true;
+}
 
 const view = new EditorView({
   parent: editorHost,
@@ -913,9 +845,9 @@ const view = new EditorView({
       drawSelection(),
       EditorView.lineWrapping,
       markdown({ base: markdownLanguage, addKeymap: true }),
-      rawTablesField,
       tableField,
       livePreview,
+      cursorGlyphPlugin,
       placeholder("Press ⌘K to open a .jd file, or just start writing…"),
       keymap.of([
         { key: "Mod-s", preventDefault: true, run: () => { saveFile(); return true; } },
@@ -925,7 +857,14 @@ const view = new EditorView({
         // Alt/Option + ←/→ jump by word (Shift extends the selection)
         { key: "Alt-ArrowLeft", run: cursorGroupLeft, shift: selectGroupLeft, preventDefault: true },
         { key: "Alt-ArrowRight", run: cursorGroupRight, shift: selectGroupRight, preventDefault: true },
-        ...tableNavKeymap,
+        // Home/End jump to the wrapped VISUAL-row boundary under lineWrapping,
+        // not the logical line edge (which would skip past the wrap).
+        { key: "Home", run: cursorLineBoundaryBackward, shift: selectLineBoundaryBackward, preventDefault: true },
+        { key: "End", run: endSmart, shift: selectLineBoundaryForward, preventDefault: true },
+        // ArrowRight: don't skip the first glyph of a wrapped row at the seam.
+        { key: "ArrowRight", run: cursorCharRightWrap },
+        ...tableMotionKeymap,
+        ...tableEditKeymap,
         ...defaultKeymap,
         ...historyKeymap,
       ]),
@@ -941,8 +880,7 @@ const view = new EditorView({
         },
       }),
       EditorView.updateListener.of((u) => {
-        if (u.selectionSet || u.docChanged) { scheduleCenter(); scheduleFlash(); updateCursorBlockWidth(); smearMove(); }
-        if (u.docChanged || u.geometryChanged) updateRead();
+        if (u.selectionSet || u.docChanged) { scheduleCenter(); updateCursorBlockWidth(); smearMove(); redrawSelection(); updateRead(); }
         if (findOpen && u.docChanged) updateFindCount();   // field recomputed; sync the n/m counter
         if (!u.docChanged) return;
         markDirty();
@@ -969,7 +907,6 @@ const view = new EditorView({
  *  and last lines reach the center too. Disabled under reduced-motion.
  * ------------------------------------------------------------------ */
 (function smoothScroll() {
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const scroller = view.scrollDOM;
   let target = scroller.scrollTop;
   let raf = null;
@@ -1019,7 +956,7 @@ const view = new EditorView({
   function glideTo(t) { target = clamp(t); if (raf === null) raf = requestAnimationFrame(tick); }
 
   // wheel → momentum (also lets you scroll away from the centered line to read)
-  if (!reduce) {
+  {
     scroller.addEventListener("wheel", (e) => {
       if (e.ctrlKey) return;                          // pinch-zoom → leave it
       let dy = e.deltaY;
@@ -1052,7 +989,7 @@ const view = new EditorView({
     const caretY = (coords.top + coords.bottom) / 2;
     const centerY = rect.top + scroller.clientHeight / 2;
     const t = clamp(scroller.scrollTop + (caretY - centerY));
-    if (animated && !reduce) glideTo(t);
+    if (animated) glideTo(t);
     else { scroller.scrollTop = t; target = t; }
   };
   centerCaret(false);                                 // center whatever's loaded now
@@ -1067,23 +1004,46 @@ const view = new EditorView({
  *  travelling (CM's caret is hidden); corners live in scroll-invariant content
  *  coords so the smear rides typewriter scrolling, re-projected each frame.
  * ------------------------------------------------------------------ */
+// Rounded path around an ordered polygon: each vertex becomes a quadratic arc whose
+// radius clamps to half the shorter adjacent edge, so short/thin shapes never self-
+// overlap. Shared by the smear quad (4 corners) and the selection blob (staircase).
+function roundedQuadPath(pts, r) {
+  const n = pts.length;
+  if (n < 3) return "";
+  let d = "";
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], prev = pts[(i - 1 + n) % n], next = pts[(i + 1) % n];
+    const v1x = prev[0] - p[0], v1y = prev[1] - p[1];
+    const v2x = next[0] - p[0], v2y = next[1] - p[1];
+    const l1 = Math.hypot(v1x, v1y) || 1, l2 = Math.hypot(v2x, v2y) || 1;
+    const rr = Math.min(r, l1 / 2, l2 / 2);
+    const ax = p[0] + (v1x / l1) * rr, ay = p[1] + (v1y / l1) * rr;
+    const bx = p[0] + (v2x / l2) * rr, by = p[1] + (v2y / l2) * rr;
+    d += `${i === 0 ? "M" : "L"} ${ax.toFixed(2)} ${ay.toFixed(2)} Q ${p[0].toFixed(2)} ${p[1].toFixed(2)} ${bx.toFixed(2)} ${by.toFixed(2)} `;
+  }
+  return d + "Z";
+}
+
 (function smearCursor() {
   // Always wire up the engine; whether it actually animates is gated per-move by
   // `smearEnabled` (the Smear setting). Reduced-motion only steers the DEFAULT
   // (see SETTINGS_DEFAULTS) — an explicit opt-in in Settings must still take.
-  const layer = document.createElement("div");
-  layer.className = "cm-smear-layer";
-  const smear = document.createElement("div");
-  smear.className = "cm-smear";
-  layer.appendChild(smear);
-  document.body.appendChild(layer);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "cm-smear");
+  const path = document.createElementNS(NS, "path");
+  svg.appendChild(path);
+  document.body.appendChild(svg);
 
-  // Caret cell in scroll-invariant CONTENT coords, so captured corners keep
-  // tracking the text while the typewriter scroll glides underneath them.
+  // Caret cell in scroll-invariant CONTENT coords, so the captured rect keeps
+  // tracking the text while the typewriter scroll glides underneath it.
   const caretCell = () => {
     const sel = view.state.selection.main;
     if (!sel.empty) return null;                 // only a collapsed caret has a cell
-    const c = view.coordsAtPos(sel.head);
+    // Pass the caret's association so a soft-wrap seam resolves to the same visual
+    // row CM draws the caret on (assoc -1 = upper row end), not coordsAtPos's
+    // default +1 (lower row start) — otherwise the smear lands a row off.
+    const c = view.coordsAtPos(sel.head, sel.assoc < 0 ? -1 : 1);
     if (!c) return null;
     const b = view.scrollDOM.getBoundingClientRect();
     return {
@@ -1098,95 +1058,136 @@ const view = new EditorView({
     const b = view.scrollDOM.getBoundingClientRect();
     return [x + b.left - view.scrollDOM.scrollLeft, y + b.top - view.scrollDOM.scrollTop];
   };
-  // 4 corners (TL, TR, BR, BL) of a cell, in content coords
-  const cellCorners = (c) => [[c.x, c.y], [c.x + c.w, c.y], [c.x + c.w, c.y + c.h], [c.x, c.y + c.h]];
 
-  // Neovide's model: each corner is ranked by how well it aligns with the travel
-  // direction (dot product) — the LEADING edge runs fast (smearLead: front snaps
-  // to the destination) and the TRAILING edge slow (smearTail: it lags far behind,
-  // making the long visible trail), then the quad contracts as the tail catches
-  // up. First-order per corner ⇒ critically damped, zero overshoot. Both rates are
-  // live from the Trail/Speed settings; short hops (typing) speed the tail up.
-  const EXP = 1.5, STOP = 1.0, MAX_FRAMES = 140, SHORT = 64, SHORT_BOOST = 2.0;
-  let cur = null;        // [[x, y] × 4] live corners, content coords
-  let tgt = null;        // [[x, y] × 4] target corners, content coords
-  let wlead = smearLead, wtail = smearTail;   // per-move corner rates (boosted for typing)
-  let dir = [1, 0];      // travel direction (unit), set per move
-  let raf = null, frame = 0;
-
-  const paint = () => {
-    const pv = cur.map((c) => toView(c[0], c[1]));   // → viewport corners, in quad order
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const [x, y] of pv) {
-      if (x < minX) minX = x; if (y < minY) minY = y;
-      if (x > maxX) maxX = x; if (y > maxY) maxY = y;
-    }
-    smear.style.left = `${minX}px`;
-    smear.style.top = `${minY}px`;
-    smear.style.width = `${maxX - minX}px`;
-    smear.style.height = `${maxY - minY}px`;
-    smear.style.clipPath = "polygon(" + pv.map((p) => `${p[0] - minX}px ${p[1] - minY}px`).join(",") + ")";
+  // The smear shape (smear-cursor.nvim / vsc-smearcursor model): the cursor is a
+  // cell rect at BOTH the source and the destination, and the smear is the convex
+  // quad BRIDGING them — the two corners of each rect farthest from the OTHER
+  // rect's centre, wound by angle. The block streaks from where it was to where it
+  // is, then the source rect slides up under the destination and the quad collapses
+  // back into one cell. Identical maths for line and block — only the cell width
+  // differs (2px vs the measured glyph), so both smear from the same four points.
+  const rectAt = (x, y, w, h, ix, iy) => [[x + ix, y + iy], [x + w - ix, y + iy], [x + w - ix, y + h - iy], [x + ix, y + h - iy]];
+  const centre = (r) => [(r[0][0] + r[2][0]) / 2, (r[0][1] + r[2][1]) / 2];
+  const farthest2 = (c, pts) => pts.slice().sort((a, b) => Math.hypot(b[0] - c[0], b[1] - c[1]) - Math.hypot(a[0] - c[0], a[1] - c[1])).slice(0, 2);
+  const windByAngle = (pts) => {
+    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    return pts.slice().sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
   };
+  const bridge = (tip, tail) => windByAngle([...farthest2(centre(tip), tail), ...farthest2(centre(tail), tip)]);
 
-  const settle = () => {                             // snap to rest, hand back to CM's caret
-    for (let i = 0; i < 4; i++) { cur[i][0] = tgt[i][0]; cur[i][1] = tgt[i][1]; }
-    paint();
+  // cubic ease-in-out — the source rect's catch-up curve toward the destination.
+  const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const SMEAR_RADIUS = 3;   // matches .cursor-block .cm-cursor border-radius
+
+  let prev = null;       // source cell {x,y,w,h} content coords — the smear origin
+  let to = null;         // destination cell
+  let t = 0, last = 0;   // progress 0..1, last rAF stamp (ms)
+  let raf = null;
+
+  // Rounded quad (matches the resting block's border-radius), drawn in absolute
+  // viewport coords into the full-viewport SVG overlay. Filled in block mode,
+  // stroked in outline mode — both handled by the .cm-smear path CSS.
+  const paint = (pts) => { path.setAttribute("d", roundedQuadPath(pts, SMEAR_RADIUS)); };
+
+  const settle = () => {                             // hand back to CM's caret
     editorHost.classList.remove("smearing");
-    smear.classList.remove("show");
+    svg.classList.remove("show");
+    if (raf !== null) { cancelAnimationFrame(raf); raf = null; }
   };
 
-  const step = () => {
+  const step = (stamp) => {
     raf = null;
-    // Rank corners by how far along the travel direction they sit (projection),
-    // independent of cell shape: the leading edge (max) snaps at wlead, the
-    // trailing edge (min) crawls at wtail — the gap between them IS the smear.
-    const proj = tgt.map((t) => t[0] * dir[0] + t[1] * dir[1]);
-    const pmin = Math.min(...proj), pspan = (Math.max(...proj) - pmin) || 1;
-    let moving = 0;
-    for (let i = 0; i < 4; i++) {
-      const c = cur[i], t = tgt[i];
-      const s = Math.pow((proj[i] - pmin) / pspan, EXP);   // 0 trailing … 1 leading
-      const rate = wtail + (wlead - wtail) * s;
-      c[0] += (t[0] - c[0]) * rate;
-      c[1] += (t[1] - c[1]) * rate;
-      moving = Math.max(moving, Math.hypot(t[0] - c[0], t[1] - c[1]));
-    }
-    paint();
-    if (moving <= STOP || ++frame >= MAX_FRAMES) { settle(); return; }   // tail caught up (or safety cap)
+    const dt = last ? stamp - last : 16;
+    last = stamp;
+    t = Math.min(1, t + dt / Math.max(smearDuration, 1));
+    if (t >= 1) { settle(); return; }                // source rect caught up → CM caret resumes
+    const e = ease(t);
+    const w = to.w, h = to.h;
+    // source rect slides from `prev` toward the destination; the tip stays pinned
+    // at the destination cell, so the bridging quad shrinks as the two converge.
+    const sx = prev.x + (to.x - prev.x) * e, sy = prev.y + (to.y - prev.y) * e;
+    // taper only diagonal moves (Neovide's "skew when moving diagonally"): inset
+    // both rects, easing the inset back out as the source rect lands.
+    const diag = Math.abs(to.x - sx) > 0.5 && Math.abs(to.y - sy) > 0.5;
+    const ix = diag ? (1 - e) * (w / 2) * smearShrink : 0;
+    const iy = diag ? (1 - e) * (h / 2) * smearShrink : 0;
+    const tip = rectAt(to.x, to.y, w, h, ix, iy);
+    const tail = rectAt(sx, sy, w, h, ix, iy);
+    paint(bridge(tip, tail).map((p) => toView(p[0], p[1])));
     raf = requestAnimationFrame(step);
   };
 
+  // Every move: the caret jumped to a new cell; bridge a quad from where it rested
+  // to where it landed and let the source rect catch up. No per-movement-type
+  // branches — type, arrow, Home/End, newline, across rows are all one lerp.
   smearMove = () => {
     const cell = caretCell();
     if (!cell || !smearEnabled) {                    // nothing to smear → rest on CM's caret
-      editorHost.classList.remove("smearing");
-      smear.classList.remove("show");
-      cur = null; tgt = null;
-      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      prev = null; to = null; settle();
       return;
     }
-    const next = cellCorners(cell);
-    if (!cur) { cur = next.map((p) => [p[0], p[1]]); tgt = next; return; }  // first paint → snap
-    const moved = Math.hypot(next[0][0] - tgt[0][0], next[0][1] - tgt[0][1]);
-    // travel direction: current quad centre → new cell centre
-    const ccx = (cur[0][0] + cur[2][0]) / 2, ccy = (cur[0][1] + cur[2][1]) / 2;
-    const ncx = (next[0][0] + next[2][0]) / 2, ncy = (next[0][1] + next[2][1]) / 2;
-    const dl = Math.hypot(ncx - ccx, ncy - ccy) || 1;
-    dir = [(ncx - ccx) / dl, (ncy - ccy) / dl];
-    tgt = next;
-    if (moved < 0.5) {                               // no real move; keep the quad synced while idle
-      if (raf === null) cur = next.map((p) => [p[0], p[1]]);
+    if (smearSkipNext) {                             // suppress one move (e.g. the load-time jump)
+      smearSkipNext = false; prev = cell; to = null; settle();
       return;
     }
-    // short hop (typing) → boost both rates so the caret never visibly lags
-    const boost = moved < SHORT ? SHORT_BOOST : 1;
-    wlead = Math.min(0.98, smearLead * boost);
-    wtail = Math.min(0.98, smearTail * boost);
-    editorHost.classList.add("smearing");             // the trailing quad becomes the cursor
-    smear.classList.add("show");
-    frame = 0;                                        // restart the safety-cap countdown
+    const origin = to || prev;                       // where the caret rested before this move
+    if (!origin) { prev = cell; return; }            // first cell → just remember it
+    if (Math.hypot(cell.x - origin.x, cell.y - origin.y) < 0.5) return;   // no real move
+    prev = origin;
+    to = cell;
+    t = 0; last = 0;
+    editorHost.classList.add("smearing");             // the bridging quad becomes the cursor
+    svg.classList.add("show");
     if (raf === null) raf = requestAnimationFrame(step);
   };
+})();
+
+/* ------------------------------------------------------------------ *
+ *  Custom selection: CM draws the selection as plain per-line rectangles. We hide
+ *  those and redraw the same geometry as ONE rounded outline per contiguous line
+ *  stack — a joined "blob" with arced corners. The SVG lives inside the scroller
+ *  so it rides scrolling exactly like CM's own (now-hidden) selection rects, and
+ *  we read those rects for placement so it always lines up with the text.
+ * ------------------------------------------------------------------ */
+(function selectionBlob() {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "cm-sel-blob");
+  const path = document.createElementNS(NS, "path");
+  svg.appendChild(path);
+  view.scrollDOM.appendChild(svg);
+
+  const R = 6;   // corner radius; clamped per-corner to half the shorter edge
+
+  const outline = (rs) => {
+    rs = rs.slice().sort((a, b) => a.t - b.t);
+    const pts = [];
+    for (const r of rs) pts.push([r.r, r.t], [r.r, r.b]);
+    for (let i = rs.length - 1; i >= 0; i--) pts.push([rs[i].l, rs[i].b], [rs[i].l, rs[i].t]);
+    return pts;
+  };
+
+  const paint = () => {
+    const divs = view.scrollDOM.querySelectorAll(".cm-selectionBackground");
+    if (!divs.length) { path.setAttribute("d", ""); return; }
+    const sb = view.scrollDOM.getBoundingClientRect();
+    const sx = view.scrollDOM.scrollLeft, sy = view.scrollDOM.scrollTop;
+    const rects = Array.from(divs).map((el) => {
+      const r = el.getBoundingClientRect();
+      return { l: r.left - sb.left + sx, t: r.top - sb.top + sy, r: r.right - sb.left + sx, b: r.bottom - sb.top + sy };
+    });
+    rects.sort((a, b) => a.t - b.t || a.l - b.l);
+    const groups = [];
+    for (const r of rects) {
+      const g = groups[groups.length - 1];
+      if (g && r.t <= g[g.length - 1].b + 1) g.push(r); else groups.push([r]);
+    }
+    path.setAttribute("d", groups.map((g) => roundedQuadPath(outline(g), R)).join(" "));
+  };
+  redrawSelection = () => {
+    view.requestMeasure({ key: "selBlob", read: () => null, write: () => paint() });
+  };
+  redrawSelection();
 })();
 
 /* Block cursor: when enabled, the native caret is widened into a block sized to
@@ -1209,35 +1210,19 @@ function updateCursorBlockWidth() {
   editorHost.style.setProperty("--cursor-w", `${cursorBlockW}px`);
 }
 
-/* Reading progress — fill the searchbar's bottom border (--read, 0–1) by how
-   far you've scrolled through the document. Coalesced into a rAF off scroll. */
+/* Writing progress — fill the searchbar's bottom border (--read, 0–1) by the
+   caret's character offset through the document (head / total length), so it
+   advances with every keystroke and cursor move. Coalesced into a rAF. */
 function updateRead() {
   if (readRaf !== null) return;
   readRaf = requestAnimationFrame(() => {
     readRaf = null;
-    const s = view.scrollDOM;
-    const max = s.scrollHeight - s.clientHeight;
-    searchwrap.style.setProperty("--read", max > 0 ? (s.scrollTop / max).toFixed(4) : "0");
+    const total = view.state.doc.length;
+    const pos = view.state.selection.main.head;
+    searchwrap.style.setProperty("--read", total > 0 ? (pos / total).toFixed(4) : "0");
   });
 }
-view.scrollDOM.addEventListener("scroll", updateRead, { passive: true });
-new ResizeObserver(updateRead).observe(view.scrollDOM);
 updateRead();
-
-// Retrigger the caret glow flash on every move/keystroke. CM reuses the caret
-// element, so restart the CSS animation by reflowing between class toggles.
-// Deferred a frame so the caret is drawn at its new position first.
-function scheduleFlash() {
-  if (flashRaf !== null) return;
-  flashRaf = requestAnimationFrame(() => { flashRaf = null; flashCaret(); });
-}
-function flashCaret() {
-  const caret = view.scrollDOM.querySelector(".cm-cursor-primary");
-  if (!caret) return;
-  caret.classList.remove("cm-flash");
-  void caret.offsetWidth;          // force reflow → animation replays from 0%
-  caret.classList.add("cm-flash");
-}
 
 const getContent = () => view.state.doc.toString();
 function setContent(text) {
@@ -1316,6 +1301,18 @@ function followLink(href) {
   openFile(stack.join("/"));
 }
 
+// Position of the first ATX heading's `#` (skipping any frontmatter), or null.
+function firstHeadingPos(state) {
+  const doc = state.doc;
+  const fm = frontmatter(state);
+  const start = fm ? Math.min(fm.close + 1, doc.lines) : 1;
+  for (let n = start; n <= doc.lines; n++) {
+    const line = doc.line(n);
+    if (/^#{1,6}\s/.test(line.text)) return line.from;
+  }
+  return null;
+}
+
 async function openFile(p) {
   try {
     const res = await fetch(`/api/file?path=${encodeURIComponent(p)}`);
@@ -1337,12 +1334,26 @@ async function openFile(p) {
     updateWordCount();
     dirtyDot.classList.remove("show");
     try { localStorage.setItem("jd:last", data.path); } catch {}
-    // land the cursor in the body (just past any frontmatter)
+    // Land the caret on the first heading (the first '#'), else the body start.
+    // Hold it hidden, then 50ms after load drop it in and fade it up — by then
+    // layout has settled so the block cursor is sized to the right glyph. (Caret /
+    // glyph vertical alignment is handled by running the entrance animation on
+    // .cm-editor so the cursor layer rides along — see contentIn in style.css.)
     const fm = frontmatter(view.state);
-    const startLine = fm ? Math.min(fm.close + 2, view.state.doc.lines) : 1;
-    const pos = view.state.doc.line(startLine).from;
-    view.dispatch({ selection: { anchor: pos } });   // centerCaret handles scroll
+    const fallback = view.state.doc.line(fm ? Math.min(fm.close + 2, view.state.doc.lines) : 1).from;
+    const pos = firstHeadingPos(view.state) ?? fallback;
+    host.classList.add("cursor-arming");             // caret hidden (no fade) while we wait
     view.focus();
+    setTimeout(() => {
+      smearSkipNext = true;                          // place without a load-time smear
+      view.dispatch({ selection: { anchor: pos } });
+      updateCursorBlockWidth();
+      centerCaret(false);
+      host.classList.remove("cursor-arming");        // fade the correctly-sized caret in
+    }, 50);
+    // The block width is the glyph advance, which differs from the fallback font —
+    // re-measure once the webfont settles (caret position is already stable).
+    document.fonts?.ready.then(updateCursorBlockWidth);
     return true;
   } catch (err) {
     console.error("open failed:", err);
@@ -1959,13 +1970,18 @@ const SETTINGS_KEY = "jd:settings";
 // choice (loadSettings spreads it over these defaults) always wins, so flipping
 // the Smear toggle takes effect regardless of the OS preference.
 const SETTINGS_DEFAULTS = { theme: "auto", tint: "", dim: "", fadeDist: "", font: "", mono: "", cursor: "block", smear: !matchMedia("(prefers-reduced-motion: reduce)").matches, smearTrail: 78, smearSpeed: 62 };
-const SWATCHES = ["#007aff", "#0a84ff", "#5e5ce6", "#34c759", "#ff9f0a", "#ff375f", "#bf5af2", "#1a1a1a"];
+const SWATCHES = ["#81a2be", "#de935f", "#b5bd68", "#b294bb"];
 let settingsOpen = false;
 let settings = loadSettings();
 
 function loadSettings() {
-  try { return { ...SETTINGS_DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) }; }
-  catch { return { ...SETTINGS_DEFAULTS }; }
+  try {
+    const s = { ...SETTINGS_DEFAULTS, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) };
+    // Legacy: the standalone `outline` toggle folded into the cursor style.
+    if (s.outline === true && s.cursor !== "line") s.cursor = "outline";
+    delete s.outline;
+    return s;
+  } catch { return { ...SETTINGS_DEFAULTS }; }
 }
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
@@ -1988,23 +2004,45 @@ function applySettings() {
   setMono.style.fontFamily = settings.mono ? `"${settings.mono}", ${MONO_FALLBACK}` : "";
   // a swapped-in webfont changes glyph metrics — re-measure so the caret and
   // typewriter scroll stay aligned (CM caches character width otherwise).
-  document.fonts?.ready.then(() => view.requestMeasure());
+  // A swapped-in webfont changes glyph metrics: re-measure AND re-center the caret
+  // + refresh the block width, else the first caret (placed with fallback metrics on
+  // load) sits too high until the next cursor move forces a re-center.
+  document.fonts?.ready.then(() => { view.requestMeasure(); updateCursorBlockWidth(); centerCaret(false); });
   // cursor look + smear
   cursorBlock = settings.cursor !== "line";
   smearEnabled = settings.smear !== false;
   editorHost.classList.toggle("cursor-block", cursorBlock);
+  // "outline" is the hollow block variant — same cell, stroked 2px instead of a
+  // solid fill (for both the resting block and its smear).
+  document.body.classList.toggle("cursor-outline", settings.cursor === "outline");
   if (cursorBlock) updateCursorBlockWidth(); else editorHost.style.removeProperty("--cursor-w");
-  // Trail / Speed → spring rates. Speed sets the front rate (overall pace); Trail
-  // sets how much slower the tail runs (its length). Both 0–100 from the sliders.
+  // Block cursor legibility: the glyph sits over a solid --tint fill, so colour it
+  // black or white — whichever contrasts the (now-resolved) tint more. Reads the
+  // computed value so the default tint's light/dark variant is picked up too.
+  root.setProperty("--cursor-fg", contrastOf(getComputedStyle(document.documentElement).getPropertyValue("--tint")));
+  // Trail / Speed → smear feel. Speed shortens the catch-up time (overall pace);
+  // Trail lengthens it (a longer-lived streak) and sharpens the diagonal taper.
+  // Both 0–100 from the sliders.
   const speed01 = (settings.smearSpeed ?? 62) / 100;
   const trail01 = (settings.smearTrail ?? 78) / 100;
-  smearLead = 0.34 + speed01 * 0.62;                 // 0.34 (slow) … 0.96 (snappy front)
-  smearTail = smearLead * (0.55 - trail01 * 0.5);    // ratio 0.55 (short) … 0.05 (long trail)
+  smearDuration = Math.round(70 + trail01 * 260 + (1 - speed01) * 120);   // ~70 (snappy) … ~450ms (long)
+  smearShrink = 0.3 + trail01 * 0.6;                                      // 0.3 (subtle) … 0.9 (sharp taper)
 }
 
 function hexOf(v) {
   v = (v || "").trim();
   return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : "#007aff";
+}
+// WCAG relative luminance → black or white, whichever has the higher contrast
+// against `color` (a #rgb / #rrggbb tint). 0.179 is the standard crossover point.
+function contrastOf(color) {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((color || "").trim());
+  if (!m) return "#ffffff";
+  const h = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+  const n = parseInt(h, 16);
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.179 ? "#000000" : "#ffffff";
 }
 function syncSettingsControls() {
   const cs = getComputedStyle(document.documentElement);
@@ -2017,8 +2055,7 @@ function syncSettingsControls() {
   setMono.value = settings.mono || "";
   settingsSwatches.querySelectorAll(".settings-swatch").forEach((b) =>
     b.classList.toggle("on", b.dataset.c === setTint.value));
-  const curMode = settings.cursor === "line" ? "line" : "block";
-  setCursor.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === curMode));
+  setCursor.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.v === settings.cursor));
   const smearOn = settings.smear !== false;
   setSmear.classList.toggle("on", smearOn);
   setSmear.textContent = smearOn ? "On" : "Off";
@@ -2071,6 +2108,9 @@ document.getElementById("settingsReset").addEventListener("click", () => {
 });
 
 applySettings();   // restore persisted look on launch
+// On auto theme with the default tint, an OS light/dark flip changes the resolved
+// --tint, so re-derive --cursor-fg (the only theme-dependent value JS computes).
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
 
 function escapeHtml(text) {
   const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };

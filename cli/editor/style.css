@@ -160,24 +160,21 @@ body,
 .searchbar:focus { border-bottom-color: var(--accent); }
 .searchbar.saved-flash { color: var(--accent); border-bottom-color: var(--accent); }
 
-/* reading progress: the accent fills the bottom border left→right by how far
-   you've scrolled through the document (--read, 0–1, set on scroll). */
+/* writing progress: the accent fills the bottom border left→right by the caret's
+   character offset through the document (--read, 0–1, set on every edit/move). */
 .searchwrap::after {
   content: "";
   position: absolute;
   left: 0; bottom: 0;
-  height: 1.5px;
-  width: 100%;
+  height: 3px;
+  width: calc(var(--read, 0) * 100%);
+  border-radius: 1.5px;
   background: var(--tint);
   pointer-events: none;
-  /* scaleX (not width) so the per-scroll-frame update composites on the GPU
-     instead of triggering layout; anchored left so it fills rightward. */
-  transform: scaleX(var(--read, 0));
-  transform-origin: left center;
-  will-change: transform;
+  will-change: width;
   /* eased + a slight trailing lag so the fill glides to catch the scroll
      position instead of snapping — gives the bar a sense of momentum. */
-  transition: transform 0.5s var(--ease) 0.04s;
+  transition: width 0.5s var(--ease) 0.04s;
 }
 
 .search-key {
@@ -338,13 +335,17 @@ body,
 /* --- editor host ------------------------------------------------- */
 .editor-host { height: 100vh; }
 
-/* file-open entrance — content gently fades + eases in when you switch
-   files, so opening a doc feels like turning a page rather than a hard cut. */
+/* file-open entrance — the editor gently fades + eases in when you switch files,
+   so opening a doc feels like turning a page rather than a hard cut. Runs on
+   .cm-editor (NOT .cm-content): the caret lives in a sibling cursor layer, so a
+   transform on .cm-content alone desyncs CM's cached caret measurement from the
+   glyphs (the block cursor lands ~8px low until the first move). Animating the
+   common ancestor moves caret and text together — they never diverge. */
 @keyframes contentIn {
   from { opacity: 0; transform: translateY(8px); filter: blur(3px); }
   to   { opacity: 1; transform: translateY(0);   filter: blur(0); }
 }
-.editor-host.just-loaded .cm-content { animation: contentIn 0.6s var(--ease) both; }
+.editor-host.just-loaded .cm-editor { animation: contentIn 0.6s var(--ease) both; }
 
 /* transparent so the smear layer (z-index:-1, on body) shows THROUGH the editor
    from behind the glyphs; the page background colour comes from <body>. */
@@ -392,6 +393,9 @@ body,
 .cm-editor .cm-cursor {
   transition: top 0.2s var(--ease), height 0.2s var(--ease);
 }
+/* On document load the caret is armed hidden (no transition) until layout settles
+   so the block cursor measures the right width; removing the class fades it in. */
+.editor-host.cursor-arming .cm-cursor { opacity: 0 !important; transition: none !important; }
 /* Keep the caret visible when the editor is blurred / tabbed out — CM hides the
    cursor (display:none) when it loses focus; we keep the primary caret shown.
    When unfocused there's no blink (that's gated on .cm-focused), so it sits solid. */
@@ -423,13 +427,6 @@ body,
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
-/* Catch-the-eye flash: a quick glow around the caret when it moves or you type,
-   retriggered from JS by toggling .cm-flash (CM reuses the caret element). */
-@keyframes cm-caret-flash {
-  from { box-shadow: 0 0 8px 2px var(--tint); }
-  to   { box-shadow: 0 0 0 0 transparent; }
-}
-.cm-editor .cm-cursor.cm-flash { animation: cm-caret-flash 0.6s var(--ease); }
 
 /* Block cursor (⌃, settings): widen the caret into a translucent block sized to
    the glyph under it (--cursor-w, measured live for the proportional font). The
@@ -439,7 +436,29 @@ body,
   margin-left: 0;
   border-left-width: 0 !important;   /* block mode is a full cell — drop the iA line edge */
   background: var(--tint);           /* solid block, like a terminal / Neovide cursor */
+  border-radius: 3px;
 }
+/* Repaint the glyph riding the block (tagged by cursorGlyphPlugin) to the JS-
+   computed contrast colour so it stays legible against any tint — terminal-style
+   inversion. Only applies in block mode; the line caret leaves the glyph alone.
+   The descendant rule covers glyphs that overlap an inner styled span (inline
+   code, links, emphasis) — that span sets its own colour, so override it too. */
+.editor-host.cursor-block .cm-cursor-glyph,
+.editor-host.cursor-block .cm-cursor-glyph * { color: var(--cursor-fg, var(--bg)) !important; }
+/* At a soft-wrap seam the marked glyph sits on the next visual row while the block
+   draws at the end of this one — there's no block behind it, so render it normally
+   (cancel the inversion). Flagged by the cursor-glyph plugin's measure pass. */
+.editor-host.cursor-block .cm-cursor-glyph.cm-cursor-glyph-off,
+.editor-host.cursor-block .cm-cursor-glyph.cm-cursor-glyph-off * { color: inherit !important; }
+/* Outline variant (settings): the block becomes a 2px border instead of a solid
+   fill — same cell, just hollow. The glyph underneath is no longer inverted (it
+   sits on the page, not on a tint fill), so cancel the contrast repaint above. */
+body.cursor-outline .editor-host.cursor-block .cm-cursor {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--tint);
+}
+body.cursor-outline .editor-host.cursor-block .cm-cursor-glyph,
+body.cursor-outline .editor-host.cursor-block .cm-cursor-glyph * { color: inherit !important; }
 .settings-seg { display: inline-flex; margin-left: auto; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
 .settings-seg button {
   border: none; background: transparent; color: var(--muted);
@@ -461,29 +480,36 @@ body,
 .settings-toggle:active { scale: 0.96; }
 .settings-toggle.on { background: var(--tint); color: var(--pill-text); border-color: var(--tint); }
 
-/* Neovide / smear-cursor.nvim model: the smear IS the cursor while it travels.
-   A single quad (drawn via JS-driven clip-path) whose four corners spring toward
-   the new cell — leading corners stiff, trailing corners soft — so the block
-   stretches along its path then contracts back into a cell. Sits just below the
-   glass bands (z5); pointer-events off so it never intercepts. */
-.cm-smear-layer { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
-/* Positioned + sized per frame to the quad's bounding box; the polygon is
-   expressed relative to that box. Same tint as the resting block so the hand-off
-   to CM's caret on settle is seamless. */
+/* The smear cursor: one rounded SVG quad — an eased lerp bridging the caret's old
+   cell to its new one. Fixed on <body> at z-index -1, behind the transparent editor
+   so it shows through the glyphs; tracks typewriter scroll via content-coord re-
+   projection each frame. Filled in block mode, stroked in outline; hands back to
+   CM's caret on settle. */
 .cm-smear {
-  position: absolute;
-  left: 0; top: 0; width: 0; height: 0;
-  background: var(--tint);                 /* solid — the moving cursor, not a wash */
-  opacity: 0;
-  transition: opacity 0.2s var(--ease);   /* fade-OUT on settle; the snap-on wins */
-  will-change: clip-path, left, top, width, height;
+  position: fixed; inset: 0; width: 100vw; height: 100vh;
+  overflow: visible; pointer-events: none; z-index: -1;   /* behind the transparent editor, shows through the glyphs */
+  opacity: 0; transition: opacity 0.2s var(--ease);   /* fade-OUT on settle */
 }
-.cm-smear.show { opacity: 1; transition: none; }   /* live the instant it moves */
+.cm-smear.show { opacity: 1; transition: none; }       /* live the instant it moves */
+.cm-smear path { fill: var(--tint); stroke: var(--tint); stroke-width: 1; stroke-linejoin: round; }
+body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
 /* while the springing quad is the cursor, hide CM's native caret so the two
    don't double up or teleport past each other; the caret takes back over on settle. */
 .editor-host.smearing .cm-cursor { opacity: 0 !important; }
-.cm-selectionBackground,
+/* CM still lays out .cm-selectionBackground (we read its rects for geometry) but
+   we paint the selection ourselves as a rounded blob, so keep its box transparent. */
+.cm-selectionBackground { background: transparent !important; }
 .cm-content ::selection { background: var(--selection) !important; }
+/* The joined rounded selection blob — soft tint fill, slightly stronger edge. */
+.cm-sel-blob {
+  position: absolute; top: 0; left: 0; width: 0; height: 0;
+  overflow: visible; pointer-events: none; z-index: 0;
+}
+.cm-sel-blob path {
+  fill: var(--selection);
+  stroke: color-mix(in srgb, var(--tint) 35%, transparent);
+  stroke-width: 1;
+}
 .cm-activeLine { background: transparent; }
 .cm-placeholder { color: var(--faint); font-style: italic; }
 
@@ -555,8 +581,12 @@ body,
   font-size: 0.92em;
   color: var(--text);
   background: var(--code-bg);
-  padding: 0.08em 0.34em;
-  border-radius: 5px;
+  border-radius: 4px;
+  /* No layout padding: horizontal padding reflows the text, and once the caret
+     splits the pill into fragments it redistributes cell-by-cell — the micro-jitter
+     while moving inside the pill. The box-shadow ring is the chip's breathing room
+     instead; it never takes layout space, so the writing alignment never moves. */
+  box-shadow: 0 0 0 2px var(--code-bg);
 }
 
 /* headings — ink-colored like real iA Writer (differentiated by size/weight,
@@ -581,145 +611,48 @@ body,
 .cm-table-sep { color: var(--faint); }   /* the |---|---| separator row */
 .cm-tpipe { color: var(--faint); padding: 0 0.15em; }   /* column separators */
 
-/* interactive GFM table editor (shown when the cursor is outside the block).
-   Cells are contentEditable; hover reveals add-row/-col affordances; focusing a
-   cell raises a contextual toolbar for structural edits. */
-.cm-md-table-wrap { position: relative; max-width: 100%; margin: 0.4em 0; }
-/* the grid row holds the table plus a slim "add column" rail to its right;
-   horizontal scroll lives here so wide tables scroll instead of squishing. */
-.cm-tbl-grid { display: flex; align-items: stretch; overflow-x: auto; }
+/* Minimal rendered table — shown when the caret is OUTSIDE the block; moving the
+   caret in reveals the raw markdown to edit. No outer frame or row lines: just a
+   3px-rounded header fill and slim column rules inset 5px top & bottom. */
 .cm-md-table {
-  /* CM's content sets display:block on descendants, which knocks the UA table
-     display off th/td — so re-assert the whole table display chain explicitly. */
   display: table;
-  border-collapse: collapse;
-  width: auto;               /* size to content; the grid scrolls if too wide */
+  border-collapse: separate;
+  border-spacing: 0;
+  width: auto;
+  margin: 0.4em 0;
   font-size: 0.9em;
   line-height: 1.5;
+  cursor: text;
+  /* A table only renders as this widget while the caret is OUTSIDE it (entering
+     reveals the raw source), so the widget is always an unfocused block — fade it
+     like every other inactive block. Entering swaps it back to bright raw text. */
+  opacity: var(--dim);
+  transition: opacity 0.5s var(--ease);
 }
 .cm-md-table thead { display: table-header-group; }
 .cm-md-table tbody { display: table-row-group; }
 .cm-md-table tr { display: table-row; }
-/* th/td ARE the editable cells (each carries .cm-tcell + contentEditable). */
 .cm-md-table th,
 .cm-md-table td {
   display: table-cell;
-  border: 1px solid var(--rule);
-  padding: 5px 12px;
+  padding: 4px 14px;
   text-align: left;
   vertical-align: top;
-  min-width: 2.5em;
-  max-width: 22em;             /* prose wraps here; short cols keep word width */
-  text-wrap: pretty;           /* avoid ugly single-word orphans in cells */
-  overflow-wrap: normal;       /* don't break short labels mid-word */
+  max-width: 22em;
+  text-wrap: pretty;
 }
-.cm-tcell {
-  outline: none;
-  cursor: text;
-  transition: box-shadow 0.2s var(--ease), background 0.2s var(--ease);
+/* slim rule between columns, inset 5px from the top and bottom */
+.cm-md-table td:not(:first-child),
+.cm-md-table tbody th:not(:first-child) {
+  background-image: linear-gradient(to bottom, transparent 5px, var(--rule) 5px, var(--rule) calc(100% - 5px), transparent calc(100% - 5px));
+  background-repeat: no-repeat;
+  background-size: 1px 100%;
+  background-position: left center;
 }
-.cm-tcell:hover { background: color-mix(in srgb, var(--tint) 5%, transparent); }
-.cm-tcell:focus {
-  background: color-mix(in srgb, var(--tint) 8%, transparent);
-  box-shadow: inset 0 0 0 2px var(--tint);
-}
-.cm-md-table code { white-space: nowrap; }   /* code chips stay on one line */
-.cm-md-table th { font-weight: 700; background: var(--code-bg); }
-/* whole-table "selected" ring while navigating it with the keyboard */
-.cm-md-table-wrap.editing .cm-md-table {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 35%, transparent),
-              0 6px 22px -12px color-mix(in srgb, var(--tint) 60%, transparent);
-}
-
-/* slim "+" rails — quiet until the table is hovered */
-.cm-tbl-add {
-  flex: none;
-  border: 1px dashed var(--rule);
-  background: transparent;
-  color: var(--faint);
-  font-size: 1.1em;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.22s var(--ease), background 0.22s var(--ease), color 0.22s var(--ease);
-}
-.cm-tbl-add-col { width: 22px; margin-left: 4px; }
-.cm-tbl-add-row { display: block; width: 100%; height: 20px; margin-top: 4px; }
-.cm-md-table-wrap:hover .cm-tbl-add { opacity: 1; }
-.cm-tbl-add:hover { background: color-mix(in srgb, var(--tint) 12%, transparent); color: var(--tint); border-style: solid; }
-
-/* contextual toolbar — floats above the table while a cell is focused */
-.cm-tbl-toolbar {
-  position: absolute;
-  bottom: calc(100% - 2px);
-  left: 0;
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  padding: 3px;
-  background: var(--panel);
-  border-radius: 9px;
-  box-shadow: 0 0 0 1px var(--rule), var(--shadow);   /* hairline ring, matching the other floating panels */
-  opacity: 0;
-  transform: translateY(4px) scale(0.98);
-  transform-origin: bottom left;
-  pointer-events: none;
-  transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
-  z-index: 5;
-}
-.cm-md-table-wrap.editing .cm-tbl-toolbar {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
-}
-.cm-tbl-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.18s var(--ease), color 0.18s var(--ease), scale 0.18s var(--ease);
-}
-.cm-tbl-btn:hover { background: var(--code-bg); color: var(--text); }
-.cm-tbl-btn:active { scale: 0.96; }
-.cm-tbl-btn.danger:hover { background: color-mix(in srgb, #ff3b30 15%, transparent); color: #ff3b30; }
-.cm-tbl-btn.align.on { background: var(--tint); color: var(--pill-text); }
-.cm-tbl-btn.wide { width: auto; padding: 0 8px; font-family: var(--font-mono); font-size: 12px; }
-.cm-tbl-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--rule); }
-
-/* raw-markdown view: slim bar above the table source with a "back" toggle */
-.cm-tbl-rawbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0.4em 0 2px;
-  font-family: var(--font);
-}
-.cm-tbl-rawbar-label {
-  font-size: 0.72em;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.cm-tbl-rawbar-btn {
-  border: 1px solid var(--rule);
-  border-radius: 7px;
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 12px;
-  padding: 3px 9px;
-  cursor: pointer;
-  transition: background 0.18s var(--ease), color 0.18s var(--ease), border-color 0.18s var(--ease), scale 0.18s var(--ease);
-}
-.cm-tbl-rawbar-btn:hover { color: var(--tint); border-color: var(--tint); }
-.cm-tbl-rawbar-btn:active { scale: 0.96; }
+/* header: bold text on a 3px-rounded fill */
+.cm-md-table thead th { font-weight: 700; background: var(--code-bg); }
+.cm-md-table thead th:first-child { border-top-left-radius: 3px; border-bottom-left-radius: 3px; }
+.cm-md-table thead th:last-child { border-top-right-radius: 3px; border-bottom-right-radius: 3px; }
 .cm-md-table code {
   font-family: var(--font-mono);
   font-size: 0.92em;
@@ -1026,7 +959,7 @@ body,
 
 /* preset accent swatches — round chips with an inset outline so light chips
    read on the panel and the near-black chip reads in dark mode. */
-.settings-swatches { display: flex; align-items: center; gap: 7px; margin-right: auto; }
+.settings-swatches { display: flex; align-items: center; gap: 7px; }
 .settings-swatch {
   width: 20px; height: 20px;
   padding: 0;
@@ -1044,17 +977,27 @@ body,
               0 0 0 3.5px var(--tint);
 }
 
-/* native color well — a small concentric chip (7px well + 6px inner swatch) */
-.settings input[type="color"] {
+/* the accent picker, styled as a 5th swatch — opens the OS colour chooser. The
+   inner chip shows the chosen custom colour; a conic-rainbow ring borders it so
+   it reads as "custom", sitting inline with the preset swatches. */
+.settings input[type="color"]#setTint {
   -webkit-appearance: none;
-  appearance: none;            /* drop the native bevel so the inset ring + radius read cleanly */
-  width: 26px; height: 26px;
+  appearance: none;
+  width: 20px; height: 20px;
   padding: 0;
   border: none;
-  border-radius: 7px;
-  background: none;
+  border-radius: 999px;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px var(--rule);
+  margin-right: auto;          /* the swatch row ends here; push the rest of the row right */
+  background: conic-gradient(from 90deg, #ff4d4d, #ffd24d, #4dff4d, #4dffff, #4d6bff, #c14dff, #ff4dff, #ff4d4d);
+  transition: scale 0.2s var(--ease);
+}
+.settings input[type="color"]#setTint:active { scale: 0.96; }
+#setTint::-webkit-color-swatch-wrapper { padding: 2.5px; }   /* gap lets the conic rainbow show as a ring */
+#setTint::-webkit-color-swatch {
+  border: none;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--swatch-ring);   /* chosen custom colour, ringed by the rainbow border */
 }
 .settings input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 .settings input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
@@ -1194,17 +1137,8 @@ body,
 ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
-/* --- respect reduced-motion -------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-  /* the cursor phase is a gentle in-place fade, not travelling motion — keep it
-     alive so the caret still breathes under reduced-motion. */
-  .cm-editor.cm-focused > .cm-scroller > .cm-cursorLayer {
-    animation-duration: 1.2s !important;
-    animation-iteration-count: infinite !important;
-  }
-}
+/* Motion is core to this editor and the heaviest effect (the cursor smear) has
+   its own Settings toggle, so we deliberately do NOT blanket-zero transitions
+   under OS `prefers-reduced-motion` — that was collapsing every eased colour /
+   opacity change (focus dim, fades) to instant. Travelling motions that still
+   honour the OS preference (typewriter glide, smear default) are gated in app.js. */

@@ -381,6 +381,21 @@ const lineInTable = (state, n) => findTableBlocks(state).find((b) => n >= b.from
 const pastTable = (state, b, forward) => forward
   ? (b.to < state.doc.lines ? state.doc.line(b.to + 1).from : state.doc.line(b.to).to)
   : (b.from > 1 ? state.doc.line(b.from - 1).to : 0);
+// Entering a rendered table to edit reveals its raw markdown — re-align that source to
+// the canonical padded form first (via commitTable), so you never edit the ragged
+// version the author typed. Idempotent: an already-aligned block bails to a plain caret
+// move (no dispatch, no history entry). Caret lands at the entered grid row `gr`, col 0.
+function reflowTableEntry(view, lineNumber, gr) {
+  const blk = lineInTable(view.state, lineNumber);
+  if (!blk) return false;
+  const { rows, aligns } = parseTableBlock(view.state, blk.from, blk.to);
+  const fromPos = view.state.doc.line(blk.from).from;
+  const toPos = view.state.doc.line(blk.to).to;
+  if (serializeTable(rows, aligns) === view.state.doc.sliceString(fromPos, toPos)) return false;
+  return commitTable(view, { fromPos, toPos }, rows, aligns, gr, 0);
+}
+const tableGridRow = (blk, n) => (n === blk.from ? 0 : n - (blk.from + 1));
+
 function tableEnterVertical(view, forward) {
   const s = view.state.selection.main;
   if (!s.empty) return false;
@@ -395,6 +410,7 @@ function tableEnterVertical(view, forward) {
     : b.to < curN && b.to >= Math.min(tgtN, curN - 1));
   if (!blk) return false;
   const entry = forward ? blk.from : blk.to;
+  if (reflowTableEntry(view, entry, tableGridRow(blk, entry))) return true;
   view.dispatch({ selection: { anchor: view.state.doc.line(entry).from }, scrollIntoView: true });
   return true;
 }
@@ -457,6 +473,9 @@ class TableWidget extends WidgetType {
       e.preventDefault();
       const tr = e.target.closest("tr");
       const lineNo = tr ? Math.min(+tr.dataset.line, view.state.doc.lines) : null;
+      const blk = lineNo ? lineInTable(view.state, lineNo) : null;
+      // align the source on click-to-edit, same as arrow entry
+      if (blk && reflowTableEntry(view, lineNo, tableGridRow(blk, lineNo))) { view.focus(); return; }
       view.dispatch({ selection: { anchor: lineNo ? view.state.doc.line(lineNo).from : this.from } });
       view.focus();
     });

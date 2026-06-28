@@ -197,7 +197,7 @@ fn fetch_store(url: &str, n: usize) -> Option<Vec<Row>> {
     rows
 }
 
-/// Fetch the whole online belt: every remote's published `.bombshell/jd/graph.db`
+/// Fetch the whole online belt: every remote's published `.jd/graph.db`
 /// (the contract location), in belt order, each row tagged with its remote's raw
 /// base so `get` fetches files from the right repo. Remotes that are non-GitHub,
 /// unreachable, or index-less are silently skipped.
@@ -208,7 +208,7 @@ fn fetch_online_belt(cfg: &Config) -> Vec<Row> {
     let mut out = Vec::new();
     for (i, r) in cfg.remotes().iter().enumerate().rev() {
         let Some(raw) = r.raw_base() else { continue };
-        let url = format!("{raw}/.bombshell/jd/graph.db");
+        let url = format!("{raw}/.jd/graph.db");
         if let Some(mut rows) = fetch_store(&url, i) {
             for row in &mut rows {
                 row.origin = raw.clone();
@@ -241,7 +241,7 @@ fn load_store(path: &std::path::Path, source: Source) -> Option<Vec<Row>> {
 }
 
 /// Gather the merged, deduped row set across the three tiers — repo-LOCAL
-/// (`<root>/.bombshell/jd`), machine-GLOBAL (`~/.bombshell/jd`), and ONLINE.
+/// (`<root>/.jd`), machine-GLOBAL (`~/.jd`), and ONLINE.
 /// Nearer scope shadows farther by key (local > global > online). On the
 /// degrade path (no online) a note goes to stderr; only a total absence of
 /// sources is a hard error (exit 4).
@@ -783,13 +783,13 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
     }
 
     let body = if row.source.is_local() {
-        // Resolve the path against each plausible base for the tier. Repo-local
-        // files may be authored (<root>/library/…) or vendored by `jd pull`
-        // (<root>/.bombshell/jd/lib/…); machine-global files live under
-        // ~/.bombshell/jd. First readable wins.
+        // Resolve the path against the home for the tier. Repo-local paths key
+        // relative to the `.jd` home (root), covering both authored
+        // (`library/…`) and vendored (`remotes/<slug>/…`) files; machine-global
+        // files live under ~/.jd.
         let bases: Vec<std::path::PathBuf> = match row.source {
             Source::Global => Config::home_cache_dir().into_iter().collect(),
-            _ => vec![cfg.root.clone(), cfg.cache_dir()],
+            _ => vec![cfg.root.clone()],
         };
         match bases
             .iter()
@@ -806,7 +806,9 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
             }
         }
     } else {
-        let url = format!("{}/{}", online_base(cfg, row), row.path);
+        // Online paths key relative to the remote's `.jd` home, so the file
+        // lives under `<raw_base>/.jd/<path>`.
+        let url = format!("{}/.jd/{}", online_base(cfg, row), row.path);
         match curl_to_string(&url) {
             Some(b) => b,
             None => {

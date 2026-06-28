@@ -15,9 +15,9 @@ pub struct Store {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Source {
-    /// repo-scoped cache: <root>/.bombshell/jd
+    /// repo-scoped home: <project>/.jd
     Local,
-    /// machine-scoped cache: ~/.bombshell/jd (shared across repos)
+    /// machine-scoped home: ~/.jd (shared across repos)
     Global,
     /// the published index fetched over the network
     Online,

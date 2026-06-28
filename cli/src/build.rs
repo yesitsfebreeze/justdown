@@ -2,11 +2,11 @@
 // the library's multi-root builder. Two scopes share one builder, differing only
 // in where the index lands and what base its keys are relative to:
 //
-//   jd build              repo cache   → <root>/.bombshell/jd/graph.db (base <root>)
-//   jd build --global     machine cache→ ~/.bombshell/jd/graph.db     (base ~/.bombshell/jd)
+//   jd build              repo home    → <project>/.jd/graph.db (base = the .jd home)
+//   jd build --global     machine home → ~/.jd/graph.db         (base ~/.jd)
 //
 // The default output is both this repo's local tier AND its published toolbelt
-// index — committing <root>/.bombshell/jd/graph.db is how a repo publishes (the
+// index — committing <project>/.jd/graph.db is how a repo publishes (the
 // contract path consumers fetch). `jd pull` reuses `build_into` for cloned belts.
 
 use crate::config::Config;

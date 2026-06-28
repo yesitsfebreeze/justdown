@@ -2,8 +2,8 @@
 // them as one merged graph. A tool belt is just a list of repo URLs; pull clones
 // each and unions their tools.
 //
-//   jd pull            clone/refresh into ~/.bombshell/jd  (machine-global, shared)
-//   jd pull --local    clone/refresh into <root>/.bombshell/jd  (this repo only)
+//   jd pull            clone/refresh into ~/.jd  (machine-global, shared)
+//   jd pull --local    clone/refresh into <project>/.jd  (this repo only)
 //
 // For each entry in JUSTDOWN_REPOS (default: the single JUSTDOWN_REPO), clones
 // it into <scope>/remotes/<slug> (or fast-forwards), then builds <scope>/graph.db
@@ -38,19 +38,20 @@ pub fn run(cfg: &Config, args: &[String]) -> i32 {
         if let Err(code) = sync_repo(&dest, &r.url, &r.git_ref) {
             return code;
         }
-        // Prefer a repo's published toolbelt lib (.bombshell/jd/lib), else its
-        // authored source dir (<JUSTDOWN_LIB>). Key relative to scope so the
-        // slug disambiguates same-named files across belts.
-        let published = dest.join(".bombshell").join("jd").join("lib");
-        let authored = dest.join(&cfg.lib);
-        let libdir = if published.is_dir() {
-            published
-        } else if authored.is_dir() {
-            authored
+        // A remote keeps everything under its `.jd` home, so its library is at
+        // `<clone>/.jd/<JUSTDOWN_LIB>`; fall back to a top-level `<lib>/` for
+        // unmigrated remotes. Key relative to scope so the slug disambiguates
+        // same-named files across belts.
+        let unified = dest.join(".jd").join(&cfg.lib);
+        let legacy = dest.join(&cfg.lib);
+        let libdir = if unified.is_dir() {
+            unified
+        } else if legacy.is_dir() {
+            legacy
         } else {
             eprintln!(
-                "jd: pull: {} has no .bombshell/jd/lib or {}/ — skipping",
-                r.slug, cfg.lib
+                "jd: pull: {} has no .jd/{} or {}/ — skipping",
+                r.slug, cfg.lib, cfg.lib
             );
             continue;
         };

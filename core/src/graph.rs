@@ -1,11 +1,11 @@
 //! Building a graph store from one or more `.jd` source roots.
 //!
 //! The single-root case is `jd build` over a library dir. The multi-root case
-//! is the point of the library split: a host (bombshell) layers several
-//! sources — the justdown library, the user's `~/.bombshell`, the project repo —
-//! into one local graph. Roots are applied in order and **later roots override
-//! earlier ones by node key** (most-specific-wins), so `project` shadows
-//! `~/.bombshell` shadows the shared library.
+//! is the point of the library split: a host layers several sources — the
+//! justdown library, the user's `~/.jd`, the project repo — into one local
+//! graph. Roots are applied in order and **later roots override earlier ones by
+//! node key** (most-specific-wins), so `project` shadows `~/.jd` shadows the
+//! shared library.
 
 use crate::jd::{self, Node};
 use crate::store::Store;

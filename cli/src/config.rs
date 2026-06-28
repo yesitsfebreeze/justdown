@@ -33,7 +33,7 @@ impl Remote {
     /// The raw base for fetching this remote's published toolbelt without a
     /// clone: `https://raw.githubusercontent.com/<owner>/<repo>/<ref>`. None for
     /// non-GitHub URLs (those are clone-only). Per the contract, the consumable
-    /// index lives at `<raw_base>/.bombshell/jd/graph.db`.
+    /// index lives at `<raw_base>/.jd/graph.db`.
     pub fn raw_base(&self) -> Option<String> {
         // strip scheme, require a github.com host, take owner/repo
         let rest = self
@@ -124,32 +124,42 @@ fn env_or(key: &str, default: &str) -> String {
         .unwrap_or_else(|| default.to_string())
 }
 
-/// A justdown root holds either the source `<lib>/` tree or a built
-/// `.bombshell/jd` cache. Projects nest that under `.jd/`; source repos keep it
-/// at the top. Either shape makes `dir` a root.
-fn is_root(dir: &std::path::Path, lib: &str) -> bool {
-    dir.join(lib).is_dir() || dir.join(".bombshell").join("jd").is_dir()
+/// True when `dir` is a justdown home — the `.jd` directory itself, holding the
+/// authored `<lib>/` tree and/or a built `graph.db`. The home is the resolved
+/// root: library, index, and vendored remotes all live directly inside it.
+fn is_home(dir: &std::path::Path, lib: &str) -> bool {
+    dir.join(lib).is_dir() || dir.join("graph.db").is_file()
 }
 
-/// Resolve the root git-style: an explicit `JUSTDOWN_ROOT` always wins; else
-/// walk up from the cwd and take the nearest ancestor that is a root (preferring
-/// its `.jd/` subdir), so `jd` works from anywhere inside a project. Falls back
-/// to the cwd when nothing is found — preserving `init`/`build` in a fresh dir.
+/// Resolve the root git-style: an explicit `JUSTDOWN_ROOT` always wins (the
+/// hooks point it straight at `<project>/.jd`); else walk up from the cwd and
+/// return the nearest `.jd` home — an ancestor's `.jd/` subdir, or an ancestor
+/// that is itself a `.jd` home (cwd already inside it). The walk stops at `$HOME`
+/// so a project under it never escapes into the machine-global `~/.jd` cache
+/// (that is the separate Global tier, not a project root). Falls back to
+/// `<cwd>/.jd` so a fresh `jd build` still targets the `.jd` dir.
 fn resolve_root(lib: &str) -> PathBuf {
-    if let Some(r) = std::env::var("JUSTDOWN_ROOT").ok().filter(|s| !s.is_empty()) {
+    if let Some(r) = std::env::var("JUSTDOWN_ROOT")
+        .ok()
+        .filter(|s| !s.is_empty())
+    {
         return PathBuf::from(r);
     }
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let home = std::env::var_os("HOME").map(PathBuf::from);
     for ancestor in cwd.ancestors() {
-        let nested = ancestor.join(".jd");
-        if is_root(&nested, lib) {
-            return nested;
+        if home.as_deref() == Some(ancestor) {
+            break;
         }
-        if is_root(ancestor, lib) {
+        let jd = ancestor.join(".jd");
+        if is_home(&jd, lib) {
+            return jd;
+        }
+        if ancestor.file_name().is_some_and(|n| n == ".jd") && is_home(ancestor, lib) {
             return ancestor.to_path_buf();
         }
     }
-    cwd
+    cwd.join(".jd")
 }
 
 impl Config {
@@ -199,12 +209,13 @@ impl Config {
         self.root.join(&self.lib)
     }
 
-    /// The repo-scoped cache root: `<root>/.bombshell/jd`. Holds this repo's
-    /// derived layer — built index, vendored lib, spec. Gitignored; rebuildable.
-    /// The machine-scoped `~/.bombshell/jd` (see `home_cache_dir`) shares this
-    /// exact layout, so one resolver walks both; nearer scope wins.
+    /// The repo-scoped justdown home — the `.jd` dir, which IS the root. Holds
+    /// the authored `<lib>/`, the built `graph.db`, vendored `remotes/`, and the
+    /// `.jdconfig` belt; the derived parts are gitignored and rebuildable. The
+    /// machine-scoped `~/.jd` (see `home_cache_dir`) shares this exact layout, so
+    /// one resolver walks both; nearer scope wins.
     pub fn cache_dir(&self) -> PathBuf {
-        self.root.join(".bombshell").join("jd")
+        self.root.clone()
     }
 
     /// Repo-scoped index path — also this repo's published toolbelt index (the
@@ -214,32 +225,24 @@ impl Config {
         self.cache_dir().join(&self.index)
     }
 
-    /// The machine-scoped cache root: `~/.bombshell/jd`, shared across repos.
-    /// None when `$HOME` is unset/empty.
+    /// The machine-scoped cache root: `~/.jd`, shared across repos. None when
+    /// `$HOME` is unset/empty.
     pub fn home_cache_dir() -> Option<PathBuf> {
         std::env::var_os("HOME")
             .filter(|h| !h.is_empty())
-            .map(|h| PathBuf::from(h).join(".bombshell").join("jd"))
+            .map(|h| PathBuf::from(h).join(".jd"))
     }
 
-    /// Machine-scoped index path (`~/.bombshell/jd/<index>`), if `$HOME` is set.
+    /// Machine-scoped index path (`~/.jd/<index>`), if `$HOME` is set.
     pub fn home_index_path(&self) -> Option<PathBuf> {
         Self::home_cache_dir().map(|d| d.join(&self.index))
     }
 
-    /// The machine-scoped bombshell dir, `~/.bombshell` (parent of `jd/`), or
-    /// None when `$HOME` is unset. Home of the global `.jdconfig`.
-    fn home_bombshell() -> Option<PathBuf> {
-        std::env::var_os("HOME")
-            .filter(|h| !h.is_empty())
-            .map(|h| PathBuf::from(h).join(".bombshell"))
-    }
-
     /// The tool belt: every online library to pull, in precedence order (later
     /// entries win — both key collisions at build time and same-slug dedup).
-    /// Sourced from `.bombshell/.jdconfig` (global `~/.bombshell` then repo
-    /// `<root>/.bombshell`, so the repo belt wins). `JUSTDOWN_REPOS` env, when
-    /// set, overrides the files. Falls back to the single `JUSTDOWN_REPO`.
+    /// Sourced from `.jd/.jdconfig` (global `~/.jd` then repo `<root>/.jd`, so
+    /// the repo belt wins). `JUSTDOWN_REPOS` env, when set, overrides the files.
+    /// Falls back to the single `JUSTDOWN_REPO`.
     pub fn remotes(&self) -> Vec<Remote> {
         let env = env_or("JUSTDOWN_REPOS", "");
         let entries: Vec<String> = if !env.is_empty() {
@@ -249,12 +252,10 @@ impl Config {
                 .collect()
         } else {
             let mut v = Vec::new();
-            if let Some(h) = Self::home_bombshell() {
+            if let Some(h) = Self::home_cache_dir() {
                 v.extend(read_jdconfig(&h.join(".jdconfig")));
             }
-            v.extend(read_jdconfig(
-                &self.root.join(".bombshell").join(".jdconfig"),
-            ));
+            v.extend(read_jdconfig(&self.cache_dir().join(".jdconfig")));
             v
         };
 

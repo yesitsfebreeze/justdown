@@ -1,3 +1,6 @@
 __pycache__/
-.bombshell/
 candidates.tsv
+
+# jd build/pull cache — derived, rebuildable, never committed
+graph.db
+remotes/

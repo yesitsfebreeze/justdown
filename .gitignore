@@ -18,9 +18,9 @@ node_modules/
 # rust cli build output
 cli/target/
 
-# .bombshell is the per-repo derived layer (vendored clones, built index,
+# .jd is the per-repo derived layer (vendored clones, built index,
 # vectors/ratings cache) — fully local, rebuilt by `jd build`, never committed.
-.bombshell/
+# Its cache outputs are ignored in .jd/.gitignore; tracked hooks live alongside.
 
 # A stray `jd build` against a stale binary or wrong JUSTDOWN_INDEX can drop an
 # index at the repo root — never legitimate, so ignore it.

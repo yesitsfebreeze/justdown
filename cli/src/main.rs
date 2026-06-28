@@ -100,12 +100,12 @@ fn help() {
 USAGE  jd <command> [args]
 
   build [--global]             scan <lib>/**/*.jd → write the graph store
-                               (default: <root>/.bombshell/jd — also this repo's
-                               published index; --global: ~/.bombshell/jd)
+                               (default: <root>/.jd — also this repo's
+                               published index; --global: ~/.jd)
   pull  [--local]              clone/refresh every JUSTDOWN_REPOS entry into a
                                cache scope's remotes/<slug>/ and index them as one
-                               merged belt (default: ~/.bombshell/jd; --local:
-                               <root>/.bombshell/jd). later entries win. needs git.
+                               merged belt (default: ~/.jd; --local:
+                               <root>/.jd). later entries win. needs git.
   search <query> [kind] [num] [category]
                                rank library files by need (graph-aware:
                                name/use_when > tags > prose; not_when vetoes)
@@ -142,17 +142,17 @@ USAGE  jd <command> [args]
   help                         this
 
 REF    name · path · key(dir/name) · @dir/name
-MERGE  queries union three tiers — repo-LOCAL (<root>/.bombshell/jd) ⊕
-       machine-GLOBAL (~/.bombshell/jd) ⊕ ONLINE; nearer scope trumps by key
+MERGE  queries union three tiers — repo-LOCAL (<root>/.jd) ⊕
+       machine-GLOBAL (~/.jd) ⊕ ONLINE; nearer scope trumps by key
        (local > global > online). Build the local store with `jd build`.
 OUTPUT text (default) or machine JSON via the global --json flag (versioned
        schema, e.g. justdown.search/1; errors as justdown.error/1 on stderr).
 EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable
 ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default
-       .bombshell/jd/graph.db; absolute path escapes the cache — the publish seam)
+       .jd/graph.db; absolute path escapes the cache — the publish seam)
        JUSTDOWN_ROOT  JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_REF
-       JUSTDOWN_REPOS (pull belt override; else read from .bombshell/.jdconfig —
-       one owner/repo[@ref] or URL per line, ~/.bombshell then <root>/.bombshell)
+       JUSTDOWN_REPOS (pull belt override; else read from .jd/.jdconfig —
+       one owner/repo[@ref] or URL per line, ~/.jd then <root>/.jd)
        JUSTDOWN_RAW_BASE
        JUSTDOWN_VAR_<NAME>  host value for the <<name>> escape (lower-cased)
 GLOBAL --json  machine JSON on any command (replaces JUSTDOWN_FORMAT)

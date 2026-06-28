@@ -72,7 +72,7 @@ stay thin; the entire execution glue is one parser extension that lifts
   binary, what tools it gives, and how to wire it into an agent.
 - [`cli/`](cli/) — the CLI itself: **`jd`**, a small self-contained Rust binary
   (`search`, `get`, `ls`, `links`, `path`, `build`, `lint`) over the library graph.
-- [`library/`](library/) — `.jd` files exercising every `kind`
+- [`.jd/library/`](.jd/library/) — `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting.
 - [`graph.db`](graph.db) — the SQLite graph store the CLI queries: nodes carrying
@@ -216,10 +216,10 @@ release version="patch": gate
 
 1. This README.
 2. [`justdown.md`](justdown.md) — the spec, end to end.
-3. [`library/`](library/) — see it on disk. Start with
-   [`library/tools/gate.jd`](library/tools/gate.jd) (a plain `run` tool),
-   then [`library/tools/serve.jd`](library/tools/serve.jd) (`sidecar`) and
-   [`library/tools/report.jd`](library/tools/report.jd) (`artifact`).
+3. [`.jd/library/`](.jd/library/) — see it on disk. Start with
+   [`.jd/library/tools/gate.jd`](.jd/library/tools/gate.jd) (a plain `run` tool),
+   then [`.jd/library/tools/serve.jd`](.jd/library/tools/serve.jd) (`sidecar`) and
+   [`.jd/library/tools/report.jd`](.jd/library/tools/report.jd) (`artifact`).
 
 ## Star history
 

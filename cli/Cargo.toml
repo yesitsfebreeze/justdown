@@ -1,6 +1,6 @@
 [package]
 name = "jd"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "justdown CLI — build, query, and merge the .jd library graph"
 license = "MIT"

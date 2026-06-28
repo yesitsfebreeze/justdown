@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glassmorphism</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --glass-fill: rgba(255, 255, 255, 0.12);
+    --glass-fill-strong: rgba(255, 255, 255, 0.18);
+    --glass-border: rgba(255, 255, 255, 0.30);
+    --text: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.72);
+    --radius-control: 8px;
+    --radius-card: 16px;
+    --radius-panel: 24px;
+    --shadow-panel: 0 8px 32px rgba(31, 38, 135, 0.37);
+    --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.20);
+    --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 32px;
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(at 20% 20%, rgba(255, 138, 0, 0.55), transparent 45%),
+      radial-gradient(at 80% 30%, rgba(123, 47, 247, 0.55), transparent 45%),
+      linear-gradient(135deg, #7b2ff7 0%, #f107a3 55%, #2575fc 100%);
+    background-attachment: fixed;
+  }
+
+  .panel {
+    width: min(720px, 100%);
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-panel), var(--highlight);
+    padding: 24px;
+  }
+
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    background: var(--glass-fill-strong);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    backdrop-filter: blur(10px) saturate(160%);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    box-shadow: var(--highlight);
+  }
+
+  .brand { font-weight: 700; font-size: 16px; letter-spacing: 0.2px; }
+
+  .nav-links { display: flex; gap: 8px; }
+
+  .nav-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 999px;
+    transition: background 0.2s, color 0.2s;
+  }
+  .nav-links a:hover { color: var(--text); background: rgba(255, 255, 255, 0.14); }
+
+  .card {
+    background: var(--glass-fill-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-soft), var(--highlight);
+    padding: 24px;
+  }
+
+  .card h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+  .card .lead { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+
+  .field { margin-bottom: 24px; }
+  .field label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+
+  .field input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--text);
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.10);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    backdrop-filter: blur(10px) saturate(160%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-control);
+    box-shadow: var(--highlight);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .field input::placeholder { color: rgba(255, 255, 255, 0.55); }
+  .field input:focus {
+    border-color: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    background: linear-gradient(135deg, #ff8a00, #e52e71);
+    box-shadow: var(--shadow-soft), var(--highlight);
+    transition: transform 0.12s, box-shadow 0.2s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(229, 46, 113, 0.45), var(--highlight); }
+  .btn:active { transform: translateY(0); }
+</style>
+</head>
+<body>
+  <main class="panel">
+    <nav>
+      <span class="brand">Aurora</span>
+      <div class="nav-links">
+        <a href="#">Overview</a>
+        <a href="#">Pricing</a>
+        <a href="#">Docs</a>
+      </div>
+    </nav>
+
+    <section class="card">
+      <h1>Welcome back</h1>
+      <p class="lead">Sign in to your workspace. Everything behind the glass stays in view, blurred just enough to keep the focus up front.</p>
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" type="email" placeholder="you@example.com">
+      </div>
+
+      <button class="btn" type="button">Continue</button>
+    </section>
+  </main>
+</body>
+</html>

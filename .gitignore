@@ -39,8 +39,13 @@ cli/target/
 vicky/
 
 # Claude Code session state (local settings, history, plans, task scratch) —
-# harness-local, never part of the project.
-.claude/
+# harness-local, never part of the project. Ignore contents (not the dir itself)
+# so specific files can be re-included below.
+.claude/*
+# …except the /release slash command — shipped as a showcase of the jd release flow.
+!.claude/commands/
+.claude/commands/*
+!.claude/commands/release.md
 
 # git-fs plugin's local snapshot store — a separate, unrelated git history;
 # never part of the project and must never be committed or pushed.

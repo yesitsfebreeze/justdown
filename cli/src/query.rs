@@ -5,8 +5,9 @@
 // scope shadowing farther by key (local > global > online).
 
 use crate::config::{Config, Format};
+use justdown::links::{NameIndex, Resolve};
 use justdown::render::{self, Vars};
-use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
+use justdown::search::{degree_map, rank, resolve_prefix, words, Scored, STOPWORDS};
 use justdown::store::{Row, Source, Store};
 use serde::Serialize;
 
@@ -105,6 +106,31 @@ struct LinksOut<'a> {
     key: &'a str,
     outbound: Vec<String>,
     inbound: Vec<String>,
+    /// Fuzzy (`@?term`) link terms — ranked live, not fixed graph edges.
+    fuzzy: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ResolveOut<'a> {
+    schema: &'a str,
+    query: &'a str,
+    fuzzy: bool,
+    /// The canonical key a direct `@query` resolves to uniquely, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolved: Option<String>,
+    matches: Vec<ResolveMatch<'a>>,
+}
+
+#[derive(Serialize)]
+struct ResolveMatch<'a> {
+    name: &'a str,
+    key: &'a str,
+    kind: &'a str,
+    path: &'a str,
+    source: &'a str,
+    /// Present only for fuzzy matches (the ranker score).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    score: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -1257,6 +1283,8 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
         .map(|r| r.name.clone())
         .collect();
 
+    let fuzzy = target.fuzzy.clone();
+
     match cfg.format {
         Format::Json => {
             println!(
@@ -1267,6 +1295,7 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
                     key,
                     outbound,
                     inbound,
+                    fuzzy,
                 })
             );
         }
@@ -1276,6 +1305,9 @@ pub fn links(cfg: &Config, args: &[String]) -> i32 {
             }
             for i in &inbound {
                 println!("in   {i}  (@{key})");
+            }
+            for f in &fuzzy {
+                println!("fuzz @?{f}");
             }
         }
     }
@@ -1493,6 +1525,120 @@ pub fn path(cfg: &Config, args: &[String]) -> i32 {
     }
 }
 
+// ---------------------------------------------------------------------------
+// resolve — link-target completion for the editor popup
+// ---------------------------------------------------------------------------
+
+/// `jd resolve <term> [num] [--fuzzy]` — the live `@link` autocomplete source.
+///
+/// Direct (default): ranked prefix completion over node key/name/leaf — what a
+/// `@name` link offers as you type. Reports the unique canonical key when the
+/// term resolves to exactly one node (`resolved`). Fuzzy (`--fuzzy`): runs the
+/// shared field-weighted ranker (the same one `search` uses) — what a `@?term`
+/// link matches, one-to-many. Always exits 0 (an empty match set is valid).
+pub fn resolve(cfg: &Config, args: &[String]) -> i32 {
+    let mut fuzzy = false;
+    let mut pos: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--fuzzy" {
+            fuzzy = true;
+        } else if let Some(n) = a.strip_prefix("--limit=") {
+            pos.push(n.to_string()); // treat as the num positional
+        } else {
+            pos.push(a.clone());
+        }
+        i += 1;
+    }
+
+    let term = match pos.first() {
+        Some(t) if !t.is_empty() => t.clone(),
+        _ => {
+            emit_err(cfg, "bad-args", "resolve needs a term");
+            return 3;
+        }
+    };
+    // strip a leading `@` then a `?` a caller may pass through verbatim; a `?`
+    // prefix forces fuzzy mode (so `jd resolve @?soft` works like `--fuzzy soft`).
+    let mut t = term.strip_prefix('@').unwrap_or(&term);
+    if let Some(rest) = t.strip_prefix('?') {
+        fuzzy = true;
+        t = rest;
+    }
+    let term = t.to_string();
+    let num: usize = pos
+        .get(1)
+        .and_then(|n| n.parse().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(10);
+
+    let rows = match gather(cfg) {
+        Ok(r) => r,
+        Err(c) => return c,
+    };
+
+    let (matches, resolved): (Vec<ResolveMatch>, Option<String>) = if fuzzy {
+        let scored = rank(&rows, &term, "", "");
+        let m = scored
+            .iter()
+            .take(num)
+            .map(|s| ResolveMatch {
+                name: &s.row.name,
+                key: &s.row.key,
+                kind: &s.row.kind,
+                path: &s.row.path,
+                source: s.row.source.label(),
+                score: Some(s.score),
+            })
+            .collect();
+        (m, None)
+    } else {
+        let idx = NameIndex::build(rows.iter().map(|r| (r.key.as_str(), r.name.as_str())));
+        let resolved = match idx.resolve(&term) {
+            Resolve::Unique(k) => Some(k),
+            _ => None,
+        };
+        let m = resolve_prefix(&rows, &term)
+            .into_iter()
+            .take(num)
+            .map(|r| ResolveMatch {
+                name: &r.name,
+                key: &r.key,
+                kind: &r.kind,
+                path: &r.path,
+                source: r.source.label(),
+                score: None,
+            })
+            .collect();
+        (m, resolved)
+    };
+
+    match cfg.format {
+        Format::Json => {
+            println!(
+                "{}",
+                to_json(&ResolveOut {
+                    schema: "justdown.resolve/1",
+                    query: &term,
+                    fuzzy,
+                    resolved,
+                    matches,
+                })
+            );
+        }
+        Format::Text => {
+            for m in &matches {
+                match m.score {
+                    Some(s) => println!("{}  [{}]  score {}  @?{}", m.name, m.kind, s, term),
+                    None => println!("{}  [{}]  @{}", m.name, m.kind, m.key),
+                }
+            }
+        }
+    }
+    0
+}
+
 #[cfg(test)]
 mod resolve_tests {
     use super::{resolve_ref, Resolution};
@@ -1519,6 +1665,7 @@ mod resolve_tests {
             run: String::new(),
             has_fm: true,
             links: Vec::new(),
+            fuzzy: Vec::new(),
         }
     }
 

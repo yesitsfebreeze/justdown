@@ -129,6 +129,19 @@ fn tools() -> Value {
             }
         },
         {
+            "name": "resolve",
+            "description": "Live @link completion. Direct: ranked key/name/leaf prefix matches for a @name link (reports the unique canonical key when one resolves). Fuzzy: the field-weighted ranker for a @?term link (one-to-many).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "the term after @ (or @?)" },
+                    "fuzzy": { "type": "boolean", "description": "true for @?term ranking; false (default) for @name prefix" },
+                    "limit": { "type": "integer", "minimum": 1, "description": "max matches (default 10)" }
+                },
+                "required": ["query"]
+            }
+        },
+        {
             "name": "path",
             "description": "Shortest @link connection between two files (undirected BFS).",
             "inputSchema": {
@@ -192,6 +205,20 @@ fn tool_call(params: &Value) -> Value {
         }
         "ls" => vec!["ls".into(), "--json".into()],
         "links" => vec!["links".into(), str_arg("ref"), "--json".into()],
+        "resolve" => {
+            let limit = a
+                .get("limit")
+                .and_then(Value::as_i64)
+                .filter(|n| *n > 0)
+                .unwrap_or(10)
+                .to_string();
+            let mut v = vec!["resolve".into(), str_arg("query"), limit];
+            if a.get("fuzzy").and_then(Value::as_bool).unwrap_or(false) {
+                v.push("--fuzzy".into());
+            }
+            v.push("--json".into());
+            v
+        }
         "path" => vec![
             "path".into(),
             str_arg("from"),

@@ -36,6 +36,15 @@ const SYNTAX_NODES = new Set([
 ]);
 
 const VAR_RE = /\{\{[^}\n]+\}\}|<<[^>\n]+>>/g;
+// @link operators: fuzzy `@?term` or direct `@name` / `@dir/name`. Matches the
+// core scanner's segment chars ([a-z0-9_-]); scanned in prose only (code spans
+// are skipped, like the backend), so just's `@echo` / `user@host` aren't links.
+const JDLINK_RE = /@\?[\w-]+|@[\w-]+(?:\/[\w-]+)?/g;
+// Known direct-link identifiers (keys, names, leaves), lowercased — drives the
+// resolved/unresolved inline styling. Filled from /api/jdtargets, refreshed
+// periodically; jdRefresh forces a decoration rebuild when the set changes.
+let jdTargets = new Set();
+const jdRefresh = StateEffect.define();
 const FM_KEY_RE = /^(\s*)([\w-]+)(\s*:)/;
 // GFM tables in these .jd files use leading+trailing pipes, so "starts and
 // ends with |" is a reliable row test that won't catch shell pipes in prose.
@@ -542,6 +551,38 @@ function frontmatter(state) {
   return null;
 }
 
+// Line numbers inside (or marking) a ``` fenced code block — where @links are
+// NOT scanned, mirroring the core parser. Frontmatter is excluded.
+function fenceLineSet(state) {
+  const set = new Set();
+  const fm = frontmatter(state);
+  const start = fm ? fm.close + 1 : 1;
+  let inFence = false;
+  for (let n = start; n <= state.doc.lines; n++) {
+    if (state.doc.line(n).text.trimStart().startsWith("```")) {
+      inFence = !inFence;
+      set.add(n);
+      continue;
+    }
+    if (inFence) set.add(n);
+  }
+  return set;
+}
+
+// True when [from,to) within `text` overlaps an inline-code (`…`) span. Used to
+// keep a backticked `@daily` from being styled as a link.
+function inInlineCode(text, from, to) {
+  let code = false, last = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "`") {
+      if (code && from < i && to > last) return true;   // span [last,i) covers it
+      code = !code;
+      last = i + 1;
+    }
+  }
+  return false;
+}
+
 function buildDecorations(view) {
   const { state } = view;
   const active = activeLineSet(state);          // per-line — drives marker reveal
@@ -558,6 +599,7 @@ function buildDecorations(view) {
   }
   const tableSkip = inactiveTableLines(state); // lines rendered as <table> widgets
   const tail = caretBlockTail(state);          // dim the active block past the caret
+  const jdFence = fenceLineSet(state);         // lines where @links are not scanned
   const decos = [];
 
   if (tail) {
@@ -649,6 +691,26 @@ function buildDecorations(view) {
         const s = line.from + mm.index;
         decos.push(Decoration.mark({ class: "cm-variable" }).range(s, s + mm[0].length));
       }
+      // @links: @name / @dir/name (resolved vs unresolved) and @?term (fuzzy).
+      // Skipped in frontmatter (inFm, above), fenced code, and inline-code spans.
+      if (!inFm && !jdFence.has(line.number)) {
+        JDLINK_RE.lastIndex = 0;
+        let lm;
+        while ((lm = JDLINK_RE.exec(line.text))) {
+          if (inInlineCode(line.text, lm.index, lm.index + lm[0].length)) continue;
+          const token = lm[0].slice(1);                 // drop the leading '@'
+          const fuzzy = token.startsWith("?");
+          const needle = (fuzzy ? token.slice(1) : token).toLowerCase();
+          let cls = "cm-jdlink ";
+          if (fuzzy) cls += "cm-jdlink-fuzzy";
+          else cls += jdTargets.has(needle) ? "cm-jdlink-ok" : "cm-jdlink-bad";
+          const s = line.from + lm.index;
+          decos.push(Decoration.mark({
+            class: cls,
+            attributes: { "data-jdlink": token },
+          }).range(s, s + lm[0].length));
+        }
+      }
     });
 
     syntaxTree(state).iterate({
@@ -736,7 +798,8 @@ const livePreview = ViewPlugin.fromClass(
   class {
     constructor(view) { this.decorations = buildDecorations(view); }
     update(u) {
-      if (u.docChanged || u.viewportChanged || u.selectionSet)
+      const refreshed = u.transactions.some((t) => t.effects.some((e) => e.is(jdRefresh)));
+      if (u.docChanged || u.viewportChanged || u.selectionSet || refreshed)
         this.decorations = buildDecorations(u.view);
     }
   },
@@ -929,6 +992,13 @@ const view = new EditorView({
       cursorGlyphPlugin,
       placeholder("Press ⌘K to open a .jd file, or just start writing…"),
       keymap.of([
+        // @link autocomplete popup nav — only fires while the popup is open, so
+        // it yields to normal editing otherwise.
+        { key: "ArrowDown", run: () => jdPopMove(1) },
+        { key: "ArrowUp", run: () => jdPopMove(-1) },
+        { key: "Enter", run: () => jdPopAccept() },
+        { key: "Tab", run: () => jdPopAccept() },
+        { key: "Escape", run: () => jdPopClose(true) },
         { key: "Mod-s", preventDefault: true, run: () => { saveFile(); return true; } },
         // swallow CM's default Ctrl-k (deleteLine) so the global search shortcut
         // wins on Windows/Linux; the window handler below does the focus.
@@ -951,15 +1021,24 @@ const view = new EditorView({
       EditorView.domEventHandlers({
         mousedown(e) {
           if (!(e.metaKey || e.ctrlKey)) return false;
-          const el = e.target.closest && e.target.closest("[data-href]");
-          if (!el) return false;
-          e.preventDefault();
-          followLink(el.getAttribute("data-href"));
-          return true;
+          if (!e.target.closest) return false;
+          const link = e.target.closest("[data-href]");
+          if (link) {
+            e.preventDefault();
+            followLink(link.getAttribute("data-href"));
+            return true;
+          }
+          const jd = e.target.closest("[data-jdlink]");
+          if (jd) {
+            e.preventDefault();
+            followJdLink(jd.getAttribute("data-jdlink"));
+            return true;
+          }
+          return false;
         },
       }),
       EditorView.updateListener.of((u) => {
-        if (u.selectionSet || u.docChanged) { scheduleCenter(); updateCursorBlockWidth(); smearMove(); redrawSelection(); updateRead(); }
+        if (u.selectionSet || u.docChanged) { jdPopOnUpdate(u); scheduleCenter(); updateCursorBlockWidth(); smearMove(); redrawSelection(); updateRead(); }
         else if (u.viewportChanged || u.geometryChanged) redrawSelection();   // scroll reveals new rows
         if (findOpen && u.docChanged) updateFindCount();   // field recomputed; sync the n/m counter
         if (!u.docChanged) return;
@@ -2340,3 +2419,139 @@ function highlight(text, q) {
     if (data.results && data.results.length) openFile(data.results[0].path);
   } catch { /* offline / empty — blank canvas */ }
 })();
+
+/* ================================================================== *
+ *  @link resolution: a live target index for inline styling, Cmd-click
+ *  follow, and an as-you-type completion popup. Direct `@name` /
+ *  `@dir/name` complete to a target; fuzzy `@?term` lists ranked matches
+ *  and its source text is never rewritten (selecting navigates instead).
+ * ================================================================== */
+
+// The known-target set, so inline tokens style resolved vs unresolved without a
+// per-token round-trip. Refreshed periodically as files come and go.
+async function loadJdTargets() {
+  try {
+    const res = await fetch("/api/jdtargets");
+    const data = await res.json();
+    jdTargets = new Set((data.targets || []).map((t) => String(t).toLowerCase()));
+    view.dispatch({ effects: jdRefresh.of(null) });
+  } catch { /* keep the previous set */ }
+}
+loadJdTargets();
+setInterval(loadJdTargets, 20000);
+
+// Resolve a token to a file and open it (Cmd-click + fuzzy popup accept).
+async function followJdLink(token) {
+  const fuzzy = token.startsWith("?");
+  const q = fuzzy ? token.slice(1) : token;
+  if (!q) return;
+  try {
+    const res = await fetch(`/api/resolve?q=${encodeURIComponent(q)}&fuzzy=${fuzzy ? 1 : 0}`);
+    const data = await res.json();
+    const hit = (data.matches || [])[0];
+    if (hit) openFile(hit.path);
+  } catch { /* unreachable — no-op */ }
+}
+
+const jdPopEl = document.createElement("div");
+jdPopEl.id = "jdpop";
+jdPopEl.hidden = true;
+document.body.appendChild(jdPopEl);
+
+let jdPop = { open: false, items: [], sel: 0, fuzzy: false, from: 0, to: 0 };
+let jdPopSeq = 0;
+let jdSuppress = false;   // skip one update after an accept (the insert re-fires it)
+
+function jdPopClose(force) {
+  if (!jdPop.open) return false;
+  jdPop.open = false;
+  jdPopEl.hidden = true;
+  return !!force;   // swallow Escape only when we actually closed something
+}
+
+// The @token being typed immediately before the caret, in prose (not code or
+// frontmatter). Returns { from, to, needle, fuzzy } or null.
+function jdTokenAtCaret(state) {
+  const sel = state.selection.main;
+  if (!sel.empty) return null;
+  const line = state.doc.lineAt(sel.head);
+  const fm = frontmatter(state);
+  if (fm && line.number >= fm.open && line.number <= fm.close) return null;
+  if (fenceLineSet(state).has(line.number)) return null;
+  const before = line.text.slice(0, sel.head - line.from);
+  const m = /@(\??)([\w-]*(?:\/[\w-]*)?)$/.exec(before);
+  if (!m) return null;
+  const at = sel.head - m[0].length;
+  if (inInlineCode(line.text, at - line.from, sel.head - line.from)) return null;
+  return { from: at, to: sel.head, needle: m[2], fuzzy: m[1] === "?" };
+}
+
+async function jdPopOnUpdate(u) {
+  if (jdSuppress) { jdSuppress = false; return; }
+  const ctx = jdTokenAtCaret(u.state);
+  if (!ctx || !ctx.needle) { jdPopClose(); return; }
+  const seq = ++jdPopSeq;
+  try {
+    const res = await fetch(`/api/resolve?q=${encodeURIComponent(ctx.needle)}&fuzzy=${ctx.fuzzy ? 1 : 0}`);
+    const data = await res.json();
+    if (seq !== jdPopSeq) return;
+    const items = data.matches || [];
+    if (!items.length) { jdPopClose(); return; }
+    jdPop = { open: true, items, sel: 0, fuzzy: ctx.fuzzy, from: ctx.from, to: ctx.to };
+    jdPopRender();
+  } catch { jdPopClose(); }
+}
+
+function jdPopRender() {
+  jdPopEl.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "jdpop-head";
+  head.textContent = jdPop.fuzzy ? "fuzzy @? — matches" : "@ — link targets";
+  jdPopEl.appendChild(head);
+  jdPop.items.forEach((it, i) => {
+    const row = document.createElement("div");
+    row.className = "jdpop-row" + (i === jdPop.sel ? " sel" : "");
+    const leaf = String(it.key).split("/").pop();
+    row.innerHTML =
+      `<span class="jdpop-name">${escapeHtml(leaf)}</span>` +
+      `<span class="jdpop-key">${escapeHtml(it.key)}</span>` +
+      `<span class="jdpop-kind">${escapeHtml(it.kind || "")}</span>`;
+    row.addEventListener("mousedown", (e) => { e.preventDefault(); jdPop.sel = i; jdPopAccept(); });
+    jdPopEl.appendChild(row);
+  });
+  jdPopEl.hidden = false;
+  const co = view.coordsAtPos(jdPop.from);
+  if (co) {
+    jdPopEl.style.left = `${Math.round(co.left)}px`;
+    jdPopEl.style.top = `${Math.round(co.bottom + 4)}px`;
+  }
+}
+
+function jdPopMove(d) {
+  if (!jdPop.open) return false;
+  const n = jdPop.items.length;
+  jdPop.sel = (jdPop.sel + d + n) % n;
+  jdPopRender();
+  return true;
+}
+
+function jdPopAccept() {
+  if (!jdPop.open) return false;
+  const it = jdPop.items[jdPop.sel];
+  const fuzzy = jdPop.fuzzy, from = jdPop.from, to = jdPop.to;
+  jdPopClose(true);
+  if (!it) return true;
+  if (fuzzy) {
+    // fuzzy text is kept literal (@?term) — selecting navigates to the match.
+    openFile(it.path);
+  } else {
+    // complete the direct link to the target's bare name (the @name form).
+    const leaf = String(it.key).split("/").pop();
+    jdSuppress = true;
+    view.dispatch({
+      changes: { from, to, insert: "@" + leaf },
+      selection: { anchor: from + 1 + leaf.length },
+    });
+  }
+  return true;
+}

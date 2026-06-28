@@ -80,42 +80,71 @@ fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
     (None, content)
 }
 
-/// Scan text for `@dir/name` links: `@[a-z0-9_]+/[a-z0-9_]+`. Returns the key
-/// form (`dir/name`, no `@`, `#section` not captured), deduped in first-seen
-/// order. Mirrors the awk body regex.
-fn scan_links(body: &str, out: &mut Vec<String>) {
-    let b = body.as_bytes();
-    let is_word = |c: u8| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_';
+/// Scan text for `@link`s in three forms, deduped in first-seen order. The
+/// stored token preserves the form so the store/lint/resolve can tell them apart
+/// (see [`crate::links`]):
+///
+/// - `@dir/name` → `dir/name` — a fully-qualified key (the legacy form).
+/// - `@name` → `name` — a single-segment direct link (resolved to a key later).
+/// - `@?term` → `?term` — a fuzzy link (ranked live; never rewritten in source).
+///
+/// Segments are `[a-z0-9_-]+`. A trailing `#section` is not captured. Inline
+/// code spans (`` `…` ``) are skipped — `@`-links are a prose convention, so a
+/// backticked `@daily` (cron), `user@host`, or `@echo` (a just recipe) is not a
+/// link. Fenced code blocks are skipped one level up, in [`parse`].
+fn scan_links(line: &str, out: &mut Vec<String>) {
+    let b = line.as_bytes();
+    let body = line;
+    let is_word =
+        |c: u8| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-';
+    let mut in_code = false;
     let mut i = 0;
     while i < b.len() {
-        if b[i] != b'@' {
+        if b[i] == b'`' {
+            in_code = !in_code;
+            i += 1;
+            continue;
+        }
+        if in_code || b[i] != b'@' {
             i += 1;
             continue;
         }
         let mut j = i + 1;
+        let fuzzy = j < b.len() && b[j] == b'?';
+        if fuzzy {
+            j += 1;
+        }
         let s1 = j;
         while j < b.len() && is_word(b[j]) {
             j += 1;
         }
-        if j == s1 || j >= b.len() || b[j] != b'/' {
-            i += 1;
+        if j == s1 {
+            i += 1; // bare `@` / `@?` with no word — not a link
             continue;
         }
-        j += 1; // consume '/'
-        let s2 = j;
-        while j < b.len() && is_word(b[j]) {
-            j += 1;
+        // A fuzzy link is single-segment; a direct link may take a `/name` tail.
+        let mut end = j;
+        if !fuzzy && j < b.len() && b[j] == b'/' {
+            let s2 = j + 1;
+            let mut k = s2;
+            while k < b.len() && is_word(b[k]) {
+                k += 1;
+            }
+            if k > s2 {
+                end = k; // `dir/name`
+            }
+            // `dir/` with an empty second segment degrades to the bare `dir` name
         }
-        if j == s2 {
-            i += 1;
-            continue;
+        // Token form: `?term` for fuzzy, else `dir/name` or bare `name`.
+        let token = if fuzzy {
+            format!("?{}", &body[s1..end])
+        } else {
+            body[i + 1..end].to_string()
+        };
+        if !out.contains(&token) {
+            out.push(token);
         }
-        // key form: between the @ and the end of the second segment, minus '@'
-        let key = &body[i + 1..j];
-        if !out.iter().any(|k| k == key) {
-            out.push(key.to_string());
-        }
-        i = j;
+        i = end;
     }
 }
 
@@ -149,9 +178,18 @@ pub fn parse(rel: &str, content: &str) -> Node {
         _ => Frontmatter::default(),
     };
 
+    // Scan body prose for @links, skipping fenced code blocks (``` … ```): a
+    // recipe / code sample is not link prose (e.g. just's `@echo`, `npm i x@latest`).
     let mut links = Vec::new();
+    let mut in_fence = false;
     for line in body.lines() {
-        scan_links(line, &mut links);
+        if line.trim_start().starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if !in_fence {
+            scan_links(line, &mut links);
+        }
     }
 
     // `name:` counts as "given" only when present and non-blank — matches the
@@ -216,6 +254,34 @@ mod tests {
         assert_eq!(n.tags, vec!["release", "publish", "ci"]);
         assert_eq!(n.links, vec!["tools/gate", "cert/openssl"]);
         assert!(n.has_frontmatter);
+    }
+
+    #[test]
+    fn scans_direct_name_and_fuzzy_links() {
+        // single-segment @name, fuzzy @?term, and legacy @dir/name coexist,
+        // deduped in first-seen order. `@?term` keeps its `?` marker.
+        let src = "---\nname: t\nkind: knowledge\ndescription: d\n---\nSee @glassmorphism and @?soft, plus @soft-ui/glass and @glassmorphism again.\n";
+        let n = parse("library/x/t.jd", src);
+        assert_eq!(n.links, vec!["glassmorphism", "?soft", "soft-ui/glass"]);
+    }
+
+    #[test]
+    fn bare_at_and_trailing_section_do_not_capture() {
+        let n = parse(
+            "library/x/t.jd",
+            "---\nname: t\nkind: knowledge\ndescription: d\n---\nemail a@ b, and @ alone, and @glass#tips here.\n",
+        );
+        // `a` (from a@), the bare `@`, are dropped; `@glass#tips` captures `glass`.
+        assert_eq!(n.links, vec!["glass"]);
+    }
+
+    #[test]
+    fn skips_links_in_inline_and_fenced_code() {
+        // `@daily` in inline code, `@echo`/`x@latest` in a fence, are not links;
+        // only the prose `@glass` and `@a/b` are captured.
+        let src = "---\nname: t\nkind: knowledge\ndescription: d\n---\nProse @glass and `@daily` cron.\n\n```just\nr:\n  @echo hi\n  npm i x@latest\n```\n\nMore @a/b here.\n";
+        let n = parse("library/x/t.jd", src);
+        assert_eq!(n.links, vec!["glass", "a/b"]);
     }
 
     #[test]

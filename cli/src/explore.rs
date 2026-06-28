@@ -19,6 +19,10 @@
 //!   over hosting — the others simply re-register with the new host. The
 //!   website survives as long as one `jd` process is alive.
 
+use justdown::jd;
+use justdown::links::{leaf, NameIndex, Resolve};
+use justdown::search::{rank, resolve_prefix};
+use justdown::store::{Row, Source};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::io::{ErrorKind, Read, Write};
@@ -56,6 +60,10 @@ struct Feeder {
 struct State {
     feeders: Mutex<HashMap<String, Feeder>>,
     index: Mutex<Vec<PathBuf>>,
+    /// Parsed rows for the union index — the `@link` resolve source, rebuilt by
+    /// the indexer alongside `index` so the editor popup ranks with the shared
+    /// core ranker over live files (no built graph.db required).
+    rows: Mutex<Vec<Row>>,
     /// Bumped whenever the feeder set changes, so the indexer re-walks promptly.
     gen: AtomicU64,
     /// `--dev`: serve editor assets from disk + inject the live-reload watcher.
@@ -67,6 +75,7 @@ impl State {
         State {
             feeders: Mutex::new(HashMap::new()),
             index: Mutex::new(Vec::new()),
+            rows: Mutex::new(Vec::new()),
             gen: AtomicU64::new(0),
             dev,
         }
@@ -186,7 +195,10 @@ fn spawn_indexer(state: Arc<State>) {
             let roots = state.live_roots(); // also expires dead feeders (may bump gen)
             let gen = state.gen.load(Ordering::Relaxed);
             if gen != last_gen || last_walk.elapsed() >= REWALK_EVERY {
-                *state.index.lock().unwrap() = walk_jd(&roots);
+                let files = walk_jd(&roots);
+                let rows = parse_rows(&files);
+                *state.index.lock().unwrap() = files;
+                *state.rows.lock().unwrap() = rows;
                 last_gen = gen;
                 last_walk = Instant::now();
             }
@@ -237,6 +249,8 @@ fn handle(request: tiny_http::Request, state: &State) {
         (Method::Get, "/api/livereload") => api_livereload(request),
         (Method::Post, "/api/feed") => api_feed(request, state),
         (Method::Get, "/api/search") => api_search(request, state, &query),
+        (Method::Get, "/api/resolve") => api_resolve(request, state, &query),
+        (Method::Get, "/api/jdtargets") => api_jdtargets(request, state),
         (Method::Get, "/api/rg") => api_rg(request, state, &query),
         (Method::Get, "/api/file") => api_load(request, state, &query),
         (Method::Post, "/api/file") => api_save(request, state, &query),
@@ -398,6 +412,96 @@ fn subsequence(hay: &[char], needle: &str) -> bool {
         }
     }
     want.is_none()
+}
+
+/* ------------------------------ @link resolve -------------------------- */
+
+/// Parse every walked `.jd` into a query [`Row`]. Keys derive from the file's
+/// last two path segments (matching `jd build`), so resolution lines up with the
+/// built graph. Unreadable files are skipped.
+fn parse_rows(files: &[PathBuf]) -> Vec<Row> {
+    let mut rows = Vec::new();
+    for f in files {
+        if let Ok(content) = std::fs::read_to_string(f) {
+            let node = jd::parse(&f.to_string_lossy(), &content);
+            rows.push(Row::from_node(&node, Source::Local));
+        }
+    }
+    rows
+}
+
+/// One match row for the editor popup: enough to render the row and to open the
+/// target file on selection / Cmd-click.
+fn match_json(r: &Row, score: Option<i64>) -> serde_json::Value {
+    let pb = PathBuf::from(&r.path);
+    let display = display_path(&pb);
+    let dir = Path::new(&display)
+        .parent()
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    json!({
+        "path": r.path,
+        "name": r.name,
+        "key": r.key,
+        "kind": r.kind,
+        "dir": dir,
+        "score": score,
+    })
+}
+
+/// `GET /api/resolve?q=<term>&fuzzy=0|1` — the live `@link` completion source.
+/// Direct (default): ranked key/name/leaf prefix matches + the unique canonical
+/// key when one resolves. Fuzzy: the shared field-weighted ranker (`@?term`).
+fn api_resolve(request: tiny_http::Request, state: &State, query: &str) {
+    let q = param(query, "q").unwrap_or_default();
+    let q = q.trim().to_lowercase();
+    let fuzzy = matches!(param(query, "fuzzy").as_deref(), Some("1") | Some("true"));
+    if q.is_empty() {
+        return respond_json(request, 200, &json!({ "matches": [], "resolved": null, "fuzzy": fuzzy }));
+    }
+    let rows = state.rows.lock().unwrap();
+    let (matches, resolved) = if fuzzy {
+        let m: Vec<_> = rank(&rows, &q, "", "")
+            .into_iter()
+            .take(12)
+            .map(|s| match_json(s.row, Some(s.score)))
+            .collect();
+        (m, serde_json::Value::Null)
+    } else {
+        let idx = NameIndex::build(rows.iter().map(|r| (r.key.as_str(), r.name.as_str())));
+        let resolved = match idx.resolve(&q) {
+            Resolve::Unique(k) => json!(k),
+            _ => serde_json::Value::Null,
+        };
+        let m: Vec<_> = resolve_prefix(&rows, &q)
+            .into_iter()
+            .take(12)
+            .map(|r| match_json(r, None))
+            .collect();
+        (m, resolved)
+    };
+    respond_json(
+        request,
+        200,
+        &json!({ "matches": matches, "resolved": resolved, "fuzzy": fuzzy }),
+    );
+}
+
+/// `GET /api/jdtargets` — every known direct-link identifier (key, name, leaf),
+/// so the editor can style `@name`/`@dir/name` tokens resolved vs unresolved
+/// inline without a round-trip per token.
+fn api_jdtargets(request: tiny_http::Request, state: &State) {
+    let rows = state.rows.lock().unwrap();
+    let mut targets: HashSet<String> = HashSet::new();
+    for r in rows.iter() {
+        targets.insert(r.key.clone());
+        targets.insert(leaf(&r.key).to_string());
+        if !r.name.is_empty() {
+            targets.insert(r.name.clone());
+        }
+    }
+    let list: Vec<&String> = targets.iter().collect();
+    respond_json(request, 200, &json!({ "targets": list }));
 }
 
 /* ------------------------------ ripgrep -------------------------------- */

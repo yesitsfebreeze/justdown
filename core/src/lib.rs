@@ -17,6 +17,7 @@
 pub mod cycle;
 pub mod graph;
 pub mod jd;
+pub mod links;
 pub mod lint;
 pub mod platform;
 pub mod render;

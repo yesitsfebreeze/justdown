@@ -1,0 +1,59 @@
+---
+name: onshape_api
+description: Edit an Onshape CAD document via the REST API — HMAC-signed requests that change a Part Studio feature parameter (e.g. extrude depth or a sketch dimension) and confirm it persisted. The stable, CI-friendly path; prefer it over UI automation. UI fallback is in onshape_playwright.
+kind: tool
+tags: [onshape, cad, rest, api, hmac, partstudio, extrude, feature]
+use_when: [edit an onshape part studio feature via rest, change an extrude depth via the onshape api, the worked onshape rest edit+verify recipe, run the onshape_edit.py self-test, automate an onshape geometric edit without the browser]
+not_when: []
+danger: medium
+side_effects: [network, file-write]
+requires: [python3]
+run: self-test
+provides: [self-test, edit]
+---
+
+# Onshape REST API edit
+
+Change a Part Studio feature parameter over HTTPS and verify it persisted — no
+browser, no 2FA, no bot detection. This is the **preferred** path; reach for
+@onshape/playwright only for edits the API can't express or for visual checks.
+
+## Model
+
+- A document is addressed by `did/wid/eid` (document / **workspace** / element),
+  read straight from the URL `…/documents/{did}/w/{wid}/e/{eid}`. POSTs target a
+  workspace (`/w/`), never a version (`/v/`).
+- A **Part Studio** holds the feature tree (sketches, extrudes…). To change a
+  depth: `GET …/partstudios/d/{did}/w/{wid}/e/{eid}/features`, mutate the
+  `expression` of the depth `BTMParameterQuantity-147`, then POST the full
+  feature back to `…/features/featureid/{fid}` wrapped in a
+  `BTFeatureDefinitionCall-1406`. Send the **whole** feature — omitted params reset.
+- Verify by re-GETting features (read the expression back) and/or comparing
+  `…/massproperties` volume before/after.
+
+## Auth
+
+API key pair from dev-portal.onshape.com (secret shown once). Two schemes:
+**HTTP Basic** (`auth=(access, secret)` over HTTPS — "local testing only") and
+**HMAC-SHA256 request signing** (production). The script signs with HMAC:
+string-to-sign is `method, On-Nonce, Date, Content-Type, path, query` each
+`\n`-terminated then lowercased; header is `Authorization: On <key>:HmacSHA256:<sig>`.
+
+> The official `onshape-client` Python SDK is archived (frozen 2021); the example
+> uses raw `requests` instead. Base URL `https://cad.onshape.com`, version pinned
+> in the path (`/api/v10/…`) — bare `/api/` falls back to ancient v0.
+
+## Recipes
+
+`self-test` runs the full edit+verify flow against an in-process mock (no keys).
+`edit` needs `ONSHAPE_ACCESS_KEY` + `ONSHAPE_SECRET_KEY` and a Part Studio URL.
+
+```just
+# prove the edit+verify flow with no credentials (in-process mock of the features API)
+self-test:
+  python3 examples/onshape/onshape_edit.py --self-test
+
+# change the first extrude's depth on a live doc; needs ONSHAPE_ACCESS_KEY/SECRET_KEY in env
+edit url depth="50 mm":
+  python3 examples/onshape/onshape_edit.py {{quote(url)}} {{quote(depth)}}
+```

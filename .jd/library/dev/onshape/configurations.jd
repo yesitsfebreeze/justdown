@@ -1,0 +1,124 @@
+---
+name: onshape_configurations
+description: Onshape configurations REST group — read/update an element's configuration definition (the configurationParameters that make a Part Studio, Variable Studio, or Assembly parametric) and encode/decode the configuration string you pass as ?configuration= to fetch a specific variant. Use when calling the /elements configuration endpoints.
+kind: knowledge
+tags: [onshape, cad, rest, api, configurations, variants, encoding]
+use_when: [get an onshape configuration definition, read configurationParameters of an element, update an onshape configuration, encode a configuration string for the api, decode an onshape configuration string, fetch a specific configured variant of a part or assembly, what to pass for the configuration query param, list configuration inputs of a part studio]
+not_when: []
+requires: [onshape_auth]
+provides: [get-configuration, update-configuration, encode-configuration, decode-configuration, fetch-variant]
+---
+
+# Onshape Configurations
+
+A **configuration** makes an element a parametric family: one Part Studio,
+Variable Studio, or Assembly that produces many **variants** driven by
+**configuration inputs**. Each input is a `BTMConfigurationParameter*` — an
+enum/list, a quantity (configuration variable), or a boolean. To fetch a concrete
+variant of a part/assembly/export call you append `?configuration=<encoded>`, and
+that encoded string is produced by the encode endpoint from a set of input values.
+
+## Model
+
+- Addressed by `did` + middle coordinate + `eid`. The definition reads/writes use
+  the `/elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration` family (`{wvm}` is
+  `w`/`v`/`m`). **The update POST must target a workspace `/w/`.**
+- The **definition** (`GET …/configuration`) holds `configurationParameters[]` —
+  the list of inputs. Each entry is a `BTMConfigurationParameter-819` subtype:
+  enum/list, quantity (a configuration variable with units/range), or boolean.
+  `currentConfiguration[]` is the element's current input values (`BTMParameter-1`).
+- The **encoded config string** is an opaque token. You build it from input
+  values via `POST …/configurationencodings` (returns `encodedId` + a ready-made
+  `queryParam`), then pass it as `?configuration=<encodedId>` to the variant-aware
+  GETs across other groups.
+- Almost every read in @onshape/partstudios, @onshape/parts, @onshape/assemblies,
+  and the export calls accepts a `configuration` query param; with no
+  `configuration` they return the element's default/current variant.
+- To go the other way, `GET …/configurationencodings/{cid}` **decodes** an encoded
+  string back into its `parameters[]` (the input values it represents).
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET /elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration` | get the configuration definition (`configurationParameters[]` + `currentConfiguration[]`) |
+| `POST /elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration` | update the configuration definition (workspace `/w/` only) |
+| `POST /elements/d/{did}/e/{eid}/configurationencodings` | encode input values → `encodedId` + `queryParam` for `?configuration=` |
+| `GET /elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configurationencodings/{cid}` | decode a configuration string back into its `parameters[]` |
+
+Encode params: `versionId`, `linkDocumentId` (query). Decode params:
+`linkDocumentId`, `includeDisplay`, `configurationIsId` (query).
+
+## Shapes
+
+`GET …/configuration` — the definition. `configurationParameters[]` are
+`BTMConfigurationParameter-819` subtypes (enum/quantity/boolean);
+`currentConfiguration[]` are the current values (`BTMParameter-1`):
+
+```json
+{
+  "btType": "BTConfigurationResponse-2019",
+  "configurationParameters": [
+    { "btType": "BTMConfigurationParameterEnum-105", "parameterId": "size", "parameterName": "Size",
+      "options": [{ "btType": "BTMEnumOption-592", "option": "small", "optionName": "Small" }] },
+    { "btType": "BTMConfigurationParameterQuantity-1826", "parameterId": "length", "parameterName": "Length" },
+    { "btType": "BTMConfigurationParameterBoolean-2550", "parameterId": "withHole", "parameterName": "With hole" }
+  ],
+  "currentConfiguration": [{ "btType": "BTMParameter-1", "parameterId": "size" }],
+  "serializationVersion": "1.2.4",
+  "sourceMicroversion": "…"
+}
+```
+
+The POST update sends the **same** shape back (send the whole definition —
+omitted parameters reset) and echoes it in the response.
+
+`POST …/configurationencodings` — turn input values into the query token:
+
+```json
+// request
+{ "parameters": [{ "parameterId": "size", "parameterValue": "small" },
+                 { "parameterId": "length", "parameterValue": "0.05 meter" }] }
+// response
+{ "encodedId": "List_xxx…", "queryParam": "configuration=List_xxx…" }
+```
+
+`GET …/configurationencodings/{cid}` — decode it back:
+`{ "isStandardContent": false, "parameters": [ConfigurationInfoEntry] }`.
+
+## Recipe
+
+Read-only against the **kb2** doc. Auth is HTTP Basic (`access:secret` over HTTPS,
+per @onshape/auth — production should HMAC-sign). GET the configuration definition,
+then verify `configurationParameters[]` is present.
+
+```bash
+export ONSHAPE_ACCESS_KEY=…  ONSHAPE_SECRET_KEY=…
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+
+# GET the configuration definition
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "$BASE/elements/d/$DID/w/$WID/e/$EID/configuration" > config.json
+
+# verify: configurationParameters[] is present; print count + first input's id/type
+jq -e 'has("configurationParameters")' config.json >/dev/null \
+  && echo "OK: $(jq -r '.configurationParameters | length') inputs; first = \
+$(jq -r '.configurationParameters[0].parameterId // "none"' config.json) / \
+$(jq -r '.configurationParameters[0].btType // "n/a"' config.json)" \
+  || { echo "FAIL: no configurationParameters"; exit 1; }
+```
+
+A non-configured element returns an empty `configurationParameters[]` — that is a
+valid (not failing) result. Substitute `/w/$WID` → `/v/{vid}` or `/m/{mid}` to
+read a version/microversion. To fetch a specific variant, encode values via
+`POST …/configurationencodings` and append the returned `queryParam` to any
+variant-aware GET, e.g. `…/partstudios/…/bodydetails?configuration=List_xxx…`.
+
+See also: @onshape/partstudios (variant-aware geometry/export reads that take
+`?configuration=`), @onshape/variables (configuration variables in the Variable
+Studio), @onshape/features (BTM* parameter envelope), @onshape/auth (HMAC signing),
+@onshape/playwright (UI fallback).

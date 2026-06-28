@@ -1,0 +1,138 @@
+---
+name: onshape_variables
+description: Read and write Onshape Variable Studio variables over the REST API — list a document's named variables (LENGTH/ANGLE/NUMBER/ANY with an expression like "50 mm") and assign/update them so feature parameters can reference #myVar. Read-first; writes target a workspace scratch doc.
+kind: knowledge
+tags: [onshape, cad, rest, api, variables, variablestudio, expression]
+use_when: [get onshape variable studio variables, list named variables in an onshape document, set or update an onshape variable expression, onshape variable type length angle number any, reference a variable from a feature parameter, onshape variablestudio scope references, document-wide variables across part studios]
+not_when: []
+requires: [onshape_auth]
+provides: [get-variables, set-variables, variable-model]
+---
+
+# Onshape Variables
+
+A **Variable Studio** is a document tab (`eid`) that holds named variables shared
+across every Part Studio in the document. Each variable has a `name`, a `type`
+(`LENGTH` / `ANGLE` / `NUMBER` / `ANY`), and an `expression` string like `"50 mm"`.
+A feature parameter elsewhere can reference one with `#myVar` in its own
+expression, so variables are the document-wide knobs that drive @onshape/features
+and @onshape/partstudios (and they read like the document-scope twin of a
+per-element @onshape/configurations input).
+
+## Model
+
+- Addressed by `did/{wv}/{wvid}/e/{eid}` — the middle coordinate is `w`/`v`/`m`
+  (workspace / version / microversion). GETs accept any; **writes must target a
+  workspace `/w/`**.
+- The `eid` is the Variable Studio element. A Part Studio also exposes a *variable
+  table*, so the GET returns an **array** — one entry per studio reference visible
+  to the element, each carrying a `variableStudioReference` and its `variables[]`.
+- Scope is **document-wide**: a variable defined in one studio resolves in any
+  Part Studio that references the studio. `variablestudioreferences` lists which
+  studios an element pulls in; `variablestudioscope.isAutomaticallyInserted`
+  controls whether a new studio is auto-attached to new elements.
+- A variable's `value` is the evaluated result of its `expression` (only present
+  when the GET is asked for it, via `includeValuesAndReferencedVariables`);
+  `expression` is the editable source of truth.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET …/variables/d/{did}/{wv}/{wvid}/e/{eid}/variables` | contents of all variable tables in an element |
+| `GET …/variables/d/{did}/{wv}/{wvid}/e/{eid}/variablestudioreferences` | studio references for an element |
+| `GET …/variables/d/{did}/{wv}/{wvid}/e/{eid}/variablestudioscope` | `isAutomaticallyInserted` scope flag |
+| `POST …/variables/d/{did}/w/{wid}/e/{eid}/variables` | assign/update variables in a Variable Studio |
+| `POST …/variables/d/{did}/w/{wid}/e/{eid}/variablestudioreferences` | set the studio references for an element |
+| `POST …/variables/d/{did}/w/{wid}/e/{eid}/variablestudioscope` | set the scope (`isAutomaticallyInserted`) |
+| `POST …/variables/d/{did}/w/{wid}/variablestudio` | create a new Variable Studio in a workspace |
+
+GET path coords: `{wv}` is `w`/`v`/`m`, `{wvid}` the matching id. Common queries:
+`configuration`, `includeValuesAndReferencedVariables` (GET), `linkDocumentId`
+(all). Auth: @onshape/auth.
+
+## Shapes
+
+GET `…/variables` response — array of variable tables, one per referenced studio:
+
+```json
+[
+  {
+    "variableStudioReference": { },
+    "variables": [
+      {
+        "name": "width",
+        "type": "LENGTH",
+        "expression": "50 mm",
+        "value": "0.05",
+        "description": ""
+      }
+    ]
+  }
+]
+```
+
+POST `…/variables` body — a **bare array** of variables to assign to the studio
+(send the full set; this replaces the studio's variables):
+
+```json
+[
+  {
+    "name": "width",
+    "type": "LENGTH",
+    "expression": "50 mm",
+    "description": ""
+  }
+]
+```
+
+`type` is one of `LENGTH` / `ANGLE` / `NUMBER` / `ANY`. `ANY`/`NUMBER` take a
+unitless `expression` (e.g. `"5"`); `LENGTH`/`ANGLE` take a unit (`"50 mm"`,
+`"30 deg"`). `configuredExpression` / `configuredDescription` (`BTConfiguredValue`)
+let a value vary per @onshape/configurations. The POST response is `{}`.
+
+## Recipe
+
+Read-only against the kb2 doc. **READ-ONLY** — never POST here; writes go to a
+scratch doc you own. Basic auth (`access:secret`) per @onshape/auth, local-testing
+only; production signs with HMAC (the runnable signer is
+`examples/onshape/onshape_edit.py`, see @onshape/api).
+
+```bash
+export ONSHAPE_ACCESS_KEY=...   # dev-portal.onshape.com
+export ONSHAPE_SECRET_KEY=...
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=...   # the Variable Studio (or any Part Studio) tab id from the doc URL
+
+# GET every variable table visible to the element, with evaluated values
+curl -sfG -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  --data-urlencode 'includeValuesAndReferencedVariables=true' \
+  "https://cad.onshape.com/api/v10/variables/d/$DID/w/$WID/e/$EID/variables" \
+  | tee /tmp/onshape_vars.json | python3 -m json.tool
+```
+
+Verify — assert a known variable's name + expression, OR accept the empty case
+(kb2 may have no Variable Studio; the GET then returns `[]` or tables with empty
+`variables[]` — still a valid assertion):
+
+```bash
+python3 - <<'PY'
+import json
+tables = json.load(open('/tmp/onshape_vars.json'))
+vars = [v for t in tables for v in t.get('variables', [])]
+if not vars:
+    print('OK: no variables in this element (empty studio) — []')
+else:
+    by_name = {v['name']: v for v in vars}
+    # adjust to a real name once one exists; example asserts "width" == "50 mm"
+    assert 'width' in by_name, f'no "width" var; found {list(by_name)}'
+    assert by_name['width']['expression'].replace(' ', '') == '50mm', by_name['width']
+    print('OK:', by_name['width']['name'], '=', by_name['width']['expression'])
+PY
+```
+
+The UI fallback (open the Variable Studio tab, add a row) is @onshape/playwright;
+prefer this REST path. To consume a variable, reference `#width` in a feature
+`expression` via @onshape/features.

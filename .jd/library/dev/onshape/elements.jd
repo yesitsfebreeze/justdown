@@ -1,0 +1,171 @@
+---
+name: onshape_elements
+description: List and manage the tabs (elements) of an Onshape document via the REST API — enumerate Part Studios/Assemblies/Drawings/Blobs/App elements under a did/wid, read element configuration, upload/download blob files, and create/update app elements via the transaction + subelement model.
+kind: knowledge
+tags: [onshape, cad, rest, api, elements, tabs, blob, appelement, insertables]
+use_when: [list the tabs in an onshape document, get onshape elements of a document, filter elements by elementType partstudio assembly, upload a file as a blob element, download a blob element file, create an onshape app element, app element transaction subelement model, what can i insert into an onshape document, get an element configuration definition]
+not_when: []
+requires: [onshape_auth]
+provides: [list-elements, element-metadata, blob-upload, blob-download, appelement-create, insertables]
+---
+
+# Onshape Elements
+
+An **element** (a.k.a. **tab**) is one document leaf addressed by `eid` inside a
+workspace. Types: **Part Studio**, **Assembly**, **Drawing**, **Blob** (an
+uploaded file — STEP, image, PDF…), and **App element** (opaque JSON owned by a
+third-party app). Listing the elements of a document is how you discover every
+`eid` to feed the per-type groups (@onshape/partstudios, @onshape/assemblies).
+
+## Model
+
+- Path coordinate: an element sits under `…/d/{did}/{wvm}/{wvmid}/e/{eid}` — pick
+  one of `/w/{wid}`, `/v/{vid}`, `/m/{mid}` for the middle (see @onshape/auth and
+  the shared did/wid/eid model). Mutations (blob upload, app-element create/delete)
+  must target a workspace `/w/`.
+- The element list endpoint lives in the **documents** group, not under `/elements`:
+  `GET /api/v10/documents/d/{did}/{wvm}/{wvmid}/elements`. Each row carries `id`
+  (the `eid`), `name` (tab label), and `elementType` (GBTElementType — `PARTSTUDIO`,
+  `ASSEMBLY`, `DRAWING`, `BLOB`, `APPLICATION`, `FEATURESTUDIO`…), plus `dataType`,
+  `lengthUnits`/other unit fields, `microversionId`, and `thumbnailInfo`.
+- The `/elements/…` group itself covers cross-cutting element ops: copy an element
+  between documents, delete an element, update references, and read/write the
+  **configuration** definition (parameters) of a Part Studio / Variable Studio /
+  Assembly — those configuration rows are owned by @onshape/configurations; they
+  appear here only because they live under the `/elements/` path.
+- **Blob elements** wrap a single uploaded file; **app elements** hold a JSON tree
+  split into **subelements**, edited through a **transaction** that you later merge
+  into a microversion.
+
+## Endpoints
+
+elements (cross-cutting):
+
+| METHOD path | purpose |
+| --- | --- |
+| `POST /elements/copyelement/{did}/workspace/{wid}` | copy an element from a source document into this workspace |
+| `DELETE /elements/d/{did}/w/{wid}/e/{eid}` | delete an element (tab) |
+| `POST /elements/d/{did}/w/{wid}/e/{eid}/updatereferences` | update/replace references in an element |
+| `GET /elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration` | get the configuration definition (params) of a Part/Variable Studio or Assembly |
+| `POST /elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configuration` | update that configuration definition |
+| `POST /elements/d/{did}/e/{eid}/configurationencodings` | encode a configuration option into an id for use in other calls |
+| `GET /elements/d/{did}/{wvm}/{wvmid}/e/{eid}/configurationencodings/{cid}` | decode a configuration string |
+| `GET /elements/translatorFormats/{did}/{wv}/{wvid}/{eid}` | list formats this element can translate to/from (see @onshape/export_translation) |
+
+blobelements (uploaded files):
+
+| METHOD path | purpose |
+| --- | --- |
+| `POST /blobelements/d/{did}/w/{wid}` | upload a file, create a new blob element |
+| `GET /blobelements/d/{did}/w/{wid}/e/{eid}` | download the file (returns `application/octet-stream`) |
+| `POST /blobelements/d/{did}/w/{wid}/e/{eid}` | update a blob element by uploading a new file |
+| `POST /blobelements/d/{did}/w/{wid}/e/{eid}/units` | change the blob element's measurement units |
+| `POST /blobelements/d/{did}/{wv}/{wvid}/e/{eid}/translations` | export a blob element to another format (@onshape/export_translation) |
+
+appelements (third-party JSON — transaction + subelement model):
+
+| METHOD path | purpose |
+| --- | --- |
+| `POST /appelements/d/{did}/w/{wid}` | create a new app element (optionally with subelements) |
+| `POST /appelements/d/{did}/w/{wid}/bulkcreate` | create several empty app elements at once |
+| `POST /appelements/d/{did}/w/{wid}/e/{eid}/transactions` | start a transaction (returns `transactionId`/`changeId`) |
+| `GET /appelements/d/{did}/w/{wid}/e/{eid}/transactions` | list transactions on an element |
+| `POST /appelements/d/{did}/w/{wid}/transactions` | merge transactions into one microversion |
+| `DELETE /appelements/d/{did}/w/{wid}/e/{eid}/transactions/{tid}` | abort a transaction |
+| `GET /appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/json` | read the full JSON tree |
+| `POST /appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content` | update content (jsonPatch / jsonTreeEdit) on a transaction |
+| `GET/POST/DELETE /appelements/d/{did}/{wvm}/{wvmid}/e/{eid}/content/subelements` | read / (via content) write / delete subelements |
+| `POST /appelements/d/{did}/w/{wid}/e/{eid}/blob/{bid}` | add a blob subelement from an uploaded file |
+| `GET /appelements/d/{did}/w/{wid}/e/{eid}/blob/{bid}` | download a blob subelement |
+| `GET/POST/DELETE …/e/{eid}/references[/{rid}]` | create / resolve / update / delete app-element references |
+| `GET/POST/DELETE …/e/{eid}/associativedata` | read / set / delete associative data |
+
+insertables (what this doc can contribute elsewhere):
+
+| METHOD path | purpose |
+| --- | --- |
+| `GET /insertables/d/{did}/latest` | list insertable parts, sketches, assemblies, blobs, etc. in this document that can be inserted into another |
+
+## Shapes
+
+List elements (rows from `GET …/documents/d/{did}/{wvm}/{wvmid}/elements`) — each
+element, trimmed to the load-bearing fields:
+
+```json
+{
+  "id": "0b06...e1",
+  "name": "Part Studio 1",
+  "elementType": "PARTSTUDIO",
+  "dataType": "onshape/partstudio",
+  "lengthUnits": "millimeter",
+  "microversionId": "a1b2...",
+  "thumbnailInfo": { "...": "per spec" }
+}
+```
+
+Create an app element — `POST /appelements/d/{did}/w/{wid}`:
+
+```json
+{
+  "name": "My App Tab",
+  "formatId": "my-app-format",
+  "description": "string",
+  "jsonTree": {},
+  "location": { "...": "BTElementLocationParams — where the tab lands" },
+  "subelements": [ { "...": "BTAppElementChangeParams" } ]
+}
+```
+
+```json
+{
+  "elementId": "...",
+  "elementIds": ["..."],
+  "transactionId": "...",
+  "changeId": "...",
+  "parentChangeId": "...",
+  "errorCode": 0,
+  "errorDescription": "string"
+}
+```
+
+App-element writes follow a transaction loop: `POST …/e/{eid}/transactions` to
+open one, `POST …/e/{eid}/content` (carrying `transactionId` + `parentChangeId`)
+to apply `jsonPatch`/`jsonTreeEdit` edits, then `POST …/w/{wid}/transactions`
+with `transactionIds` to merge into a microversion (or `DELETE …/transactions/{tid}`
+to abort). Blob subelements are pushed/pulled at `…/e/{eid}/blob/{bid}`.
+
+## Recipe
+
+Read-only: list a document's tabs and assert a known element type. Uses Basic auth
+(`access:secret` over HTTPS, local testing only — see @onshape/auth) against the
+kb2 sample doc.
+
+```bash
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+
+# list every tab in the workspace; add ?elementType=PARTSTUDIO or ?withThumbnails=true to filter
+curl -s -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "https://cad.onshape.com/api/v10/documents/d/$DID/w/$WID/elements" \
+  -o elements.json
+
+# verify: assert at least one element is a Part Studio
+python3 - <<'PY'
+import json
+els = json.load(open("elements.json"))
+types = {e["elementType"] for e in els}
+print(f"{len(els)} elements:", sorted(types))
+assert "PARTSTUDIO" in types, f"expected a PARTSTUDIO tab, got {types}"
+ps = next(e for e in els if e["elementType"] == "PARTSTUDIO")
+print("part studio eid:", ps["id"], "name:", ps["name"])
+PY
+```
+
+Filters (query params on the list call): `elementType` (PARTSTUDIO, ASSEMBLY,
+DRAWING, BLOB, APPLICATION…) narrows by type; `withThumbnails=true` populates
+`thumbnailInfo`. Swap `/w/$WID` → `/v/{vid}` to read a version snapshot.
+
+For UI-only inspection of tabs, see @onshape/playwright. Per-type element work:
+@onshape/partstudios, @onshape/assemblies. Exporting a blob/element to another
+format: @onshape/export_translation.

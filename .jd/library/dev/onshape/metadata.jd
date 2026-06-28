@@ -1,0 +1,151 @@
+---
+name: onshape_metadata
+description: Read and write Onshape metadata — the property values (Part Number, Name, Description, Revision, State, Material, custom properties) attached to documents, elements, parts and assemblies via the REST metadata group; GET to read, POST changed properties back to edit.
+kind: knowledge
+tags: [onshape, cad, rest, api, metadata, properties, part-number, categories]
+use_when: [get onshape part metadata, read a part number or description via api, list metadata for all parts in an element, get element tab metadata, set a custom property on an onshape part, update part number revision state via api, onshape metadata categories properties, read material or name property programmatically]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [get-metadata, update-metadata, list-part-metadata, get-categories]
+---
+
+# Onshape Metadata
+
+Metadata is the **property values** bolted onto every level of a document —
+Part Number, Name, Description, Revision, State, Material, plus any custom
+properties a company defines. It's the non-geometric data: what a part *is*,
+not its shape. The `/metadata` group reads and writes these at four scopes:
+**document** (workspace/version), **element** (tab), **part**, and **assembly**.
+Geometry lives elsewhere (@onshape/parts, @onshape/partstudios); this group only
+touches properties.
+
+## Model
+
+- Scope is chosen by the path tail on the standard `…/d/{did}/{wvm}/{wvmid}` base:
+  - `/e` — every element in the document; `/e/{eid}` — one element (tab).
+  - `/e/{eid}/p` — every part in an element; `/e/{eid}/{iden}/{pid}` — one part
+    (`iden` is the identifier kind, `pid` the part id).
+  - `/d/{did}/{wv}/{wvid}` (no `/e`) — the workspace/version itself.
+- `{wvm}` is `w`/`v`/`m` (workspace/version/microversion); the bare doc scope uses
+  `{wv}` = `w`/`v` only. **Writes (POST) must target a workspace `/w/`** —
+  versions/microversions are read-only snapshots.
+- Every metadata object is **keyed by `propertyId`**: a property carries a stable
+  `propertyId`, a human `name`, the current `value`, an `editable` flag and a
+  `propertyType`. You edit by POSTing back only the properties you changed —
+  same `propertyId`, new `value`. Configurations matter: most reads/writes take a
+  `configuration` query param so the values match a specific variant
+  (@onshape/configurations).
+- **Metadata categories** group property definitions (e.g. a "Sheet Metal Part"
+  category exposing its own custom fields). `/metadatacategory/categoryproperties`
+  lists the property definitions for given category ids on an owner.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET /metadata/d/{did}/{wv}/{wvid}` | metadata for a workspace or version (doc scope) |
+| `POST /metadata/d/{did}/{wv}/{wvid}` | update workspace/version metadata |
+| `GET /metadata/d/{did}/{wvm}/{wvmid}/e` | metadata for all elements in the document |
+| `GET /metadata/d/{did}/{wvm}/{wvmid}/e/{eid}` | metadata for one element (tab) |
+| `POST /metadata/d/{did}/{wvm}/{wvmid}/e/{eid}` | update one element's metadata |
+| `GET /metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/p` | metadata for all parts in an element |
+| `GET /metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/{iden}/{pid}` | metadata for one part |
+| `POST /metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/{iden}/{pid}` | update one part's metadata |
+| `GET /metadata/d/{did}/{wvm}/{wvmid}/e/{eid}/assembly-debug` | assembly metadata incl. supporting/computed data |
+| `GET /metadata/standardcontent/d/{did}/v/{vid}/e/{eid}/p/{pid}` | metadata for a standard-content part |
+| `POST /metadata/standardcontent/d/{did}` | update a standard-content part's metadata |
+| `GET /metadatacategory/categoryproperties` | property definitions for given metadata categories |
+
+Useful query params (read scopes): `configuration`, `includeComputedProperties`,
+`includeComputedAssemblyProperties`, `depth`, `thumbnail`, `inferMetadataOwner`,
+`linkDocumentId`.
+
+## Shapes
+
+A single-object GET (element / part / doc / standard part) returns one metadata
+object whose `properties[]` are `BTMetadataPropertyInfo` keyed by `propertyId`:
+
+```json
+{
+  "href": "https://cad.onshape.com/api/v10/metadata/d/.../w/.../e/...",
+  "jsonType": "metadata-element",
+  "properties": [
+    { "propertyId": "57f3fb8efa3416c06701d60d",
+      "name": "Name",          "value": "Bracket",  "editable": true,  "propertyType": "STRING" },
+    { "propertyId": "57f3fb8efa3416c06701d60f",
+      "name": "Part number",   "value": "PN-001",    "editable": true,  "propertyType": "STRING" },
+    { "propertyId": "57f3fb8efa3416c06701d611",
+      "name": "Material",      "value": { "displayName": "Steel" }, "editable": true, "propertyType": "OBJECT" }
+  ],
+  "thumbnail": { "...": "..." }
+}
+```
+
+The list scopes (`/e`, `/e/{eid}/p`) wrap many such objects:
+`{ "href", "items": [ {…}, … ], "next", "prev" }` (`BTMetadataElementInfo` /
+`BTMetadataPartInfo`).
+
+To **update**, POST back only the changed properties — match `propertyId`, send the
+new `value`. The body is a JSON string of the same property shape:
+
+```json
+{ "properties": [
+    { "propertyId": "57f3fb8efa3416c06701d60f", "value": "PN-002" }
+] }
+```
+
+The POST response is `{}` (re-GET to confirm). `categoryproperties` returns
+`{ "href", "items": [ BTCategoryPropertyInfo{…} ], "next", "previous" }` — the
+property *definitions* available for a category.
+
+## Recipe
+
+READ-ONLY. Use the kb2 sample doc; any write must go to a throwaway **scratch**
+document of your own, never kb2. Basic auth (`access:secret` over HTTPS, local
+testing only — production uses HMAC, see @onshape/auth).
+
+```bash
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+AUTH="$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY"
+
+# read this element's (tab's) metadata
+curl -sf -u "$AUTH" -H 'Accept: application/json' \
+  "$BASE/metadata/d/$DID/w/$WID/e/$EID?includeComputedProperties=true" \
+  -o meta.json
+
+# verify: pull a property's name + value (e.g. the Name property)
+python3 - <<'PY'
+import json
+m = json.load(open("meta.json"))
+for p in m["properties"]:
+    print(p.get("propertyId"), "|", p.get("name"), "=", p.get("value"))
+assert m["properties"], "no properties returned"
+PY
+```
+
+List every part's metadata in the element (verify at least one part comes back):
+
+```bash
+curl -sf -u "$AUTH" -H 'Accept: application/json' \
+  "$BASE/metadata/d/$DID/w/$WID/e/$EID/p?includeComputedProperties=true" \
+  | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d["items"]),"parts"); assert d["items"]'
+```
+
+To edit (scratch doc only): POST the changed property back, then re-GET to confirm:
+
+```bash
+# SCRATCH ids only — never kb2
+curl -sf -u "$AUTH" -H 'Content-Type: application/json' \
+  -X POST "$BASE/metadata/d/$DID/w/$WID/e/$EID" \
+  --data '{"properties":[{"propertyId":"<id>","value":"PN-002"}]}'
+# confirm
+curl -sf -u "$AUTH" "$BASE/metadata/d/$DID/w/$WID/e/$EID" \
+  | python3 -c 'import sys,json;[print(p["name"],"=",p["value"]) for p in json.load(sys.stdin)["properties"]]'
+```
+
+Sibling references: part identity & geometry @onshape/parts · tabs/elements
+@onshape/elements · per-configuration values @onshape/configurations · auth schemes
+@onshape/auth · UI fallback for fields the API hides @onshape/playwright.

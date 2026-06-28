@@ -1,0 +1,158 @@
+---
+name: onshape_sketches
+description: Onshape Part Studio sketches REST group — read a Part Studio's sketches (entities, constraints, dimensions) via GET …/sketches and pull a sketch's tessellated polylines via GET …/sketches/{sid}/tessellatedentities. A sketch IS a BTMSketch feature, so creating/editing its geometry goes through the feature-update envelope (onshape_features). Use when reading sketch geometry from the API.
+kind: knowledge
+tags: [onshape, cad, rest, api, sketches, partstudio, btmsketch, constraints, dimensions]
+use_when: [get the sketches in an onshape part studio, read sketch entities lines arcs circles, list sketch constraints and dimensions, get a sketch tessellation polylines, onshape sketches endpoint, what is a BTMSketch, how does a sketch feed an extrude, get a sketch bounding box]
+not_when: []
+requires: [onshape_auth]
+provides: [get-sketches, get-sketch-tessellation, get-sketch-boundingbox, sketch-feature-relationship]
+---
+
+# Onshape Sketches
+
+A **sketch** is a 2D, constraint-solved profile on a plane (or planar face) inside
+a Part Studio. It holds entities — lines, arcs, circles, points — pinned by
+**constraints** (coincident, parallel, tangent…) and driven by **dimensions**
+(lengths, radii, angles). Downstream features (extrude, revolve, sweep) consume a
+sketch's closed **regions** to produce 3D geometry. A sketch lives in the feature
+tree as a `BTMSketch` feature; this file covers **reading** its geometry — the
+`/sketches` group under @onshape/partstudios.
+
+## Model
+
+- Addressed by `did/{wvm}/{wvmid}/eid` like the rest of the Part Studio group
+  (see @onshape/partstudios): `{wvm}` is `w`/`v`/`m` (workspace / version /
+  microversion). These are all **reads** — any coordinate is fine; there is no
+  write endpoint here (you mutate a sketch through the feature envelope, below).
+- A sketch is identified by its `sketchId` (= the owning sketch feature's
+  `featureId`). `GET …/sketches` returns every sketch; the `sketchId` query filters
+  to one; `…/sketches/{sid}/…` paths address one by id.
+- What a sketch holds:
+  - **plane** — the base plane or planar face the sketch is drawn on (origin +
+    X/Y axes establishing its 2D coordinate frame).
+  - **entities** — the geometry: line segments, arcs, circles, ellipses, splines,
+    and points. Each carries its parameters in the sketch's 2D frame; with
+    `output3D=true` the endpoint also gives their world (3D) coordinates.
+  - **constraints** — the relations that remove degrees of freedom (coincident,
+    horizontal, parallel, tangent, equal, symmetric…).
+  - **dimensions** — the *measured* drivers (distance, radius, diameter, angle).
+    A dimension is **not** stored in the read geometry as an editable number you
+    POST here; it is a parameter on the sketch **feature** (see below).
+- **sketch → consuming feature.** A sketch produces closed regions; an extrude /
+  revolve / sweep references those regions through a `BTMParameterQueryList-148`
+  (its `queries` point at the sketch's regions/edges). Edit the sketch and the
+  consuming feature regenerates against the new regions. That binding lives on the
+  consuming feature — see @onshape/features (Queries).
+
+## A sketch IS a feature
+
+Reading sketch geometry is a `/sketches` GET (this file). **Creating or editing**
+a sketch — adding a line, moving a point, changing a dimension's value — is **not**
+done here. A sketch is a `BTMSketch` feature in the Feature List, so it is written
+through the same feature-update envelope as any feature: GET the feature, mutate
+it, POST it back wrapped in `BTFeatureDefinitionCall-1406`. In particular a
+**sketch dimension is a `BTMParameterQuantity` inside the sketch feature** (its
+`expression`, e.g. `"25 mm"` or `"#width"`), exactly like an extrude depth. Defer
+that whole flow to @onshape/features — don't reach for `/sketches` to change
+geometry.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET …/{wvm}/{wvmid}/e/{eid}/sketches` | info for **all** sketches in the Part Studio: entities, constraints, dimensions. Query: `sketchId` (one sketch), `includeGeometry`, `output3D`, `curvePoints`, `configuration`, `linkDocumentId`. |
+| `GET …/{wvm}/{wvmid}/e/{eid}/sketches/{sid}/tessellatedentities` | tessellation of one sketch — entities flattened to point polylines. Query: `entityId`, `angleTolerance`, `chordTolerance`, `configuration`. |
+| `GET …/{wvm}/{wvmid}/e/{eid}/sketches/{sid}/boundingboxes` | one sketch's bounding box (`low*`/`high*`). |
+
+Key query params on `GET …/sketches`:
+- `includeGeometry` — include the entity geometry (entities/constraints/dimensions),
+  not just the sketch list. Set it to get the actual geometry.
+- `output3D` — also emit entity coordinates in the model's 3D frame, not only the
+  sketch's local 2D frame.
+- `curvePoints` — include sampled points along curved entities.
+- `sketchId` — restrict the response to a single sketch.
+
+## Shapes
+
+`GET …/sketches` — the OpenAPI slice types the response as an open object (`{}`),
+so the concrete keys are documented per spec / from observed responses rather than
+a typed schema. With `includeGeometry=true` it returns a `sketches[]`, each sketch
+carrying its `sketchId`, `featureId`, owning `plane`, and arrays of `geomEntities`
+(lines/arcs/circles/points), `constraints`, and `dimensions`:
+
+```json
+{
+  "sketches": [
+    {
+      "sketchId": "FID_sketch1",
+      "featureId": "FID_sketch1",
+      "plane": { "origin": [0,0,0], "normal": [0,0,1], "x": [1,0,0] },
+      "geomEntities": [
+        { "entityType": "lineSegment", "id": "line.1",
+          "startPoint": [0,0], "endPoint": [0.05,0] },
+        { "entityType": "circle", "id": "circle.1",
+          "center": [0.025,0.025], "radius": 0.01 }
+      ],
+      "constraints": [
+        { "constraintType": "HORIZONTAL", "entities": ["line.1"] }
+      ],
+      "dimensions": [
+        { "dimensionType": "DISTANCE", "value": 0.05, "entities": ["line.1"] }
+      ]
+    }
+  ]
+}
+```
+
+> Field names above are per spec/observed (the slice gives `{}`); treat the exact
+> keys as illustrative and read them off a live response. The runtime value that
+> matters — *is there a sketch with entities* — is what the recipe asserts.
+
+`GET …/sketches/{sid}/tessellatedentities` is likewise an open object (`{}` per
+spec): each entity flattened to a polyline of points at the requested
+chord/angle tolerance — the read-only render of the sketch curves.
+`GET …/sketches/{sid}/boundingboxes` is the flat box shape shared with the Part
+Studio: `{ "lowX":…, "lowY":…, "lowZ":…, "highX":…, "highY":…, "highZ":… }`.
+
+## Recipe
+
+Read-only against the **kb2** doc. Auth is HTTP Basic (`access:secret` over HTTPS,
+per @onshape/auth — production should HMAC-sign). GET the sketches with geometry,
+then verify a sketch exists and has entities.
+
+```bash
+export ONSHAPE_ACCESS_KEY=…  ONSHAPE_SECRET_KEY=…
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+
+# GET all sketches, including their entity geometry
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "$BASE/partstudios/d/$DID/w/$WID/e/$EID/sketches?includeGeometry=true" \
+  > sketches.json
+
+# verify: at least one sketch, and the first sketch carries entities
+jq -e '.sketches | length > 0' sketches.json >/dev/null \
+  && jq -e '.sketches[0].geomEntities | length > 0' sketches.json >/dev/null \
+  && echo "OK: $(jq -r '.sketches | length') sketch(es); first has \
+$(jq -r '.sketches[0].geomEntities | length') entities" \
+  || { echo "FAIL: no sketch with entities"; exit 1; }
+```
+
+Substitute `/w/$WID` → `/v/{vid}` or `/m/{mid}` to read a version/microversion.
+To tessellate one sketch, take a `sketchId` from the response above and GET
+`…/sketches/$SID/tessellatedentities`.
+
+To **change** sketch geometry or a dimension's value (not just read it), build the
+feature-update envelope and POST it to `…/features/featureid/{fid}` — that flow is
+in @onshape/features (a sketch dimension is a `BTMParameterQuantity` on the
+`BTMSketch` feature); the high-level edit+verify tool is @onshape/api.
+
+See also: @onshape/partstudios (the owning element + the full `/partstudios`
+group), @onshape/features (the BTMSketch feature-update envelope & queries),
+@onshape/variables (`#name` expressions a sketch dimension can reference),
+@onshape/auth (HMAC signing), @onshape/playwright (UI fallback for sketch edits
+the API can't express).

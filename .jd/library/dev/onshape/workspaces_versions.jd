@@ -1,0 +1,195 @@
+---
+name: onshape_workspaces_versions
+description: The Onshape document-history coordinate — workspace /w/ (mutable branch), version /v/ (immutable named snapshot), microversion /m/ (immutable auto-checkpoint of every edit). List/create/delete workspaces, list/create versions, read microversion history & current microversion, restore and merge. Reach here to understand or pick the middle path coordinate.
+kind: knowledge
+tags: [onshape, cad, rest, api, workspaces, versions, microversions, branch, history, merge, restore]
+use_when: [what is the difference between onshape workspace version microversion, list onshape workspaces or versions via api, create an onshape version snapshot, create or delete an onshape workspace branch, get onshape microversion history, find the current microversion of a workspace, restore an onshape version into a workspace, merge a branch into an onshape workspace, what does /w/ /v/ /m/ mean in an onshape url]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [list-workspaces, create-workspace, delete-workspace, list-versions, create-version, microversion-history, current-microversion, restore-version, merge-workspace]
+---
+
+# Onshape Workspaces, Versions & Microversions
+
+The middle coordinate of every Onshape path is one of three kinds of history
+point on a document. A **workspace** (`/w/{wid}`) is a mutable editing line — a
+branch. A **version** (`/v/{vid}`) is an immutable, named snapshot you publish. A
+**microversion** (`/m/{mid}`) is an immutable auto-checkpoint Onshape writes for
+*every* change. This file is the coordinate itself; the document container is
+@onshape/documents and the tabs at a coordinate are @onshape/elements.
+
+## Model
+
+The document's history is a graph, not a line:
+
+- A **version** is a fixed point — an immutable snapshot taken from a workspace at
+  a chosen microversion. Versions are named and ordered; each carries the
+  `microversion` it was cut at and a `parent` version id.
+- A **workspace** is a mutable branch. The default workspace ("Main") branches
+  from the document's origin; new workspaces branch **from a version** (the
+  `versionId` in the create body). A workspace advances as you edit it; a version
+  never moves.
+- A **microversion** is the atomic unit: **every edit appends one**. Workspaces
+  and versions both report their current `microversion`; the full chain is the
+  document history. A version pins a microversion forever; a workspace's
+  microversion is whatever its latest edit produced.
+
+So the graph reads: *versions are the points, workspaces are the branches growing
+off them, and microversions are the per-edit ticks along every branch.* The same
+`{did}` addresses all three; only the `/w/`·`/v/`·`/m/` segment changes which
+point you read.
+
+> **Writes target a workspace.** Creating a version, creating/deleting a
+> workspace, restoring, and merging all mutate document history, so the write side
+> always carries a `/w/{wid}` (or `…/workspaces`). Versions and microversions are
+> immutable — you can read them and branch/restore *from* them, never write *to*
+> them. (Shared rule, full coordinate detail in the brief / @onshape/documents.)
+
+## Endpoints
+
+### Workspaces (branches)
+- `GET /documents/d/{did}/workspaces` — list the document's workspaces.
+- `POST /documents/d/{did}/workspaces` — create a workspace (a branch); body's
+  `versionId` is the version it branches from.
+- `DELETE /documents/d/{did}/workspaces/{wid}` — delete a workspace.
+
+### Versions (snapshots)
+- `GET /documents/d/{did}/versions` — list versions (`offset`/`limit`).
+- `POST /documents/d/{did}/versions` — create a version; body's `workspaceId` +
+  `microversionId` say which point to snapshot.
+- `GET /documents/d/{did}/versions/{vid}` — retrieve one version (`parents` to
+  include ancestry).
+
+### Microversions & history
+- `GET /documents/d/{did}/{wv}/{wvid}/currentmicroversion` — current microversion
+  id of a workspace **or** version (`{wv}` = `w` or `v`).
+- `GET /documents/d/{did}/{wm}/{wmid}/documenthistory` — microversion history off a
+  workspace **or** microversion (`{wm}` = `w` or `m`); each entry has
+  `microversionId`, `nextMicroversionId`, and a `restoreId` for restore.
+
+### Restore & merge (write — `/w/` target)
+- `POST /documents/{did}/w/{wid}/restore/{vm}/{vmid}` — restore a version **or**
+  microversion (`{vm}` = `v` or `m`) into a workspace; returns `newMicroversion`.
+- `GET /documents/{did}/w/{wid}/mergePreview` — preview the changes a merge of a
+  `sourceType`/`sourceId` ref would make, before applying.
+- `POST /documents/{did}/workspaces/{wid}/merge` — merge a source ref into a
+  workspace; returns the resulting/parent/source microversion ids.
+
+> No "elements changed between two microversions" diff endpoint exists in this
+> slice. The nearest signal is `mergePreview` (`changes: [BTElementMergeInfo]`
+> between the branch point and a source) and the `microversion`/`microversionId`
+> fields carried by version, workspace, and element records — compare those to
+> detect that something changed.
+
+## Shapes
+
+`GET /documents/d/{did}/workspaces` — list response (one `BTWorkspaceInfo` per
+branch; meaningful fields):
+
+```json
+[
+  {
+    "id": "wid",
+    "name": "Main",
+    "documentId": "did",
+    "type": "workspace",
+    "isReadOnly": false,
+    "canDelete": true,
+    "microversion": "current-microversion-id",
+    "parent": "branch-point-microversion",
+    "parents": [ { "...": "BTVersionInfo (versions branched from)" } ],
+    "creator": { "...": "BTUserBasicSummaryInfo" },
+    "createdAt": "iso-8601",
+    "modifiedAt": "iso-8601"
+  }
+]
+```
+
+`POST /documents/d/{did}/versions` — create-version body (snapshot the named
+point); the response is one `BTVersionInfo`:
+
+```json
+{
+  "name": "v1 — first release",
+  "description": "string",
+  "documentId": "did",
+  "workspaceId": "wid",
+  "microversionId": "microversion-to-snapshot",
+  "purpose": 0
+}
+```
+
+```json
+{
+  "id": "vid",
+  "name": "v1 — first release",
+  "type": "version",
+  "documentId": "did",
+  "microversion": "snapshotted-microversion-id",
+  "parent": "previous-version-id",
+  "createdAt": "iso-8601"
+}
+```
+
+`GET /documents/d/{did}/{wm}/{wmid}/documenthistory` — microversion timeline:
+
+```json
+[
+  {
+    "microversionId": "string",
+    "nextMicroversionId": "string",
+    "date": "iso-8601",
+    "description": "Edit Extrude 1",
+    "username": "string",
+    "userId": "string",
+    "canBeRestored": true,
+    "restoreId": "string"
+  }
+]
+```
+
+## Recipe
+
+Read-first: list the document's workspaces, then its versions, and **verify the
+workspace `id` matches the `wid` in the URL** you started from. Basic auth
+(`$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY`) per the shared brief — production uses
+HMAC signing (@onshape/auth). READ-ONLY against kb2.
+
+```bash
+# kb2 sample doc (read-only): did + the wid from its URL
+base=https://cad.onshape.com/api/v10
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+auth="$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY"
+
+# list workspaces (branches)
+ws=$(curl -sf -u "$auth" -H 'Accept: application/json' \
+  "$base/documents/d/$DID/workspaces")
+
+# list versions (snapshots) off the same document
+curl -sf -u "$auth" -H 'Accept: application/json' \
+  "$base/documents/d/$DID/versions" | jq -r '.[] | "\(.id)\t\(.name)"'
+
+# verify: a workspace id in the list equals the wid we navigated from
+echo "$ws" | jq -e --arg wid "$WID" 'any(.[]; .id == $wid)' >/dev/null \
+  && echo "OK: workspace $WID is a branch of $DID" \
+  || { echo "FAIL: wid not found among the document's workspaces"; exit 1; }
+```
+
+To read the live microversion a coordinate sits at (workspace or version):
+
+```bash
+curl -sf -u "$auth" -H 'Accept: application/json' \
+  "$base/documents/d/$DID/w/$WID/currentmicroversion" | jq -r .microversion
+```
+
+> **WRITES go to `/w/`.** `POST …/versions` (snapshot), `POST …/workspaces` /
+> `DELETE …/workspaces/{wid}` (branch), `restore`, and `merge` all change history
+> — never run them against a real document. Exercise write paths only on a
+> throwaway scratch doc (see @onshape/documents) and purge it after.
+
+See @onshape/documents (the document container, copy/ACL, merge surface) ·
+@onshape/elements (the tabs living at a `/w/`·`/v/`·`/m/` coordinate) ·
+@onshape/features (a feature carries the `microversionId` it was authored at) ·
+@onshape/auth (HMAC signing, key pairs) · @onshape/playwright (UI fallback —
+Versions panel, branch/merge in the browser).

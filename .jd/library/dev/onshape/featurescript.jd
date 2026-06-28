@@ -1,0 +1,305 @@
+---
+name: onshape_featurescript
+description: Onshape FeatureScript — the strongly-typed CAD scripting language and its custom features (.fs in a Feature Studio element). Covers the language essentials (defineFeature, precondition UI inputs, queries, ops, units), the Feature Studio REST endpoints that create/read/update a studio and read its feature specs, and the /featurescript evaluate endpoint that runs a script against a model to read geometry back headlessly.
+kind: knowledge
+tags: [onshape, cad, featurescript, custom-feature, feature-studio, fs, rest, api, geometry, query]
+use_when: [write an onshape custom feature, what is featurescript, defineFeature precondition annotation, onshape feature studio element api, evaluate a featurescript snippet against a model, query onshape geometry headlessly, read body count or measurement via featurescript, map precondition inputs to definition fields, insert a custom feature into a part studio]
+not_when: []
+requires: [onshape_auth]
+provides: [featurescript-language, feature-studio-endpoints, featurescript-eval]
+---
+
+# Onshape FeatureScript
+
+**FeatureScript** is Onshape's strongly-typed, side-effect-controlled scripting
+language for parametric CAD. A **custom feature** is written in a **Feature Studio**
+element (a `.fs` tab in a document) and, once published, appears in the Part Studio
+feature toolbar next to the built-in extrude/fillet/etc. — its dialog is generated
+from the script's `precondition` block. The same language also runs **ad hoc**
+against a model via the `/featurescript` evaluate endpoint, the headless
+"measure / query geometry" path.
+
+Two distinct surfaces, both here: the **language** (what you write in a `.fs`) and
+the **REST endpoints** (how a Feature Studio and the eval path are reached). Worked
+example throughout: `curvedKeyboardMatrix.fs` (the "Curved keyboard matrix" feature
+in kb2).
+
+## Model
+
+- A **Feature Studio** is just another `eid` (element/tab) under a `did/wid`, like a
+  Part Studio or Assembly (see @onshape/partstudios). Reads accept the `/{wvm}/`
+  path family (`/w/` workspace, `/v/` version, `/m/` microversion); the text update
+  POST must target a workspace `/w/`. Its content is the **source text** of one or
+  more custom features plus helper functions/constants.
+- A published custom feature is **inserted into a Part Studio** as a `BTMFeature`
+  (`btType: BTMFeature-134`) in that studio's feature tree — the same node type the
+  built-in features use. Its `parameters` array is keyed by the `definition.<field>`
+  names declared in the precondition; defer the full insert/parameter envelope to
+  @onshape/features (POST `…/features`).
+- A custom feature references its source studio by a version-pinned
+  `featureType`/import — the toolbar entry is the published studio's feature spec
+  (see `featurespecs` below).
+
+## Language essentials
+
+Grounded in `curvedKeyboardMatrix.fs`.
+
+**Header.** Every studio opens with a version pragma + imports. The version pins the
+std library; ops/types resolve against it.
+
+```fs
+FeatureScript 3008;
+import(path : "onshape/std/geometry.fs", version : "3008.0");
+```
+
+`onshape/std/geometry.fs` re-exports the common surface (`opExtrude`, `Query`,
+`vector`, units…); other std modules exist (`onshape/std/*.fs`).
+
+**Feature definition.** A custom feature is a `defineFeature` bound to an exported
+`const`, tagged by an `annotation` map that names the toolbar entry:
+
+```fs
+annotation { "Feature Type Name" : "Curved keyboard matrix" }
+export const curvedKeyboardMatrix = defineFeature(function(context is Context, id is Id, definition is map)
+    precondition { ... }
+    { ...body... });
+```
+
+- `context is Context` — the live geometry/regeneration state the body mutates.
+- `id is Id` — a unique id the feature owns; every op gets a sub-id derived from it
+  (`id + "delCol"`, `id + ("capBox" ~ i)`), which is how features stay re-runnable
+  and topology IDs stay deterministic.
+- `definition is map` — the dialog values, one key per precondition input.
+
+**Precondition = the dialog.** Each statement in `precondition` is a typed input;
+the preceding `annotation` map supplies its UI (name, default, picker filter). The
+field on the left of the type predicate is exactly the `definition.<field>` you read
+in the body. Examples straight from the file:
+
+```fs
+annotation { "Name" : "Row curve radius (X)", "Default" : 180 * millimeter }
+isLength(definition.radiusX, KEYBOARD_LENGTH_BOUNDS);
+
+annotation { "Name" : "Switch cutout X", "Default" : 14 * millimeter }
+isLength(definition.cutoutX, KEYBOARD_LENGTH_BOUNDS);
+
+annotation { "Name" : "Show clearance boxes", "Default" : true }
+definition.showClearance is boolean;
+
+annotation { "Name" : "Block to cut (optional)", "Filter" : EntityType.BODY, "MaxNumberOfPicks" : 1 }
+definition.block is Query;
+```
+
+Input predicates seen here: `isLength(field, bounds)`, `isAngle(field, bounds)`,
+`isInteger(field, bounds)`, `field is boolean`, `field is Query` (a geometry picker —
+`Filter`/`MaxNumberOfPicks` constrain selection), and `field is array` for a
+**repeatable group** (with `"Item name"`/`"Item label template"`), each iteration
+declaring its own nested inputs:
+
+```fs
+annotation { "Name" : "Per-key hinge angle", "Item name" : "key", "Item label template" : "Key #index" }
+definition.keyAdjust is array;
+for (var key in definition.keyAdjust)
+{
+    annotation { "Name" : "Key index" }
+    isInteger(key.index, KEY_INDEX_BOUNDS);
+    annotation { "Name" : "Hinge angle", "Default" : 0 * degree }
+    isAngle(key.rotX, KEY_ANGLE_BOUNDS);
+}
+```
+
+`*BoundSpec` constants give `[min, default, max]` per unit and are the legal range
+of a numeric input:
+
+```fs
+const KEYBOARD_LENGTH_BOUNDS = { (millimeter) : [0.01, 19.05, 10000] } as LengthBoundSpec;
+const KEY_INDEX_BOUNDS       = { (unitless)   : [0, 0, 18] } as IntegerBoundSpec;
+```
+
+**Units are part of the type.** Numbers carry dimension as `ValueWithUnits`; you
+build them by multiplying a scalar by a unit symbol (`180 * millimeter`,
+`0 * degree`, `vector(0,0,0) * meter`). Mixing dimensions is a type error, so
+`radiusX` (a length) can never be confused with `rotX` (an angle). Available units
+include `meter`/`millimeter` (length), `degree`/`radian` (angle), etc. A bare
+scalar input uses `(unitless)`.
+
+**Types** in play: `Context`, `Id`, `map`, `Query` (a *deferred* reference to
+geometry — never resolved entities, resolved on demand), `array`, `boolean`,
+`ValueWithUnits`. Selectors and results are `Query`/`map`, not concrete handles.
+
+**Querying geometry.** A `Query` is a recipe for "which entities", evaluated late:
+
+```fs
+capBoxQ = append(capBoxQ, qCreatedBy(id + ("capBox" ~ i), EntityType.BODY));   // bodies this op made
+...
+if (size(evaluateQuery(context, definition.block)) > 0) { ... }                 // resolve -> array of entities
+if (size(evaluateQuery(context, definition.templateBase)) > 0) { ... }
+```
+
+`qCreatedBy(opId, type)` selects what a given op produced; `evaluateQuery(context,
+q)` resolves a query to a concrete array (its `size` is how you test "did the user
+pick anything / did anything get made"). Other combinators: `qUnion([...])`,
+`qSketchRegion(sketchId)`, `qNothing()` (the empty query). The `#field` form (e.g.
+`#index` in the label template) interpolates a group item's field into UI strings.
+
+**Building geometry — ops mutate `context`.** Every `op*` call takes
+`(context, id, params-map)` and adds to the model:
+
+```fs
+var sk = newSketchOnPlane(context, id + ("keySketch" ~ i), { "sketchPlane" : keyPlane });
+skRectangle(sk, "switchCutout", { "firstCorner" : ..., "secondCorner" : ... });
+skSolve(sk);
+
+opExtrude(context, id + ("capBox" ~ i), {
+    "entities" : qSketchRegion(id + ("capSketch" ~ i)),
+    "direction" : normal,
+    "endBound" : BoundingType.BLIND,
+    "endDepth" : definition.keycapHeight
+});
+
+opPattern(context, id + "placeParts", {
+    "entities" : definition.seed,
+    "transforms" : keyTransforms,      // an array of Transform
+    "instanceNames" : keyNames
+});
+
+opBoolean(context, id + "keywellCut", {
+    "tools" : qUnion(keywellQ), "targets" : definition.block,
+    "operationType" : BooleanOperationType.SUBTRACTION
+});
+```
+
+Also used in the file: `opDeleteBodies`, `setProperty` (e.g.
+`PropertyType.APPEARANCE` → `color(r,g,b,a)`), transform helpers
+(`toWorld`/`coordSystem`/`identityTransform`/`inverse`), measurements
+(`evCollision`, `evMateConnector`), and error reporting
+`throw regenError("…message…")` to fail regeneration with a user-visible message.
+A built-in **variable** is set/read with `setVariable(context, id, name, value)` /
+the `#var` access (the `#` sigil reads a feature variable / interpolates a group
+field); this file leans on plain local `var`s and arrays instead.
+
+> Custom features may only call **`op*`/`ev*`/`sk*`** through `context`; arbitrary
+> side effects aren't allowed — the engine guarantees deterministic, replayable
+> regeneration. That's also why every op is keyed by a sub-id of `id`.
+
+## Endpoints
+
+Feature Studio element endpoints (from the `featurestudios` slice):
+
+| METHOD path | purpose |
+|---|---|
+| `POST /featurestudios/d/{did}/w/{wid}` | create a new Feature Studio tab; body `{name}` |
+| `GET  /featurestudios/d/{did}/{wvm}/{wvmid}/e/{eid}` | get the Feature Studio's source **text** |
+| `POST /featurestudios/d/{did}/{wvm}/{wvmid}/e/{eid}` | update the Feature Studio's source **text** |
+| `GET  /featurestudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurespecs` | the feature specs (toolbar entries + their param specs) this studio publishes |
+
+The evaluate / introspection endpoints live on the **Part Studio** (from the
+`partstudios` slice):
+
+| METHOD path | purpose |
+|---|---|
+| `POST /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurescript` | run a FS snippet against the model, return its `result` |
+| `GET  /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurescriptrepresentation` | the studio's tree as FeatureScript source |
+| `GET  /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/featurespecs` | specs for the features available in this Part Studio |
+
+Inserting a published custom feature into a Part Studio = POST a `BTMFeature` to
+`…/partstudios/.../features` whose `parameters` carry the precondition fields — see
+@onshape/features for the call envelope.
+
+## Shapes
+
+**Evaluate a snippet** — `POST …/e/{eid}/featurescript`. The body wraps the script
+text and an optional `queries` map (named queries you reference from the script);
+the response returns `result` (a serialized FeatureScript value, `BTFSValue-1888`),
+plus `console` and `notices`:
+
+```json
+// request
+{
+  "script": "function (context is Context, queries) { return size(evaluateQuery(context, qEverything(EntityType.BODY))); }",
+  "queries": [],
+  "serializationVersion": "1.2.0"
+}
+```
+
+```json
+// response (trimmed)
+{
+  "result":  { "btType": "BTFSValue-1888", "...": "serialized return value" },
+  "console": "",
+  "notices": []
+}
+```
+
+The `script` is a FeatureScript **function literal** `function(context is Context,
+queries) { … }`; whatever it `return`s comes back serialized in `result`. Query
+parameters declared in the `queries` body field are passed in as the second arg.
+Optional query params: `configuration`, `rollbackBarIndex`, `linkDocumentId`,
+`elementMicroversionId`.
+
+**Feature specs** — `GET …/featurespecs` returns
+`{ featureSpecs: [BTFeatureSpec-129], libraryVersion, sourceMicroversion, … }`; each
+spec is one published feature (its type name + parameter spec, i.e. the precondition
+rendered as data). This is how a client discovers a custom feature's parameters
+before inserting it.
+
+## Recipe
+
+Read-only: evaluate a trivial script against kb2's Part Studio and assert the
+returned body count. Basic auth per the shared brief (`access:secret` over HTTPS,
+local testing only; production uses HMAC — @onshape/auth). **No writes** — this only
+reads geometry back.
+
+```bash
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+
+# count bodies in the Part Studio via a FeatureScript snippet
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -X POST "$BASE/partstudios/d/$DID/w/$WID/e/$EID/featurescript" \
+  -d '{
+        "script": "function (context is Context, queries) { return size(evaluateQuery(context, qEverything(EntityType.BODY))); }",
+        "queries": [],
+        "serializationVersion": "1.2.0"
+      }' | tee /tmp/fs_eval.json
+```
+
+Verify — the call succeeded and `result` carries a non-negative integer body count
+(a count, never an error notice):
+
+```bash
+python3 - <<'PY'
+import json
+d = json.load(open("/tmp/fs_eval.json"))
+assert not d.get("notices"), f"FS notices: {d['notices']}"
+res = d["result"]
+# BTFSValue wraps the number; dig for the numeric payload
+val = res.get("value", res.get("message", res))
+n = int(val) if isinstance(val, (int, float, str)) and str(val).lstrip("-").isdigit() else None
+print("result:", res)
+assert n is not None and n >= 0, f"expected an integer body count, got {res!r}"
+print("OK body count =", n)
+PY
+```
+
+> The exact nesting of the number inside `BTFSValue-1888` is per spec — print
+> `result` once and read the real key before hard-asserting on a path. If the script
+> errors, the call still returns 200 with the message in `notices`/`console`, not an
+> HTTP error — always check `notices` first. Swap `qEverything(EntityType.BODY)` for
+> any measurement to read geometry headlessly (the API "measure" path).
+
+## See also
+
+- @onshape/features — insert a published custom feature as a `BTMFeature`; the
+  parameter envelope that mirrors the precondition.
+- @onshape/partstudios — the Part Studio this evaluates against; the feature tree.
+- @onshape/variables — feature variables (`setVariable`/`#var`) surfaced as document
+  variables.
+- @onshape/configurations — configured inputs that drive a custom feature's
+  parameters across variants.
+- @onshape/auth — Basic vs HMAC signing for the calls above.
+- @onshape/playwright — UI fallback: author/edit a Feature Studio in the browser
+  when the API can't express it.

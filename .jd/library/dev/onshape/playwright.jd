@@ -1,0 +1,70 @@
+---
+name: onshape_playwright
+description: Drive the Onshape web app (cad.onshape.com) with Playwright — capture a reusable logged-in session past 2FA via storageState, navigate a document, edit a feature dialog, and verify. The brittle UI path; use only for edits the REST API can't express. Prefer onshape_api for the geometric edit.
+kind: knowledge
+tags: [onshape, cad, playwright, browser, automation, storagestate, 2fa, selectors, ui]
+use_when: [automate the onshape web app with playwright, log into onshape headless, reuse an onshape session storagestate, edit an onshape feature in the browser, onshape ui selectors feature tree dialog, verify an onshape edit visually]
+not_when: []
+---
+
+# Onshape via Playwright
+
+The Onshape 3D model is a **WebGL canvas — not in the DOM**; only the feature
+tree, dialogs, and parameter inputs are. Combined with Angular-generated class
+names (no `data-test`/aria contract), UI selectors are brittle. So: use Playwright
+for **auth, navigation, UI-only edits, and visual verification**; do the geometric
+edit through @onshape/api.
+
+## Auth — the storageState pattern
+
+Onshape uses cookie-based sessions and can enforce 2FA, which blocks scripted
+headless login (plus bot detection flags `navigator.webdriver`/TLS fingerprint).
+Don't script the password — capture the session once, interactively, and reuse it:
+
+```bash
+# headed, one time: solve password + 2FA + "remember this device for 30 days"
+npx playwright codegen --save-storage=auth.json https://cad.onshape.com/signin
+```
+
+Then every headless run starts logged in:
+
+```ts
+const context = await browser.newContext({ storageState: 'auth.json' });
+```
+
+Refresh `auth.json` when the session expires. For unattended runs prefer API keys
+(@onshape/api) — they never hit a session timer or a 2FA wall.
+
+## Editing a feature
+
+Double-click a feature in the tree → its dialog opens → fill the input → confirm
+with the **green check** (or `Enter`); red `X` / `Escape` cancels. Accepting
+**auto-commits to the workspace** — there is no per-edit Save button; Versions are
+manual snapshots. The depth/distance input takes an expression string like `50 mm`.
+
+```ts
+import { test, expect } from '@playwright/test';
+test.use({ storageState: 'auth.json' });
+
+test('edit extrude depth', async ({ page }) => {
+  await page.goto(DOC_URL);                                  // …/documents/{did}/w/{wid}/e/{eid}
+  const row = page.getByText('Extrude 1', { exact: true });  // GUESS — wait on DOM, canvas is WebGL
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await row.dblclick();                                       // GUESS — fallback: right-click -> Edit
+  const depth = page.getByRole('textbox', { name: /depth|distance/i }); // GUESS
+  await depth.fill('50 mm');
+  await page.keyboard.press('Enter');                        // accepts + auto-commits
+  await row.dblclick();
+  await expect(depth).toHaveValue(/50\s*mm/i);               // verify persisted
+});
+```
+
+> **Every editor selector above is an unverified guess.** Regenerate against a
+> live document with `playwright codegen` before relying on them. Spec API:
+> @playwright/api · runner: @playwright/cli · recording: @playwright/codegen.
+
+## WSL
+
+`npx playwright install chromium` (the `--with-deps` variant needs sudo; the
+binary alone runs headless). A runnable example with a creds-free headless proof
+of the dialog mechanics is in `examples/onshape/` (`npm run test:mock`).

@@ -1,0 +1,145 @@
+---
+name: onshape_drawings
+description: Work with Onshape drawings over the REST API — create a drawing, read its views/JSON geometry, list export formats, and translate (export) it to PDF/DWG/DXF as an async job. Exports return a translation id; poll it via onshape_export-translation. Read-first; creates land in a scratch doc.
+kind: knowledge
+tags: [onshape, cad, rest, api, drawings, drawing, views, export, pdf, dwg, dxf, translation]
+use_when: [export an onshape drawing to pdf, translate a drawing to dwg or dxf, get onshape drawing views, create a drawing via api, read drawing view json geometry, list a drawing's export formats, poll an onshape drawing export, get an onshape drawing as json]
+not_when: []
+requires: [onshape_auth]
+provides: [create-drawing, get-drawing-views, list-drawing-formats, export-drawing, get-modify-status]
+---
+
+# Onshape Drawings
+
+A **drawing** is a 2D documentation element — orthographic/section/detail views,
+dimensions, annotations and a title block — that references parts or assemblies
+defined elsewhere in the document. It lives as a tab (`eid`) beside the Part
+Studios and Assemblies it documents (@onshape/elements). The drawing itself holds
+no geometry: each **view** is a projection of a referenced model, so editing the
+model reflows the views. Deliverables (PDF/DWG/DXF) are produced by **exporting**,
+which is an async translation job (@onshape/export_translation).
+
+## Model
+
+- Addressed by `did/{wvm}/{wvmid}/e/{eid}` like any element. **Create** must target
+  a workspace (`POST …/d/{did}/w/{wid}/create`); reads accept `w`/`v`/`m`.
+- A drawing **references** the models it documents: the create body names the source
+  `documentId` + `elementId` (+ `documentMicroversionId`/`elementMicroversionId`,
+  `externalDocumentId`/`externalDocumentVersionId` for a cross-document reference)
+  plus view options (`border`, `hiddenLines`, `includeSurfaces`, `includeWires`,
+  `isFlattenedPart`, `numberHorizontalZones`/`numberVerticalZones`, …). The new
+  drawing tab is a distinct `eid` from the part/assembly it draws — see
+  @onshape/parts and @onshape/assemblies for the referenced models.
+- A **view** (`/views`) is a placed projection; `/views/{viewid}/jsongeometry`
+  returns its 2D geometry as JSON (optional `scale`).
+- **Export is asynchronous.** `POST …/translations` does not return a file: it
+  returns a translation request with an `id` and a `requestState` (e.g. `ACTIVE`).
+  Poll `GET /translations/{tid}` until `DONE`, then download the result — the full
+  poll+download loop lives in @onshape/export_translation. `translationformats`
+  lists what the drawing can be exported to before you ask.
+- Drawing edits go through a separate async channel: `POST …/e/{eid}/modify`
+  returns a modification request whose progress is read at
+  `GET /drawings/modify/status/{mrid}` (`requestState`). This slice exposes no
+  endpoint for templates/standards as a standalone resource.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `POST /drawings/d/{did}/w/{wid}/create` | Create a drawing in a document (references a model). |
+| `POST /drawings/d/{did}/w/{wid}/e/{eid}/modify` | Modify a drawing via a JSON op payload (async). |
+| `GET /drawings/d/{did}/w/{wid}/e/{eid}/translationformats` | List formats the drawing can be exported to. |
+| `GET /drawings/d/{did}/{wvm}/{wvmid}/e/{eid}/views` | Details of all drawing views. |
+| `GET /drawings/d/{did}/{wvm}/{wvmid}/e/{eid}/views/{viewid}/jsongeometry` | One view's geometry as JSON (`scale`). |
+| `POST /drawings/d/{did}/{wv}/{wvid}/e/{eid}/translations` | Export (translate) the drawing — async, returns a translation id. |
+| `GET /drawings/modify/status/{mrid}` | Status of a `modify` operation. |
+
+All accept `linkDocumentId` (query) where a cross-document reference applies; views
+also take `transactionId`/`changeId`.
+
+## Shapes
+
+`GET …/e/{eid}/views` — list of placed views (trimmed):
+
+```json
+{
+  "changeId": "string",
+  "errorCode": 0,
+  "errorDescription": "string",
+  "items": [ { /* BTAppDrawingViewInfo: per-view placement + metadata */ } ],
+  "parentChangeId": "string"
+}
+```
+
+`POST …/{wv}/{wvid}/e/{eid}/translations` — request body (trimmed) and response.
+The response is a **translation request**, not a file:
+
+```json
+// body — pick a target format from translationformats
+{ "formatName": "PDF", "destinationName": "drawing-export", "currentSheetOnly": false }
+
+// response — async job; id is what you poll
+{
+  "id": "5f…",
+  "requestState": "ACTIVE",
+  "documentId": "string",
+  "workspaceId": "string",
+  "resultDocumentId": "string",
+  "resultElementIds": ["string"],
+  "resultExternalDataIds": ["string"],
+  "href": "https://cad.onshape.com/api/translations/5f…",
+  "failureReason": "string"
+}
+```
+
+When `requestState` reaches `DONE`, `resultExternalDataIds` holds the downloadable
+blob id(s) — download per @onshape/export_translation.
+
+## Recipe
+
+Read-first against an existing drawing: list its views and assert the response.
+kb2 may have no drawing tab, so this documents the shape and the verify asserts
+HTTP 200 + an `items` array (the create→export→poll flow is below it).
+
+```bash
+# needs ONSHAPE_ACCESS_KEY / ONSHAPE_SECRET_KEY (Basic auth — local testing only; HMAC in @onshape/auth)
+: "${DID:?}" "${WID:?}" "${EID:?}"   # drawing element coordinates from the doc URL
+base=https://cad.onshape.com/api/v10
+
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  "$base/drawings/d/$DID/w/$WID/e/$EID/views" -o views.json -w '%{http_code}\n'
+
+# verify: 200 and an items array present
+python3 - <<'PY'
+import json,sys
+d=json.load(open("views.json"))
+assert isinstance(d.get("items"),list), f"no views[] in response: {d}"
+print(f"ok: {len(d['items'])} view(s)")
+PY
+```
+
+Export (create→translate→poll) — POST returns a translation id, then poll until
+`DONE` and download (full loop in @onshape/export_translation):
+
+```bash
+# 1. confirm the drawing supports the target format
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  "$base/drawings/d/$DID/w/$WID/e/$EID/translationformats"
+
+# 2. request the export (async) — capture the translation id
+tid=$(curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"formatName":"PDF","destinationName":"drawing-export"}' \
+  "$base/drawings/d/$DID/w/$WID/e/$EID/translations" | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
+test -n "$tid" && echo "translation id: $tid"   # verify: a non-empty id came back
+
+# 3. poll GET /translations/$tid until requestState == DONE, then download
+#    resultExternalDataIds — see @onshape/export_translation
+```
+
+To create first, `POST …/d/{did}/w/{wid}/create` with `{documentId, elementId,
+drawingName}` (the model to draw) into a **scratch workspace**, read the returned
+`id` (the new drawing `eid`), then run the export above against it.
+
+UI fallback (open/export a drawing in the web app): @onshape/playwright.
+Related: @onshape/export_translation · @onshape/elements · @onshape/assemblies · @onshape/parts.

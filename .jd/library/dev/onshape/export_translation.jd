@@ -1,0 +1,198 @@
+---
+name: onshape_export_translation
+description: Export & convert Onshape geometry to foreign formats — synchronous direct GETs (STL/Parasolid/glTF/shaded views) that stream the file back, and the asynchronous translation API (POST a STEP/IGES/SOLIDWORKS/PDF/DWG request, poll the translation id to DONE, download the result). Also covers thumbnails and export-rule options.
+kind: knowledge
+tags: [onshape, cad, rest, api, export, translation, stl, step, iges, parasolid, gltf, thumbnails]
+use_when: [export an onshape part studio to stl, convert an onshape model to step or iges, export onshape to parasolid or gltf, translate onshape geometry to solidworks/dwg/pdf, poll an onshape translation until done, list or delete onshape translations, download a translated onshape file, get an onshape thumbnail image, what export-rule options does onshape allow]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [sync-export, create-translation, poll-translation, list-translations, delete-translation, get-thumbnail, export-rule-options]
+---
+
+# Onshape Export & Translation
+
+Two ways to get geometry **out** of Onshape in a foreign format. **Synchronous
+direct exports** are plain GETs on a Part Studio or Part (`/stl`, `/parasolid`,
+`/gltf`, `/shadedviews`) — the file streams back in the response body, no job to
+track. **Asynchronous translation** is a job: POST a translation request naming a
+target `formatName` (STEP, IGES, SOLIDWORKS, ACIS, PDF, DWG, RHINO…), receive a
+translation `id` + state, poll `GET /translations/{tid}` until the state is `DONE`,
+then download the produced foreign-data / blob element. The same translation
+endpoint also handles **import** (uploading a foreign CAD file *into* Onshape).
+Sibling exports live on @onshape/partstudios, @onshape/parts, @onshape/drawings;
+results land as elements you read via @onshape/elements.
+
+## Model
+
+- Sync vs async, the dividing line:
+  - **Sync** = format the server can tessellate/serialize cheaply and stream:
+    STL, Parasolid (`.x_t`/`.x_b`), glTF, shaded PNGs. Endpoint *is* the format.
+    Response is the file (`application/octet-stream` for STL, `model/gltf+json`
+    for glTF, base64 image strings for shaded views). One request, done.
+  - **Async** = a translator job for heavy/foreign formats (STEP/IGES/SOLIDWORKS/
+    DWG/PDF…). You POST a request and get back a translation record, not the file.
+- Path coordinate (shared did/wid/eid model, see @onshape/auth):
+  - Sync exports accept the read family `…/d/{did}/{wvm}/{wvmid}/e/{eid}` — `wvm`
+    is `w`/`v`/`m`, so you can export from a workspace, version, or microversion.
+    A part-level export adds `/partid/{partid}`.
+  - Creating a translation **writes** (it can store the result back in the doc), so
+    `POST /translations/d/{did}/w/{wid}` targets a **workspace**. Listing is by
+    document `GET /translations/d/{did}`; status/delete are by translation id.
+- **Translation state machine** — `requestState` (BTTranslationRequestState):
+  `ACTIVE` → terminal `DONE` or `FAILED`. Poll `GET /translations/{tid}` on an
+  interval; on `FAILED` read `failureReason`. There is no callback in this slice
+  (the request body's `notifyUser` only emails); poll to learn completion.
+- **Getting the bytes after DONE** — the response carries result pointers, not the
+  file. Two cases:
+  - `storeInDocument: true` → result is a new element/tab in the doc; read
+    `resultElementIds` (+ `resultDocumentId`/`resultWorkspaceId`/`versionId`) and
+    open it as a @onshape/elements blob.
+  - `storeInDocument: false` → result is foreign data; read
+    `resultExternalDataIds` and download each blob (the external-data download
+    endpoint is owned by @onshape/documents / @onshape/elements, not this slice).
+- **Thumbnails** are a parallel "give me an image" family: `GET /thumbnails/d/{did}…`
+  returns either a JSON `sizes`/`secondarySizes` info structure (which sizes exist)
+  or, on the `…/s/{sz}` and `…/e/{eid}/…/s/{sz}` paths, the raw image bytes
+  (`application/octet-stream`). Use these for a quick preview without a full export.
+- **Export rules** name and organize exported files; `GET /exportrules/options/
+  {cu}/{cuid}` lists the valid rule options for a user or company (`cu` = `users`
+  or `companies`, `cuid` = that id). A translation echoes the applied rule back as
+  `exportRuleFileName`.
+
+## Endpoints
+
+Asynchronous translation (this slice):
+
+| METHOD path | purpose |
+|---|---|
+| `POST /translations/d/{did}/w/{wid}` | create a translation/import job (multipart) |
+| `GET /translations/{tid}` | status of one translation (poll this) |
+| `GET /translations/d/{did}` | list a document's translations (offset/limit) |
+| `DELETE /translations/{tid}` | delete a translation request |
+| `GET /translations/translationformats` | list all supported source/dest formats |
+
+Synchronous direct exports (folded in from @onshape/partstudios, @onshape/parts):
+
+| METHOD path | purpose |
+|---|---|
+| `GET /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/stl` | stream a Part Studio as STL |
+| `GET /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/parasolid` | stream as Parasolid |
+| `GET /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/gltf` | stream as glTF (`model/gltf+json`) |
+| `GET /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/shadedviews` | base64 PNG shaded views |
+| `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/stl` | one part as STL |
+| `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/parasolid` | one part as Parasolid |
+| `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/gltf` | one part as glTF |
+| `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/shadedviews` | one part shaded views |
+
+> There is also an async export family on Part Studios — `POST …/e/{eid}/export/
+> {step,gltf,obj,translations}` — that returns the same translation record and is
+> the format-rich alternative to the sync GETs; it lives in @onshape/partstudios.
+
+Thumbnails & export rules (this slice):
+
+| METHOD path | purpose |
+|---|---|
+| `GET /thumbnails/d/{did}` | thumbnail info (sizes) for the default workspace |
+| `GET /thumbnails/d/{did}/w/{wid}` · `…/v/{vid}` | info for a workspace / version |
+| `GET /thumbnails/d/{did}/{wv}/{wvid}/e/{eid}` | thumbnail info for one element |
+| `GET /thumbnails/d/{did}/w/{wid}/s/{sz}` | document image bytes at size `sz` |
+| `GET /thumbnails/d/{did}/{wv}/{wvid}/e/{eid}/s/{sz}` | element image bytes at size |
+| `GET /thumbnails/d/{did}/w/{wid}/e/{eid}/ac/{cid}/s/{sz}` | element image for a configuration |
+| `GET /exportrules/options/{cu}/{cuid}` | valid export-rule options for user/company |
+
+Sizes use `{sz}` like `300x300`; the info responses list which sizes exist.
+Skip the deprecated `/thumbnails/document/{did}` aliases — use `/thumbnails/d/…`.
+
+## Shapes
+
+Create-translation request (multipart/form-data; meaningful fields). The same body
+serves export *and* import — for an export you set the target `formatName` and the
+source ids; `file`/`encodedFilename`/`import*` apply to the upload-in direction:
+
+```jsonc
+// POST /translations/d/{did}/w/{wid}   (multipart/form-data)
+{
+  "formatName": "STEP",          // target (or source) format: STEP/IGES/SOLIDWORKS/PARASOLID/ACIS/…
+  "storeInDocument": false,      // true → write result as a doc element; false → external blob
+  "notifyUser": false,           // email the user on completion (not a programmatic callback)
+  "flattenAssemblies": false,
+  "createComposite": false,
+  // --- import direction (uploading a foreign file INTO Onshape) ---
+  "file": "<binary>",
+  "encodedFilename": "bracket.step",
+  "importWithinDocument": true,
+  "importAppearances": true,
+  "splitAssembliesIntoMultipleDocuments": false,
+  "locationElementId": "", "ownerId": "", "parentId": ""
+}
+```
+
+Translation status / create response (`GET /translations/{tid}` and the POST
+return the same shape — trimmed to the load-bearing fields):
+
+```jsonc
+// resp: application/json
+{
+  "id": "5f...e1",                 // translation id — poll GET /translations/{id}
+  "requestState": "ACTIVE",        // BTTranslationRequestState: ACTIVE → DONE | FAILED
+  "failureReason": "",             // populated when requestState == FAILED
+  "name": "Part Studio 1 STEP",
+  "exportRuleFileName": "...",     // applied export-rule name, if any
+  // result pointers — read whichever matches storeInDocument:
+  "resultExternalDataIds": ["6a..."],   // storeInDocument=false → download these blobs
+  "resultElementIds": ["..."],          // storeInDocument=true  → new element(s) in the doc
+  "resultDocumentId": "...", "resultWorkspaceId": "...", "versionId": "...",
+  "documentId": "378e93b0ad360aa043a0220b", "workspaceId": "09273312fedee7bf3c3482ad",
+  "requestElementId": "a77918b06d5131918477a269", "href": "https://cad.onshape.com/api/v10/translations/5f...e1"
+}
+```
+
+Thumbnail info (the JSON, non-image, variant):
+
+```jsonc
+// GET /thumbnails/d/{did}/w/{wid}
+{ "id": "...", "href": "...",
+  "sizes": [ { /* BTThumbnailSizeInfo: size, href, mediaType, … per spec */ } ],
+  "secondarySizes": [[ /* per-configuration size lists */ ]] }
+```
+
+## Recipe
+
+Synchronous STL export — the simplest end-to-end proof. READ-ONLY (a GET; it
+streams the model, changes nothing). Basic auth (see @onshape/auth)
+(`$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY` over HTTPS, local testing only — use
+HMAC for production, see @onshape/auth). Uses the kb2 sample ids.
+
+```bash
+# ids from the kb2 sample document
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+
+# sync STL export — streams the file straight back (no job, no polling)
+curl -sS -L -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/octet-stream' \
+  "$BASE/partstudios/d/$DID/w/$WID/e/$EID/stl?mode=text&units=millimeter" \
+  -o partstudio.stl
+
+# VERIFY: 200 + the body is an ASCII STL (starts with "solid", ends with "endsolid")
+code=$(curl -sS -L -o /dev/null -w '%{http_code}' \
+  -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  "$BASE/partstudios/d/$DID/w/$WID/e/$EID/stl?mode=text&units=millimeter")
+head -c5 partstudio.stl | grep -q '^solid' \
+  && grep -q 'endsolid' partstudio.stl \
+  && [ "$code" = 200 ] \
+  && echo "OK: STL exported ($code)" || echo "FAIL ($code)"
+```
+
+> `mode=binary` returns a binary STL instead (verify on size/`%{http_code}` only,
+> not on the `solid`/`endsolid` text markers). For STEP/IGES/etc. there is no sync
+> GET — POST `/translations/d/{did}/w/{wid}` with `formatName`, then poll
+> `GET /translations/{id}` until `requestState == "DONE"` and download
+> `resultExternalDataIds`.
+
+See @onshape/partstudios and @onshape/parts for the full sync-export param set
+(`partIds`, `configuration`, tolerances), @onshape/drawings for drawing exports
+(DWG/DXF/PDF), @onshape/elements for opening a stored translation result, and
+@onshape/auth for HMAC signing. UI fallback: @onshape/playwright.

@@ -1,0 +1,170 @@
+---
+name: onshape_webhooks
+description: Register and manage Onshape webhooks via the REST webhooks group — POST a callback URL plus an events[] list so Onshape POSTs you a notification when a model changes, a version is created, or an async translation completes; list, get, ping and unregister them.
+kind: knowledge
+tags: [onshape, cad, rest, api, webhooks, events, notifications, callback]
+use_when: [register an onshape webhook, get notified when an onshape model changes, list my onshape webhooks, subscribe to onshape model lifecycle events, callback when an onshape translation completes, delete or ping an onshape webhook, onshape event notification payload, onshape.model.lifecycle event types]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [list-webhooks, register-webhook, get-webhook, delete-webhook, ping-webhook]
+---
+
+# Onshape Webhooks
+
+A webhook is a **standing subscription**: you register a callback `url` plus an
+`events[]` list, and Onshape POSTs a JSON notification to that URL whenever a
+matching event fires — a model edited, a version created, a translation finished.
+It is the push alternative to polling. Webhooks live at the **account/company
+level**, not inside a document path (no `did/wid/eid` in the route); scoping to a
+single document is done with body fields, not the URL.
+
+## Model
+
+- A webhook is owned by a `user` or `company` and identified by its own
+  `webhookid`. The whole group sits under bare `/webhooks` — there is no
+  `…/d/{did}/w/{wid}/e/{eid}` path here. You narrow *what* fires by setting
+  `documentId` / `companyId` / `filter` in the **registration body**, not the path.
+- **Registration → callback loop:** POST `/webhooks` with `url` + `events[]` →
+  Onshape stores it → when an event matches, Onshape sends an HTTP POST to your
+  `url` carrying a notification payload (the `event`, the webhook `id`, and the
+  ids of the affected document/element). Your endpoint must be a **publicly
+  reachable HTTPS URL** — localhost won't work for live delivery.
+- **Verify / echo:** on registration (and on `POST /webhooks/{webhookid}/ping`)
+  Onshape calls your URL to confirm it answers; your endpoint must reply 2xx
+  promptly or the webhook is treated as unreachable. Use the **ping** endpoint to
+  re-test a callback without waiting for a real event.
+- **Event families** (the `events[]` strings, per the slice's `onshape.*`
+  namespace):
+  - `onshape.model.lifecycle.*` — model-level changes (e.g. a Part Studio /
+    Assembly edited or a microversion created).
+  - `onshape.document.*` — document-level changes (created, deleted, etc.).
+  - `onshape.translation.complete` — an async translation/export job finished.
+    This is what pairs with @onshape/export_translation: kick off a translation,
+    then get pushed a notification on completion instead of polling the job id.
+- `options` (`BTWebhookOptions`) tune delivery — notably **`collapseEvents`**,
+  which coalesces a burst of identical events into one notification.
+  `isTransient` marks a short-lived subscription; `droppedEventCount` (read on
+  GET) reports events Onshape couldn't deliver.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET /webhooks` | list webhooks registered by a user or company |
+| `POST /webhooks` | register a new webhook |
+| `GET /webhooks/{webhookid}` | get one webhook's info |
+| `POST /webhooks/{webhookid}` | update a webhook |
+| `DELETE /webhooks/{webhookid}` | unregister a webhook |
+| `POST /webhooks/{webhookid}/ping` | ping a webhook to test its callback |
+
+Query params: `GET /webhooks` takes `company`, `user`, `offset`, `limit`;
+`DELETE` takes `blockNotification`.
+
+## Shapes
+
+**Registration request** (`POST /webhooks` — meaningful fields trimmed from the
+slice body). `url` + `events` are the core; the rest scope/tune it:
+
+```json
+{
+  "url": "https://my.app/onshape/hook",
+  "events": [
+    "onshape.model.lifecycle.changed",
+    "onshape.translation.complete"
+  ],
+  "documentId": "378e93b0ad360aa043a0220b",
+  "companyId": "",
+  "filter": "",
+  "description": "notify my app on model + translation events",
+  "options": { "collapseEvents": true },
+  "isTransient": false
+}
+```
+
+**Stored webhook** (response from `POST /webhooks`, `GET /webhooks/{webhookid}`,
+and each item of `GET /webhooks`):
+
+```json
+{
+  "id": "5f...e1",
+  "url": "https://my.app/onshape/hook",
+  "events": ["onshape.model.lifecycle.changed", "onshape.translation.complete"],
+  "companyId": "",
+  "description": "notify my app on model + translation events",
+  "filter": "",
+  "options": { "collapseEvents": true },
+  "isTransient": false,
+  "droppedEventCount": 0,
+  "createdBy": { "id": "...", "name": "..." },
+  "createdAt": "2026-06-28T00:00:00Z",
+  "modifiedAt": "2026-06-28T00:00:00Z",
+  "href": "https://cad.onshape.com/api/v10/webhooks/5f...e1"
+}
+```
+
+`GET /webhooks` wraps these: `{ "href", "items": [ {…}, … ], "next", "previous" }`.
+
+**Notification Onshape POSTs to your `url`** — per spec, the callback body carries
+the fired `event`, the source webhook `id`, and the affected ids (so a
+`onshape.translation.complete` notification tells you which translation/document
+finished). Echo a 2xx immediately and process asynchronously.
+
+```json
+{
+  "event": "onshape.translation.complete",
+  "webhookId": "5f...e1",
+  "documentId": "378e93b0ad360aa043a0220b",
+  "workspaceId": "09273312fedee7bf3c3482ad",
+  "elementId": "a77918b06d5131918477a269",
+  "translationId": "..."
+}
+```
+
+## Recipe
+
+READ-ONLY listing — safe on any account, returns an empty `items` array on a fresh
+one. Basic auth (`access:secret` over HTTPS, local testing only — production uses
+HMAC, see @onshape/auth). Creating a webhook needs a **public callback URL**, so
+it is not runnable here; the list below is the verify-able read.
+
+```bash
+BASE=https://cad.onshape.com/api/v10
+AUTH="$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY"
+
+# list every webhook this key's user has registered
+curl -sf -u "$AUTH" -H 'Accept: application/json' \
+  "$BASE/webhooks" -o hooks.json
+
+# verify: response carries an items[] array (empty is fine for a fresh account)
+python3 - <<'PY'
+import json
+d = json.load(open("hooks.json"))
+items = d["items"]
+assert isinstance(items, list), "expected an items[] array"
+print(f"{len(items)} webhook(s) registered")
+for w in items:
+    print(w["id"], "->", w["url"], w["events"])
+PY
+```
+
+To register one (needs a public HTTPS endpoint) and confirm it took, POST the
+body from **Shapes** then ping it:
+
+```bash
+# create
+ID=$(curl -sf -u "$AUTH" -H 'Content-Type: application/json' \
+  -X POST "$BASE/webhooks" \
+  --data '{"url":"https://my.app/onshape/hook","events":["onshape.translation.complete"],"options":{"collapseEvents":true}}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+
+# verify the callback answers (Onshape POSTs your url); 2xx body == reachable
+curl -sf -u "$AUTH" -X POST "$BASE/webhooks/$ID/ping"
+
+# clean up
+curl -sf -u "$AUTH" -X DELETE "$BASE/webhooks/$ID"
+```
+
+Sibling references: get pushed when an export finishes (the natural pairing)
+@onshape/export_translation · documents the events fire against @onshape/documents
+· user/company ownership of a webhook @onshape/users_teams · auth schemes
+@onshape/auth · UI fallback @onshape/playwright.

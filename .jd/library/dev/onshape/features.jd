@@ -1,0 +1,203 @@
+---
+name: onshape_features
+description: Deep-dive on the Onshape Part Studio feature CRUD envelope — the BTFeatureDefinitionCall-1406 wrapper, BTMFeature-134 tree, and BTMParameter* subtypes — for reading the full feature tree and adding/updating/deleting a feature (e.g. an extrude depth) over the REST API. Use when you must hand-build or mutate a feature payload; for the high-level edit recipe see onshape_api.
+kind: knowledge
+tags: [onshape, cad, rest, api, features, partstudio, btmfeature, btmparameter, extrude]
+use_when: [onshape feature tree json shape, what is BTFeatureDefinitionCall-1406, BTMFeature-134 parameters, BTMParameterQuantity-147 expression, add a feature to an onshape part studio via api, update feature featureid endpoint, delete an onshape feature, onshape feature specs endpoint, onshape feature rollback microversion, how does an onshape parameter reference geometry]
+not_when: []
+requires: [onshape_auth]
+provides: [get-features, get-featurespecs, add-feature, update-feature, delete-feature, feature-envelope-types]
+---
+
+# Onshape Features (BTM* envelope)
+
+A Part Studio's regenerable history is its **Feature List**: an ordered array of
+features (sketch, extrude, fillet, …) that recompute top-to-bottom into geometry.
+Every feature read or written through the REST API is a tree of versioned
+`BT*`/`BTM*` types. This file is the deep-dive on that envelope; the high-level
+"change a depth and verify" recipe lives in @onshape/api.
+
+## Model
+
+- Addressed by `did/{wvm}/{wvmid}/eid` (see @onshape/partstudios). **Reads** accept
+  any coordinate (`/w/`, `/v/`, `/m/`); **writes** (add/update/delete) target a
+  workspace `/w/` only.
+- The feature endpoints sit under the Part Studio element:
+  `…/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features…`.
+- The Feature List has a **rollback bar**: features above the bar are computed,
+  features below are deferred. `GET features` returns the current `rollbackIndex`;
+  `POST …/features/rollback` (body: a string index) moves it. Pass
+  `rollbackBarIndex` (query) to many GETs to read state *as of* a position.
+- Edits are **optimistic-concurrency** gated by microversion. `GET features`
+  returns `sourceMicroversion`; echo it back on a write. If the document advanced
+  underneath you that's a **microversion skew** — `rejectMicroversionSkew: true`
+  makes the write fail rather than silently apply onto a moved base. The script
+  passes back `sourceMicroversion` with `rejectMicroversionSkew: false`.
+
+## Endpoints
+
+| METHOD path | purpose |
+| --- | --- |
+| `GET …/e/{eid}/features` | Full feature tree: `features[]`, `defaultFeatures[]`, `imports[]`, `featureStates`, `rollbackIndex`, `sourceMicroversion`, `isComplete`. Query: `featureId` (one feature), `rollbackBarIndex`, `includeGeometryIds`, `noSketchGeometry`. |
+| `GET …/e/{eid}/featurespecs` | `featureSpecs[]` (BTFeatureSpec-129) — the declared parameter schema of each available feature type. |
+| `POST …/e/{eid}/features` | **Add** a feature. Body wraps one `BTMFeature-134` in a `BTFeatureDefinitionCall-1406`. Resp: the created `feature` + `featureState`. |
+| `POST …/e/{eid}/features/featureid/{fid}` | **Update** the feature `{fid}`. Same wrapper; send the WHOLE feature back. |
+| `DELETE …/e/{eid}/features/featureid/{fid}` | **Delete** feature `{fid}`. Resp is the bare envelope (no `feature`). |
+| `POST …/e/{eid}/features/updates` | Batch update: `features[]` of `BTMFeature-134` in one call. |
+| `POST …/e/{eid}/features/rollback` | Move the rollback bar; body is a string index. Resp carries the new `rollbackIndex`. |
+
+## The BTM* type system
+
+Every node carries two discriminators that must agree:
+- `btType` — the **serialization** tag, `"<TypeName>-<number>"` (e.g.
+  `BTMFeature-134`). This is what the wire protocol keys on; the number is the
+  stable type id, the name is the class.
+- `typeName` — the **logical** type name a feature/parameter advertises
+  (e.g. a feature's `featureType: "extrude"`). `btType` selects the struct;
+  `featureType`/`parameterId` select which feature/field within it.
+
+The nesting, outermost in:
+
+- **`BTFeatureDefinitionCall-1406`** — the write envelope. Fields: `feature`
+  (one `BTMFeature-134`), `sourceMicroversion`, `rejectMicroversionSkew`,
+  `serializationVersion`, `libraryVersion`. Add/update both POST this shape.
+- **`BTMFeature-134`** — one feature. Key fields: `featureId` (stable id used in
+  the `/featureid/{fid}` path), `featureType` (`"extrude"`, `"fillet"`, …),
+  `name` (display name), and `parameters[]` — an array of `BTMParameter*`.
+- **`BTMParameter*`** — one parameter, tagged by `btType`, addressed by
+  `parameterId`. The subtypes that matter:
+  - **`BTMParameterQuantity-147`** — a value with units, carried as a string
+    `expression` (`"25 mm"`, `"#width"`, `"2*sin(30 deg)"`). FeatureScript
+    evaluates it, so it can reference variables and math, not just literals.
+  - **`BTMParameterQueryList-148`** — a list of geometry references (`queries`):
+    the faces/edges/sketch regions the feature operates on (see Queries below).
+  - **`BTMParameterBoolean-144`** — a `value: true|false` (e.g. "flip
+    direction").
+  - **`BTMParameterEnum-145`** — a `value` string out of an `enumName` set
+    (e.g. `endBound: "BLIND" | "UP_TO_NEXT" | …`).
+  - **`BTMParameterString-149`** — a free-text `value`.
+
+**Send the whole feature back.** Update is a replace, not a patch: the server
+reconstructs the feature from exactly the `parameters[]` you POST. A parameter
+you omit is **reset to its default**, not left alone. So the safe edit is
+GET → mutate one field in place → POST the same object back (which is precisely
+what `onshape_edit.py` does — it mutates `depth["expression"]` on the fetched
+feature and reposts that feature unchanged otherwise).
+
+`imports[]` (`BTMImport-136`) and `defaultFeatures[]` (the origin planes / default
+datums) come back on GET as context; you don't normally repost them.
+
+## Queries — how a parameter points at geometry
+
+Geometry-valued parameters (`BTMParameterQueryList-148`) don't store coordinates;
+they store **queries** that re-resolve against the current model each regen.
+Two flavours:
+- **Deterministic ids** — opaque stable ids for a specific face/edge/vertex,
+  surfaced by `GET features?includeGeometryIds=true` and resolvable across
+  microversions via the Part Studio `idtranslations` endpoint
+  (see @onshape/partstudios).
+- **Query expressions** — a FeatureScript query (e.g. "all faces created by
+  feature X", "the sketch region named Y"). These survive edits that would
+  invalidate a raw id, which is why Onshape prefers them. Authoring queries is a
+  FeatureScript concern — see @onshape/featurescript.
+
+A numeric parameter like `depth` is a plain `BTMParameterQuantity-147` and needs
+no query; you only touch queries when the feature must bind to model geometry.
+
+## Shapes
+
+Real **update-feature** request body for an extrude depth change, as built by
+`onshape_edit.py` (`update_feature` wraps the GET'd `BTMFeature-134`; depth's
+`expression` is the one field mutated). POST to
+`…/partstudios/d/{did}/w/{wid}/e/{eid}/features/featureid/{fid}`:
+
+```json
+{
+  "btType": "BTFeatureDefinitionCall-1406",
+  "rejectMicroversionSkew": false,
+  "sourceMicroversion": "abc123",
+  "feature": {
+    "btType": "BTMFeature-134",
+    "featureId": "FID0",
+    "featureType": "extrude",
+    "name": "Extrude 1",
+    "parameters": [
+      { "btType": "BTMParameterEnum-145",
+        "parameterId": "endBound", "value": "BLIND" },
+      { "btType": "BTMParameterQuantity-147",
+        "parameterId": "depth", "expression": "50 mm" }
+    ]
+  }
+}
+```
+
+Response (add/update) — the persisted feature plus its compute state:
+
+```json
+{
+  "btType": "BTFeatureDefinitionCall-1406",
+  "feature": { "btType": "BTMFeature-134", "featureId": "FID0", "...": "..." },
+  "featureState": { "btType": "BTFeatureState-1688", "...": "..." },
+  "sourceMicroversion": "def456"
+}
+```
+
+`GET features` returns the same `BTMFeature-134` shape inside arrays:
+
+```json
+{
+  "btType": "BTFeatureListResponse-2457",
+  "rollbackIndex": -1,
+  "sourceMicroversion": "abc123",
+  "isComplete": true,
+  "defaultFeatures": [ { "btType": "BTMFeature-134", "...": "..." } ],
+  "features": [
+    { "btType": "BTMFeature-134", "featureId": "FID0",
+      "featureType": "extrude", "name": "Extrude 1",
+      "parameters": [
+        { "btType": "BTMParameterQuantity-147",
+          "parameterId": "depth", "expression": "25 mm" }
+      ] }
+  ],
+  "featureStates": {}
+}
+```
+
+> Note: Onshape serialization sometimes nests each node under a `message` key;
+> `onshape_edit.py` defensively unwraps it (`_unwrap`). Read fields off the
+> unwrapped object.
+
+## Recipe
+
+Read-modify-write a single quantity, then re-GET to prove it stuck. READ-ONLY
+against user docs — point writes at a scratch document. The runnable, HMAC-signed
+implementation is `examples/onshape/onshape_edit.py`; `--self-test` proves the
+full GET → mutate → POST → re-GET flow with no credentials (it spins an
+in-process mock of the features API):
+
+```bash
+# creds-free proof the envelope round-trips (mock features API)
+python3 examples/onshape/onshape_edit.py --self-test
+
+# live: change the first extrude's depth on a scratch Part Studio URL
+export ONSHAPE_ACCESS_KEY=... ONSHAPE_SECRET_KEY=...
+python3 examples/onshape/onshape_edit.py \
+  "https://cad.onshape.com/documents/<did>/w/<wid>/e/<eid>" "50 mm"
+```
+
+The flow it runs (and the one to replicate by hand):
+
+1. `GET …/e/{eid}/features` → keep `sourceMicroversion`; find the target
+   `BTMFeature-134` (match `featureType == "extrude"`) and its depth
+   `BTMParameterQuantity-147` (`parameterId == "depth"`).
+2. Mutate **only** `param["expression"]` on the fetched object; leave every
+   other parameter in place.
+3. `POST …/features/featureid/{fid}` with the whole feature wrapped in
+   `BTFeatureDefinitionCall-1406`, echoing `sourceMicroversion`.
+4. **Verify**: re-`GET …/features`, read the depth `expression` back, assert it
+   equals the requested value. Optionally compare `…/massproperties` `volume`
+   before/after to confirm the geometry actually recomputed.
+
+Cross-links: @onshape/partstudios (the element + idtranslations), @onshape/api
+(the high-level edit tool), @onshape/featurescript (queries & feature specs),
+@onshape/auth (HMAC signing).

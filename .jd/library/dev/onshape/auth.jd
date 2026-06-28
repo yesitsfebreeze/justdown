@@ -1,0 +1,164 @@
+---
+name: onshape_auth
+description: Authenticate to the Onshape REST API (cad.onshape.com) — the canonical reference for the three schemes (HMAC-SHA256 request signing for production, HTTP Basic for local testing, OAuth2 authorization-code grant for distributed apps), the exact string-to-sign, required headers, and a runnable sessioninfo verify. Every other onshape jd @links here for auth detail.
+kind: knowledge
+tags: [onshape, cad, rest, api, auth, hmac, oauth2, basic, signing, credentials]
+use_when: [authenticate to the onshape rest api, sign an onshape request with hmac sha256, onshape authorization header on key sig, onshape http basic access secret, onshape oauth2 app authorization code grant, get onshape api keys from the dev portal, onshape on-nonce date headers, verify onshape credentials work]
+not_when: []
+requires: [python3]
+provides: [hmac-signing, basic-auth, oauth2-flow, verify-credentials]
+---
+
+# Onshape authentication
+
+Every Onshape REST call (`https://cad.onshape.com/api/v10/…`) must carry credentials.
+Three schemes, in order of production-fitness: **HMAC-SHA256 request signing** (the
+production default for a single account), **HTTP Basic** (`access:secret`, local
+testing only), and **OAuth2** (authorization-code grant, for apps acting on *other*
+users' accounts). Keys come from the dev portal — the **secret is shown once**.
+
+## Keys
+
+- **API key pair** (`access` + `secret`): create at `dev-portal.onshape.com` →
+  *API keys*. Copy the secret immediately; it is never displayed again. Drives both
+  HMAC and Basic. Export as `ONSHAPE_ACCESS_KEY` / `ONSHAPE_SECRET_KEY`.
+- **OAuth app** (`client_id` + `client_secret`): register at `dev-portal.onshape.com` →
+  *OAuth applications*. Same one-time-secret rule. Drives the OAuth2 flow below.
+
+## HMAC-SHA256 request signing (production)
+
+Sign each request individually; the signature covers the method, a per-request
+nonce, the date, the content type, and the path+query — so a captured request can't
+be replayed or retargeted. The string-to-sign is six fields, **each newline-`\n`-terminated**
+(including a trailing `\n` after the query), then the **whole string lowercased**
+before HMAC:
+
+```
+to_sign = lower(
+    method      + "\n" +   # GET, POST, DELETE…
+    On-Nonce    + "\n" +   # the same nonce sent in the On-Nonce header
+    Date        + "\n" +   # the same value sent in the Date header (RFC 1123)
+    Content-Type+ "\n" +   # e.g. application/json
+    path        + "\n" +   # URL path only, e.g. /api/v10/users/sessioninfo
+    query       + "\n"     # raw query string ("" if none)
+)
+signature   = base64( HMAC_SHA256(secret_key, to_sign) )
+```
+
+Then the request carries:
+
+```
+Authorization: On <accessKey>:HmacSHA256:<base64 signature>
+Date:          <RFC 1123, e.g. Mon, 28 Jun 2026 12:00:00 GMT>
+On-Nonce:      <25-char alphanumeric nonce, unique per request>
+Content-Type:  application/json
+```
+
+The `Date` and `On-Nonce` values in the headers **must be byte-identical** to the
+ones folded into `to_sign`, or the server rejects the signature. The nonce is a
+fresh ≥25-char alphanumeric string per call; the date is RFC 1123 in GMT.
+
+The runnable signer lives in `examples/onshape/onshape_edit.py` (`hmac_headers`).
+Quoting its core exactly:
+
+```python
+nonce = uuid.uuid4().hex + uuid.uuid4().hex[:9]  # >=16 alphanumeric chars
+date  = format_datetime(datetime.now(timezone.utc), usegmt=True)
+path  = urlparse(url).path
+query = urlparse(url).query or ""
+to_sign = f"{method}\n{nonce}\n{date}\n{content_type}\n{path}\n{query}\n".lower()
+sig = base64.b64encode(
+    hmac.new(secret_key.encode(), to_sign.encode(), hashlib.sha256).digest()
+).decode()
+headers = {
+    "Authorization": f"On {access_key}:HmacSHA256:{sig}",
+    "Date": date,
+    "On-Nonce": nonce,
+    "Content-Type": content_type,
+    "Accept": "application/json",
+}
+```
+
+(The `uuid` recipe yields a 41-char hex nonce — comfortably past the 25-char floor;
+any unique alphanumeric string of sufficient length works.)
+
+## HTTP Basic (`access:secret`, local/testing only)
+
+Send the API key pair as HTTP Basic credentials over **HTTPS only** — no signing,
+no nonce, no date. Trivially simple, so it is the right tool for a quick local probe
+or a CI smoke test, and the **wrong** tool for anything long-lived: the secret
+travels on every request and there is no replay protection.
+
+```bash
+curl -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  https://cad.onshape.com/api/v10/users/sessioninfo
+```
+
+In Python `requests`: `requests.get(url, auth=(access, secret))`.
+
+## OAuth2 (authorization-code grant, distributed apps)
+
+When your app acts on **another user's** documents you can't hold their API keys —
+use the OAuth2 authorization-code grant. Register an OAuth application in the dev
+portal (set its **redirect URI** and requested **scopes**), then:
+
+1. **Authorize** — send the user to consent:
+   ```
+   https://oauth.onshape.com/oauth/authorize
+     ?response_type=code
+     &client_id=<client_id>
+     &redirect_uri=<registered redirect URI>
+     &scope=OAuth2Read+OAuth2Write
+   ```
+   Common scopes: `OAuth2Read`, `OAuth2Write`, `OAuth2Delete`, `OAuth2ReadPII`.
+   Onshape redirects back to your URI with `?code=<authorization code>`.
+
+2. **Exchange** the code for tokens (`POST`, form-encoded):
+   ```
+   POST https://oauth.onshape.com/oauth/token
+     grant_type=authorization_code
+     code=<authorization code>
+     client_id=<client_id>
+     client_secret=<client_secret>
+     redirect_uri=<same redirect URI>
+   ```
+   Returns `access_token`, `refresh_token`, `expires_in`, `token_type: Bearer`.
+
+3. **Call** the API with `Authorization: Bearer <access_token>`.
+
+4. **Refresh** when the access token expires — `POST /oauth/token` with
+   `grant_type=refresh_token` + `refresh_token` + `client_id` + `client_secret`;
+   you get a new access (and refresh) token. No HMAC, no `On-Nonce` for OAuth calls.
+
+## Recipe
+
+Prove the credentials work against the lightest authenticated endpoint,
+`GET /api/v10/users/sessioninfo` (returns the calling user's id/name — non-mutating).
+
+```bash
+# Basic (simplest runnable form) — should print your user JSON, HTTP 200
+curl -fsS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  https://cad.onshape.com/api/v10/users/sessioninfo
+
+# HMAC-signed equivalent, reusing the project signer
+python3 - <<'PY'
+import os, requests
+from examples.onshape.onshape_edit import hmac_headers
+url = "https://cad.onshape.com/api/v10/users/sessioninfo"
+h = hmac_headers("GET", url, os.environ["ONSHAPE_ACCESS_KEY"], os.environ["ONSHAPE_SECRET_KEY"])
+r = requests.get(url, headers=h); r.raise_for_status()
+print("OK", r.json().get("name"))
+PY
+```
+
+Creds-free proof that the signer + edit path are wired correctly (in-process mock,
+no Onshape account):
+
+```bash
+python3 examples/onshape/onshape_edit.py --self-test
+```
+
+See @onshape/api for the worked feature edit that builds on this auth, and
+@onshape/playwright for the cookie/2FA session path when the REST API can't express
+an edit. The resource jds (@onshape/api and siblings) all depend on this file for
+their auth detail.

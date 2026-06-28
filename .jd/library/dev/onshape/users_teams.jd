@@ -1,0 +1,154 @@
+---
+name: onshape_users_teams
+description: Onshape identity & org REST endpoints — get the current user (sessioninfo/current), users by id, teams + members, companies + members/roles, and account/plan purchases; sessioninfo is the cheapest auth-check call.
+kind: knowledge
+tags: [onshape, cad, rest, api, users, teams, companies, accounts, identity, auth]
+use_when: [who am i on onshape, get current onshape user, onshape sessioninfo auth check, list my onshape teams, get onshape team members, list onshape companies, onshape company users and roles, onshape account plan purchases, resolve an onshape user or team id for sharing]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [get-current-user, get-session-info, list-teams, get-team-members, list-companies, get-company-users, get-account-purchases, auth-smoke-test]
+---
+
+# Onshape Users, Teams, Companies & Accounts
+
+The identity layer of the Onshape API: who you are (`/users`), the groups you
+belong to (`/teams`, `/companies`), and what your org has paid for
+(`/accounts`). These resources are the **principals** that documents are shared
+with (see @onshape/documents) and the IDs that ACLs and webhooks reference.
+
+Unlike geometry, none of these endpoints use the `did/wid/eid` path — they are
+flat resources keyed by `uid` (user), `tid` (team), `cid` (company), and
+`planId`/`aid`/`pid` (account/purchase).
+
+## Model
+
+- A **user** (`uid`) is the authenticated principal. `GET /users/sessioninfo`
+  returns the session's identity — the cheapest authenticated call and the
+  canonical auth smoke test (@onshape/auth).
+- A user belongs to zero or more **companies** (`cid`) and **teams** (`tid`).
+  A team can be company-owned. Membership is the join: `GET /teams` lists the
+  current user's teams; `GET /companies` lists the current user's companies;
+  `GET /companies/{cid}/users` and `GET /teams/{tid}/members` enumerate the
+  other direction.
+- **Roles & permissions** live on the company edge: a company user carries
+  `admin`, `guest`, `light`, and `globalPermissions[]` (integer codes). These
+  are the principals + permissions an ACL grants document access to.
+- An **account** owns **purchases** (`BTPurchaseInfo`) under a **plan**
+  (`planId`) — seats, API allocation, subscription state.
+- `sessioninfo` is the cheapest auth-check call: no IDs needed, returns the
+  signed-in identity; assert a `name`/`id` comes back to confirm credentials.
+
+## Endpoints
+
+Users
+- `POST /users/session` — authenticate credentials, create a session (browser
+  flow; production code uses API keys, see @onshape/auth).
+- `GET  /users/sessioninfo` — session identity for the signed-in user. **Auth check.**
+- `GET  /users/settings` — settings for the signed-in user; `?includematerials`.
+- `GET  /users/{uid}/settings` — settings for any org user (admins only).
+
+Teams
+- `GET /teams` — teams the current user belongs to. Filters: `query`, `filter`,
+  `uid`, `companyId`, `sortColumn`, `sortOrder`, `includeCompanyOwnedTeams`,
+  `offset`, `limit`. Paged (`items`/`next`/`previous`).
+- `GET /teams/{tid}` — one team's info.
+- `GET /teams/{tid}/members` — team members; `sortColumn`, `sortOrder`, `q`,
+  `offset`, `limit`. Paged.
+
+Companies
+- `GET    /companies` — companies the user belongs to; `uid`, `activeOnly`, `includeAll`. Paged.
+- `GET    /companies/{cid}` — company info (address, admin, domainPrefix, ownerId, purchase…).
+- `GET    /companies/{cid}/documentsbyname` — find a doc by exact `name`.
+- `GET    /companies/{cid}/users` — company members; `q`, `roleFilter`,
+  `includeGlobalPermissions`, `afterDateAdded`, `beforeDateAdded`, paging. Paged.
+- `POST   /companies/{cid}/users` — add a user (write).
+- `POST   /companies/{cid}/users/{uid}` — update a user's company info (write).
+- `DELETE /companies/{cid}/users/{uid}` — remove a user; `removeFromTeams`, `removeDirectShares` (write).
+- `POST   /companies/{cid}/globalpermission/{type}/{id}` — grant global permissions to a user/team (write).
+- `DELETE /companies/{cid}/globalpermission/{type}/{id}` — revoke; `?permission` (write).
+
+Accounts
+- `GET    /accounts/purchases` — app purchases by the current user; `all`, `ownPurchaseOnly`.
+- `GET    /accounts/plans/{planId}/purchases` — purchases for a plan; `offset`, `limit`. Paged.
+- `POST   /accounts/purchases/{pid}/consume` — mark a purchase consumed (write).
+- `DELETE /accounts/{aid}/purchases/{pid}` — cancel a subscription; `?cancelImmediately` (write).
+
+## Shapes
+
+`GET /teams` — paged list (same envelope for `/companies`, `/teams/{tid}/members`,
+`/companies/{cid}/users`):
+
+```json
+{
+  "href": "https://cad.onshape.com/api/v10/teams",
+  "items": [ { /* BTTeamInfo */ } ],
+  "next": "…", "previous": "…"
+}
+```
+
+`GET /companies/{cid}` — company info (meaningful fields):
+
+```json
+{
+  "id": "string",
+  "name": "string",
+  "description": "string",
+  "domainPrefix": "string",
+  "ownerId": "string",
+  "admin": true,
+  "address": { /* BTAddressInfo */ },
+  "purchase": { /* BTPurchaseInfo */ },
+  "state": 0, "type": 0,
+  "href": "string"
+}
+```
+
+`POST /companies/{cid}/users` — add-user request body; the company-user response
+carries the role flags an ACL cares about:
+
+```json
+// request
+{ "email": "string", "admin": false, "guest": false, "light": false,
+  "globalPermissions": [0], "companyId": "string" }
+// response (BTCompanyUserInfo): role edge on user ↔ company
+{ "id": "string", "name": "string", "admin": false, "guest": false,
+  "light": false, "company": { /* BTCompanySummaryInfo */ },
+  "user": { /* BTUserBasicSummaryInfo */ }, "userRolePriority": { },
+  "state": 0, "lastLoginTime": "string", "href": "string" }
+```
+
+## Recipe
+
+Read-only auth smoke test — `GET /users/sessioninfo` with Basic auth, then
+verify identity came back. This is the credential check referenced by
+@onshape/auth. **READ-ONLY** (no writes despite the write endpoints above).
+
+```bash
+# needs ONSHAPE_ACCESS_KEY + ONSHAPE_SECRET_KEY (dev-portal.onshape.com key pair)
+# Basic auth over HTTPS — local testing form; production uses HMAC, see @onshape/auth
+BASE=https://cad.onshape.com/api/v10
+
+resp=$(curl -fsS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "$BASE/users/sessioninfo")
+
+# verify: a name/id must come back, else creds are bad
+echo "$resp" | python3 -c 'import sys,json; d=json.load(sys.stdin); \
+  assert d.get("name") or d.get("id"), "no identity in sessioninfo — auth failed"; \
+  print("auth OK:", d.get("name") or d.get("id"))'
+```
+
+Follow-on read-only calls (same Basic auth) — list teams, then resolve members:
+
+```bash
+curl -fsS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" "$BASE/teams"
+# pick a tid from items[], then:
+curl -fsS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" "$BASE/teams/$TID/members"
+```
+
+## See also
+
+- @onshape/auth — sessioninfo as the credential check; HMAC/OAuth signing detail.
+- @onshape/documents — ACL/sharing targets the users & teams resolved here.
+- @onshape/webhooks — events scoped to these company/user principals.
+- @onshape/playwright — UI fallback when an identity action isn't in the API.

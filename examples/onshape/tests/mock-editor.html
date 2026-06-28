@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- A tiny stand-in for the Onshape edit dialog so the fill -> confirm -> verify
+     mechanics can be proven headless in WSL without an Onshape account. It mimics
+     the DOM shape the real spec targets: a feature row you double-click, a depth
+     textbox, and a green-check confirm button. -->
+<html>
+  <head><meta charset="utf-8" /><title>Mock Onshape editor</title></head>
+  <body>
+    <ul id="feature-tree">
+      <li role="treeitem" id="feat" tabindex="0">Extrude 1</li>
+    </ul>
+
+    <dialog id="dlg">
+      <label>Depth <input id="depth" aria-label="Depth" value="25 mm" /></label>
+      <button id="ok" aria-label="OK">✓</button>
+      <button id="cancel" aria-label="Cancel">✕</button>
+    </dialog>
+
+    <script>
+      const dlg = document.getElementById('dlg');
+      const depth = document.getElementById('depth');
+      let committed = '25 mm'; // the "persisted workspace value"
+
+      document.getElementById('feat').addEventListener('dblclick', () => {
+        depth.value = committed; // reopening shows the persisted value
+        dlg.show();
+      });
+      document.getElementById('ok').addEventListener('click', () => {
+        committed = depth.value; // accepting auto-commits (no Save button)
+        dlg.close();
+      });
+      document.getElementById('cancel').addEventListener('click', () => dlg.close());
+    </script>
+  </body>
+</html>

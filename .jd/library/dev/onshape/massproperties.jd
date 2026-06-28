@@ -1,0 +1,138 @@
+---
+name: onshape_massproperties
+description: Read computed mass properties (volume, mass, surface area, centroid, inertia tensor) of an Onshape Part Studio, single part, or assembly via the REST API — the canonical before/after verify primitive for confirming a geometric edit took.
+kind: knowledge
+tags: [onshape, cad, rest, api, massproperties, volume, mass, inertia, centroid, verify]
+use_when: [get the volume of an onshape part, compute mass of an onshape model, onshape mass properties api, read centroid or inertia tensor of a part studio, verify an onshape edit by comparing volume, surface area of an onshape assembly, onshape massproperties endpoint, assert volume changed after an extrude edit]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [get-massproperties, verify-volume, compute-mass]
+---
+
+# Onshape Mass Properties
+
+Computed physical properties of solid geometry: **volume, mass, surface area
+(periphery), centroid, and the inertia tensor**. Onshape integrates these over the
+Parasolid bodies of a Part Studio, a single part, or a whole assembly. This is the
+canonical jd for the `massproperties` endpoints that @onshape/partstudios,
+@onshape/parts, and @onshape/assemblies reference, and the standard **verify**
+primitive used by @onshape/api (compare volume before/after an edit).
+
+## Model
+
+Addressed by the shared `did/{wvm}/{wvmid}/eid` family (see @onshape/api) — substitute
+`/w/` (workspace) with `/v/` or `/m/` to read a version/microversion. All three
+endpoints are **read-only GETs**. Three scopes, narrowing down:
+
+- **Part Studio** — every solid in the tab. Optionally narrow with `partId` (repeatable).
+- **Part** — one body, selected by the extra path segment `partid/{partid}`.
+- **Assembly** — the aggregate over all instances; reports a `massMissingCount` when
+  some instance lacks a density/material.
+
+**Mass depends on material/density.** Volume and surface area are pure geometry;
+`mass` is `volume × density`, so a part with no assigned material has `hasMass: false`
+and a mass derived from a default density. Assign material in the UI or override via
+`useMassPropertyOverrides`.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET /partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/massproperties` | mass props for a Part Studio |
+| `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}/partid/{partid}/massproperties` | mass props for one part |
+| `GET /assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}/massproperties` | aggregate mass props for an assembly |
+
+Query params (per scope, from the slice):
+
+- **Part Studio**: `partId` (narrow to bodies), `massAsGroup` (treat selected parts as
+  one combined body vs. per-part results), `useMassPropertyOverrides`, `configuration`,
+  `rollbackBarIndex`, `elementMicroversionId`, `linkDocumentId`.
+- **Part**: `useMassPropertyOverrides`, `inferMetadataOwner`, `configuration`,
+  `rollbackBarIndex`, `elementMicroversionId`, `linkDocumentId`.
+- **Assembly**: `configuration`, `linkDocumentId`.
+
+## Shapes
+
+Part Studio and Part return a **`BTMassProperties`** keyed by body — the top-level
+`bodies` map holds one entry per body id (use the part id as the key for a single part;
+`massAsGroup`/Part Studio aggregate folds into a synthetic key per spec):
+
+```json
+{
+  "bodies": {
+    "JHD": {
+      "hasMass": true,
+      "mass":             [0.7843, 0.7843, 0.7843],
+      "volume":           [9.99e-5, 9.99e-5, 9.99e-5],
+      "periphery":        [0.0276, 0.0276, 0.0276],
+      "centroid":         [0.025, 0.0, 0.0125,  0.025, 0.0, 0.0125,  0.025, 0.0, 0.0125],
+      "inertia":          [/* 9-element 3x3 tensor, value/low/high interleaved */],
+      "principalInertia": [1.2e-5, 8.0e-6, 8.0e-6],
+      "principalAxes":    [{"x":1,"y":0,"z":0}, {"x":0,"y":1,"z":0}, {"x":0,"y":0,"z":1}]
+    }
+  },
+  "microversionId": "a1b2c3…"
+}
+```
+
+Assembly returns the **flattened aggregate** (no `bodies` map) plus `massMissingCount`:
+
+```json
+{
+  "mass":             [number],
+  "volume":           [number],
+  "periphery":        [number],
+  "centroid":         [number],
+  "inertia":          [number],
+  "principalInertia": [number],
+  "principalAxes":    [BTVector3d],
+  "hasMass":          boolean,
+  "massMissingCount": integer
+}
+```
+
+`periphery` is total surface area; `centroid` and `inertia` are in document units about
+the origin; `principalInertia` + `principalAxes` give the diagonalised tensor.
+
+## Numbers — value + error bounds
+
+Every scalar comes back as a **`[value, lowerBound, upperBound]`** array, not a bare
+number — Onshape reports the numerical-integration tolerance band. So `volume[0]` is
+the value; `volume[1]`/`volume[2]` bracket it. Vectors flatten the same way: `centroid`
+is `[x, x_lo, x_hi, y, y_lo, y_hi, z, z_lo, z_hi]`. **Units are explicit** and SI by
+default (volume m³, mass kg, area m², length m) regardless of the document's display
+units. Read `value`, ignore the bounds unless you care about tolerance.
+
+## Recipe — get volume + verify (READ-ONLY)
+
+Basic auth per @onshape/auth (`$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY` over HTTPS,
+local testing only — production signs with HMAC). kb2 reference doc ids inline.
+
+```bash
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+
+resp=$(curl -fsS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  "$BASE/partstudios/d/$DID/w/$WID/e/$EID/massproperties")
+
+# verify: a solid Part Studio must have positive volume on at least one body
+vol=$(echo "$resp" | jq '[.bodies[].volume[0]] | add')
+echo "total volume = $vol m^3"
+awk -v v="$vol" 'BEGIN { exit !(v > 0) }' \
+  && echo "OK: volume > 0" \
+  || { echo "FAIL: empty/zero geometry"; exit 1; }
+```
+
+Before/after **edit verify** (the @onshape/api pattern): capture `vol` above, make the
+edit through @onshape/api, re-run this GET, and assert the new volume differs as
+expected. The `massproperties` GET is the trusted oracle that the geometry actually
+changed — features-tree readback alone only proves the parameter, not the resulting solid.
+
+## See also
+
+@onshape/partstudios · @onshape/parts · @onshape/assemblies — the resource groups that
+own these endpoints. @onshape/api — the edit + before/after-volume verify flow.
+@onshape/auth — Basic vs. HMAC signing. @onshape/playwright — UI fallback (mass
+properties also live in the Part Studio measure panel, but read them via API).

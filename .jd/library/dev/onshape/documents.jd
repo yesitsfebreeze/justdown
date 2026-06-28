@@ -1,0 +1,173 @@
+---
+name: onshape_documents
+description: The Onshape REST documents group — create/get/list/search a document, read its workspaces & versions, copy/delete, manage ACL/sharing/permissions, and folder ACLs. The top-level container that every did refers to; reach here when you need the document itself, not a Part Studio or feature.
+kind: knowledge
+tags: [onshape, cad, rest, api, documents, folders, acl, search, workspaces]
+use_when: [create an onshape document via api, get onshape document info by did, list or search onshape documents, copy or delete an onshape document, onshape document acl permissions sharing, list a document's workspaces or versions, share an onshape document or folder, make an onshape document public]
+not_when: []
+requires: [onshape_auth, curl]
+provides: [create-document, get-document, list-documents, search-documents, copy-document, delete-document, document-acl, share-document, folder-acl]
+---
+
+# Onshape Documents
+
+A **document** is the top-level container in Onshape — the thing a `did` names. It
+owns workspaces, versions, and the tabs (elements) inside them, plus its own
+metadata, sharing/ACL, and folder placement. This group is the document *itself*;
+the contents of a workspace live in @onshape/elements, and the workspace/version
+coordinates live in @onshape/workspaces_versions.
+
+## Model
+
+- A document is addressed by `did` alone — read it straight from the URL
+  `cad.onshape.com/documents/{did}/w/{wid}/e/{eid}`; the first id is the `did`.
+  Document-level endpoints (`GET /documents/{did}`, `/acl`, `/share`, `DELETE`)
+  take only `did`.
+- A document **contains workspaces and versions**. A workspace (`/w/{wid}`) is the
+  mutable editing line; a version (`/v/{vid}`) is an immutable snapshot. Endpoints
+  that read or write content carry the `did` plus a middle coordinate — expressed
+  as `{wvm}`/`{wvmid}` (workspace **or** version **or** microversion) for reads, or
+  `{wv}` / `{wm}` / `{vm}` for the narrower endpoints. **Writes must target a
+  workspace `/w/`.** Full coordinate rules: @onshape/workspaces_versions.
+- `GET /documents/d/{did}/workspaces` and `…/versions` enumerate those lines; the
+  default workspace returned here is what most callers operate on next.
+- **Folders** are sibling containers in the tree; a document's placement is set via
+  `parentId` (on create/move) and folders carry their own ACL (see below).
+
+## Endpoints
+
+### Document lifecycle
+- `GET /documents` — list documents matching query filters (`q`, `owner`, `ownerType`, `parentId`, `label`, `project`, `sortColumn`/`sortOrder`, `offset`/`limit`).
+- `POST /documents` — create (and optionally upload) a document.
+- `POST /documents/search` — structured search (rawQuery + filters in a JSON body).
+- `GET /documents/{did}` — retrieve a document by id.
+- `POST /documents/{did}` — update document attributes (name, description, tags, isPublic, parentId…).
+- `DELETE /documents/{did}` — delete (trash; `forever=true` to purge).
+- `POST /documents/{did}/notes` — update document notes.
+
+### Workspaces & versions (of a document)
+- `GET /documents/d/{did}/workspaces` · `POST …/workspaces` — list / create workspaces.
+- `DELETE /documents/d/{did}/workspaces/{wid}` — delete a workspace.
+- `POST /documents/{did}/workspaces/{wid}/copy` — copy a workspace into a new document.
+- `POST /documents/{did}/workspaces/{wid}/merge` — merge a source ref into a workspace.
+- `GET /documents/d/{did}/versions` · `POST …/versions` — list / create versions.
+- `GET /documents/d/{did}/versions/{vid}` — retrieve one version.
+- `GET /documents/{did}/w/{wid}/mergePreview` — preview a merge before applying.
+- `POST /documents/{did}/w/{wid}/restore/{vm}/{vmid}` — restore a version/microversion into a workspace.
+
+### Contents & history (read)
+- `GET /documents/d/{did}/{wvm}/{wvmid}/contents` — tabs + folders.
+- `GET /documents/d/{did}/{wvm}/{wvmid}/elements` — tabs (elements); see @onshape/elements.
+- `GET /documents/d/{did}/{wvm}/{wvmid}/unitinfo` — default units & precision.
+- `GET /documents/d/{did}/{wv}/{wvid}/currentmicroversion` — current microversion id.
+- `GET /documents/d/{did}/{wm}/{wmid}/documenthistory` — microversion history.
+- `GET /documents/d/{did}/{wv}/{wvid}/insertables` — items insertable from this doc.
+
+### Tabs / references / export (in a workspace)
+- `POST /documents/d/{did}/w/{wid}/moveelement` — move a tab (optionally copy to a new doc).
+- `POST /documents/d/{did}/w/{wid}/e/{eid}/latestdocumentreferences` — bump external refs to latest.
+- `POST /documents/d/{did}/w/{wid}/revertunchangedtorevisions` · `…/syncAppElements` — reference housekeeping.
+- `POST /documents/d/{did}/{wv}/{wvid}/e/{eid}/export` — export a tab (octet-stream out).
+- `GET /documents/d/{did}/externaldata/{fid}` — download external data blob.
+
+### Permissions / ACL / sharing
+- `GET /documents/{did}/acl` — access control list (entries, owner, visibility, inherited ACLs).
+- `GET /documents/{did}/permissionset` — caller's permission strings on the doc.
+- `POST /documents/{did}/share` · `DELETE /documents/{did}/share/{eid}` — grant / revoke a share entry.
+- `POST /documents/{did}/acl/public` — make public/private.
+- `POST /documents/{did}/acl/anonymousAccess` — allow/deny anonymous access.
+- `POST /documents/{did}/shareWithSupport` · `DELETE …/shareWithSupport` — (un)share with Onshape support.
+
+### Folders (folded in — group of 3)
+- `GET /folders/{fid}/acl` — folder ACL (same shape as document ACL).
+- `POST /folders/{fid}/share` · `DELETE /folders/{fid}/share/{eid}` — share / unshare a folder.
+
+A document's folder placement is the `parentId` on `POST /documents` and
+`POST /documents/{did}` (update); folders themselves carry the ACL/share surface
+above so permissions can be set on the container rather than per document.
+
+## Shapes
+
+`POST /documents` — create body (meaningful fields trimmed from the slice):
+
+```json
+{
+  "name": "scratch-doc",
+  "description": "string",
+  "isPublic": false,
+  "ownerId": "string",
+  "ownerType": 0,
+  "parentId": "folderId-or-null",
+  "projectId": "string",
+  "tags": ["string"],
+  "isEmptyContent": true
+}
+```
+
+`GET /documents` — list response (`items` are tree nodes; cursor in `next`):
+
+```json
+{
+  "href": "string",
+  "items": [ { "id": "did", "name": "string", "...": "BTGlobalTreeNodeInfo" } ],
+  "next": "string",
+  "previous": "string"
+}
+```
+
+`GET /documents/{did}/acl` — access control list:
+
+```json
+{
+  "admin": true,
+  "owner": { "...": "BTOwnerInfo" },
+  "entries": [ { "...": "BTAclEntryInfo" } ],
+  "inheritedAcls": [ { "...": "BTInheritedAclInfo" } ],
+  "public": false,
+  "visibility": "string",
+  "objectId": "did",
+  "objectType": 0
+}
+```
+
+> The spec lists `GET /documents/{did}` and the `POST` create/update responses as
+> empty objects (`{}`) — the runtime payload includes at least `id`, `name`,
+> `defaultWorkspace`, `owner`, and `permission`; treat exact fields as "per spec"
+> and read what you need from the live response.
+
+## Recipe
+
+Read-first: fetch a document by `did` and assert its `id`/`name` came back. Uses
+Basic auth (`$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY`) per the shared brief —
+simplest runnable form; production uses HMAC signing (@onshape/auth).
+
+```bash
+# env: ONSHAPE_ACCESS_KEY, ONSHAPE_SECRET_KEY, DID (from the document URL)
+base=https://cad.onshape.com/api/v10
+resp=$(curl -sf -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "$base/documents/$DID")
+
+# verify: the returned id matches the requested did and a name is present
+echo "$resp" | jq -e --arg did "$DID" \
+  '.id == $did and (.name | type == "string" and length > 0)' >/dev/null \
+  && echo "OK: $(echo "$resp" | jq -r .name)" \
+  || { echo "FAIL: document fetch did not verify"; exit 1; }
+```
+
+To enumerate the document's workspaces afterwards (the doc↔workspace link):
+
+```bash
+curl -sf -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" -H 'Accept: application/json' \
+  "$base/documents/d/$DID/workspaces" | jq -r '.[] | "\(.id)\t\(.name)"'
+```
+
+> **READ-ONLY rule (shared brief):** `POST /documents` (create), `DELETE`, share,
+> and merge are **writes**. Never run them against a user's real document. If you
+> must exercise a write path, create a **throwaway scratch document**
+> (`POST /documents` with `name:"scratch-…"`, `isEmptyContent:true`), operate on
+> it, then `DELETE /documents/{did}?forever=true` to purge it.
+
+See @onshape/auth (HMAC signing, key pairs) · @onshape/elements (tabs inside a
+document) · @onshape/workspaces_versions (the `/w/`, `/v/`, `/m/` coordinates and
+version/merge mechanics) · @onshape/playwright (UI fallback when no API path fits).

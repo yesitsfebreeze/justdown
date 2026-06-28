@@ -1,0 +1,122 @@
+---
+name: onshape_parts
+description: Read Onshape parts via the REST API — list the solid bodies a Part Studio produced in an element, then query one by partId for mass properties, bounding box, tessellated faces/edges, body details, metadata, and synchronous STL/Parasolid/glTF/shaded exports. Read-only resource group; for the geometric edit see onshape_partstudios.
+kind: knowledge
+tags: [onshape, cad, rest, api, parts, partid, massproperties, tessellation, export]
+use_when: [list parts in an onshape element, get an onshape part by partid, onshape part mass properties via api, onshape part bounding box, export an onshape part to stl or parasolid, tessellated faces edges of an onshape part, onshape part body details, shaded view or thumbnail of a part]
+not_when: []
+requires: [onshape_auth]
+provides: [list-parts, get-mass-properties, get-bounding-box, get-tessellation, export-part]
+---
+
+# Onshape Parts
+
+A **part** is a single solid body produced by a Part Studio. The `parts` group is
+read-only: it enumerates the bodies in an element and exposes per-body geometry,
+mass, and export endpoints. It never builds geometry — that is the Part Studio's
+job (@onshape/partstudios). A part is addressed by a `partId` scoped to one element.
+
+## Model
+
+- Path family is `…/parts/d/{did}/{wvm}/{wvmid}/e/{eid}` where `{wvm}` is the
+  literal `w`/`v`/`m` and `{wvmid}` the matching id (see @onshape/api for the did/wid/eid model).
+  Every endpoint here is a `GET`, so a version (`/v/`) or microversion (`/m/`)
+  works as well as a workspace (`/w/`).
+- A **Part Studio** is the element (`eid`) that *makes* parts; listing parts in
+  that element returns one entry per resulting solid body. The Part Studio's
+  feature tree is at `…/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/features`
+  (@onshape/partstudios) — `parts` is the consumed-geometry view of the same
+  element.
+- **`partId`** (field `partId`, e.g. `"JHD"`) identifies a body *within* one
+  element; it is stable across microversions of that element but not globally
+  unique. Most per-part endpoints take it as `…/partid/{partid}/…`. `name` is the
+  human label ("Part 1"); `bodyType` is `solid`/`sheet`/`wire`/`mesh`.
+- Geometry endpoints accept tolerances (`angleTolerance`, `chordTolerance`,
+  `maxFacetWidth`) and a `configuration` string to evaluate a configured variant.
+  STL/Parasolid/glTF here are **synchronous** exports (the response body is the
+  file); the async/translation route is @onshape/export_translation.
+
+## Endpoints
+
+| METHOD path | purpose |
+|---|---|
+| `GET /parts/d/{did}/{wvm}/{wvmid}` | all parts in a document (workspace/version/microversion) |
+| `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}` | all parts in one element |
+| `GET …/e/{eid}/partid/{partid}/massproperties` | part mass properties (volume, mass, COM, inertia) |
+| `GET …/e/{eid}/partid/{partid}/boundingboxes` | axis-aligned bounding box (low/high X/Y/Z, metres) |
+| `GET …/e/{eid}/partid/{partid}/bodydetails` | B-rep body details (faces/edges/vertices topology) |
+| `GET …/e/{eid}/partid/{partid}/tessellatedfaces` | triangulated faces (facet points, normals) |
+| `GET …/e/{eid}/partid/{partid}/tessellatededges` | polyline-tessellated edges |
+| `GET …/e/{eid}/partid/{partid}/stl` | synchronous STL export (`application/octet-stream`) |
+| `GET …/e/{eid}/partid/{partid}/parasolid` | synchronous Parasolid export |
+| `GET …/e/{eid}/partid/{partid}/gltf` | synchronous glTF export (`model/gltf+json`) |
+| `GET …/e/{eid}/partid/{partid}/shadedviews` | rendered shaded images (base64) |
+| `GET …/e/{eid}/partid/{partid}/sheetmetal/bendtable` | sheet-metal bend table (sheet-metal parts only) |
+
+## Shapes
+
+**List parts** — `GET /parts/d/{did}/{wvm}/{wvmid}/e/{eid}` → array; one object per
+body (trimmed to the load-bearing fields):
+
+```json
+[
+  {
+    "partId": "JHD",
+    "name": "Part 1",
+    "bodyType": "solid",
+    "elementId": "a77918b06d5131918477a269",
+    "microversionId": "…",
+    "partNumber": "",
+    "isHidden": false,
+    "isMesh": false,
+    "material": { "...": "BTPartMaterialInfo" },
+    "appearance": { "...": "BTPartAppearanceInfo" }
+  }
+]
+```
+
+**Bounding box** — `GET …/partid/{partid}/boundingboxes` → all values in metres,
+in the part's coordinate system:
+
+```json
+{ "lowX": -0.025, "lowY": -0.025, "lowZ": 0.0,
+  "highX": 0.025, "highY": 0.025, "highZ": 0.01 }
+```
+
+`massproperties` returns `{ "bodies": { "<partId>": { volume, mass, centroid,
+inertia, … } }, "microversionId": "…" }` (per spec; same body shape as
+@onshape/massproperties).
+
+## Recipe
+
+Read-only. List parts in the kb2 element, read back a `partId`+`name`, then
+re-query that part. Basic auth (`access:secret` over HTTPS, local testing only —
+production uses HMAC, see @onshape/auth).
+
+```bash
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+AUTH="$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY"
+
+# list parts in the element
+curl -sS -u "$AUTH" -H 'Accept: application/json' \
+  "$BASE/parts/d/$DID/w/$WID/e/$EID" | tee parts.json
+
+# verify: pull the first part's id + name
+PID=$(jq -r '.[0].partId' parts.json)
+jq -r '.[0] | "part \(.partId) = \(.name) [\(.bodyType)]"' parts.json
+test -n "$PID" && [ "$PID" != "null" ] || { echo "no parts found"; exit 1; }
+
+# follow-up GET on that partId — bounding box (metres) confirms the part resolves
+curl -sS -u "$AUTH" -H 'Accept: application/json' \
+  "$BASE/parts/d/$DID/w/$WID/e/$EID/partid/$PID/boundingboxes" | jq .
+```
+
+The list step returning a non-empty array with a readable `partId`/`name`, and the
+follow-up box returning finite `low*`/`high*`, confirms the round-trip. For
+mass/inertia detail see @onshape/massproperties; for the Part Studio that built
+these bodies @onshape/partstudios; for `partNumber`/custom-property fields
+@onshape/metadata; for async/foreign-format export @onshape/export_translation.
+UI fallback (visual check of a body): @onshape/playwright.

@@ -1,0 +1,152 @@
+---
+name: onshape_partstudios
+description: Onshape Part Studios REST group — read and edit the parametric feature tree (features GET/POST/DELETE, featurescript eval) and pull derived geometry from a Part Studio (bodydetails, massproperties, bounding boxes, tessellated edges/faces, STL/glTF/STEP export, shaded views). Use when calling the /partstudios endpoints.
+kind: knowledge
+tags: [onshape, cad, rest, api, partstudios, features, featurescript, tessellation, export]
+use_when: [list features in an onshape part studio, get onshape part studio body details, evaluate a featurescript snippet against a part studio, export a part studio to stl or gltf or step, get tessellated edges or faces of a part studio, get bounding boxes of a part studio, get shaded views of a part studio, call the onshape partstudios api]
+not_when: []
+requires: [onshape_auth]
+provides: [list-features, add-feature, delete-feature, get-bodydetails, eval-featurescript, get-tessellation, export-partstudio]
+---
+
+# Onshape Part Studios
+
+A **Part Studio** is the parametric modeling tab (element) that holds the feature
+tree — sketches, extrudes, fillets — which evaluates to produce solid/surface
+parts. Everything geometric in `/partstudios/…` derives from that tree: the
+feature list itself, the regenerated bodies, and tessellated/exported
+representations of them.
+
+## Model
+
+- Addressed by `did` + middle coordinate + `eid`, read from the URL
+  `…/documents/{did}/w/{wid}/e/{eid}` where `eid` selects the Part Studio tab.
+- The path family is `/partstudios/d/{did}/{wvm}/{wvmid}/e/{eid}/…` for reads:
+  `{wvm}` is `w`/`v`/`m` (workspace, version, microversion). **Writes target a
+  workspace `/w/`.** The two async-export families restrict the middle to `{wv}`
+  (`w` or `v`) — `…/{wv}/{wvid}/e/{eid}/export/…` and `…/translations`.
+- Most reads accept `configuration`, `rollbackBarIndex`, `elementMicroversionId`,
+  `partId`/`partIds`, and `linkDocumentId` (for cross-document references).
+- A Part Studio element holds the feature tree; regenerating it yields bodies, and
+  every tessellation/export/mass-property call evaluates that tree.
+
+## Endpoints
+
+Feature tree (this group owns these; the update **envelope** is @onshape/features):
+| METHOD path | purpose |
+|---|---|
+| `GET …/{wvm}/{wvmid}/e/{eid}/features` | list features instantiated in the Part Studio |
+| `POST …/{wvm}/{wvmid}/e/{eid}/features` | add a feature to the Feature List |
+| `POST …/w/{wid}/e/{eid}/features/featureid/{fid}` | update one feature's definition |
+| `DELETE …/w/{wid}/e/{eid}/features/featureid/{fid}` | delete a feature |
+| `POST …/w/{wid}/e/{eid}/features/updates` | update multiple features at once |
+| `POST …/w/{wid}/e/{eid}/features/rollback` | move the Feature List rollback bar |
+| `GET …/{wvm}/{wvmid}/e/{eid}/featurespecs` | feature specs (parameter schemas) |
+| `POST …/w/{wid}` | create a new Part Studio in a document |
+
+FeatureScript:
+| METHOD path | purpose |
+|---|---|
+| `POST …/{wvm}/{wvmid}/e/{eid}/featurescript` | evaluate a FeatureScript snippet (see @onshape/featurescript) |
+| `GET …/{wvm}/{wvmid}/e/{eid}/featurescriptrepresentation` | FeatureScript source of the Part Studio |
+| `GET …/{wvm}/{wvmid}/e/{eid}/fstable` | compute a FeatureScript table |
+
+Geometry / derived data:
+| METHOD path | purpose |
+|---|---|
+| `GET …/{wvm}/{wvmid}/e/{eid}/bodydetails` | per-body topology detail |
+| `GET …/{wvm}/{wvmid}/e/{eid}/massproperties` | mass/volume/COM (math: @onshape/massproperties) |
+| `GET …/{wvm}/{wvmid}/e/{eid}/boundingboxes` | overall bounding box (`low*`/`high*`) |
+| `GET …/{wvm}/{wvmid}/e/{eid}/tessellatededges` | tessellated edge polylines |
+| `GET …/{wvm}/{wvmid}/e/{eid}/tessellatedfaces` | tessellated face facets |
+| `GET …/{wvm}/{wvmid}/e/{eid}/sketches` | info for all sketches (@onshape/sketches) |
+| `GET …/{wvm}/{wvmid}/e/{eid}/sketches/{sid}/boundingboxes` | one sketch's bounding boxes |
+| `GET …/{wvm}/{wvmid}/e/{eid}/sketches/{sid}/tessellatedentities` | one sketch's tessellation |
+| `GET …/{wvm}/{wvmid}/e/{eid}/compare` | diff two Part Studios in one document |
+| `POST …/{wvm}/{wvmid}/e/{eid}/idtranslations` | map deterministic IDs across microversions |
+
+Views / export:
+| METHOD path | purpose |
+|---|---|
+| `GET …/d/{did}/e/{eid}/namedViews` | named views saved in the Part Studio |
+| `GET …/{wvm}/{wvmid}/e/{eid}/shadedviews` | rendered shaded-view PNGs (base64) |
+| `GET …/{wvm}/{wvmid}/e/{eid}/stl` | synchronous STL export |
+| `GET …/{wvm}/{wvmid}/e/{eid}/gltf` | synchronous glTF export |
+| `GET …/{wvm}/{wvmid}/e/{eid}/parasolid` | synchronous Parasolid export |
+| `POST …/{wv}/{wvid}/e/{eid}/export/gltf` | async glTF export (translation job) |
+| `POST …/{wv}/{wvid}/e/{eid}/export/obj` | async OBJ export |
+| `POST …/{wv}/{wvid}/e/{eid}/export/step` | async STEP export |
+| `POST …/{wv}/{wvid}/e/{eid}/translations` | async export to any format |
+
+## Shapes
+
+`GET …/features` — the feature tree. `features[]` are `BTMFeature-134` objects;
+do not deep-dive the BTM* internals here (that envelope is @onshape/features):
+
+```json
+{
+  "btType": "BTFeatureListResponse-2457",
+  "features": [{ "btType": "BTMFeature-134", "featureType": "extrude", "featureId": "…", "name": "Extrude 1", "parameters": [] }],
+  "defaultFeatures": [{ "btType": "BTMFeature-134" }],
+  "featureStates": {},
+  "rollbackIndex": -1,
+  "isComplete": true,
+  "serializationVersion": "1.2.4",
+  "sourceMicroversion": "…"
+}
+```
+
+`POST …/featurescript` — evaluate a snippet; the result is a `BTFSValue-1888`
+(see @onshape/featurescript for the value tree):
+
+```json
+// request
+{ "script": "function (context, queries) { return 1 + 1; }", "queries": {} }
+// response
+{ "btType": "BTFeatureScriptEvalResponse-552", "result": { "btType": "BTFSValue-1888" }, "console": "", "notices": [] }
+```
+
+`GET …/boundingboxes` is flat (also the per-sketch variant):
+
+```json
+{ "lowX": 0, "lowY": 0, "lowZ": 0, "highX": 0.05, "highY": 0.05, "highZ": 0.05 }
+```
+
+`GET …/shadedviews` returns base64 PNGs: `{ "images": [["<base64>"]] }`.
+Tessellation calls (`tessellatededges`/`tessellatedfaces`) return
+`{ "bodies": [BTExportTessellatedBody-3398], "btType": "…", "errorEnum": "OK" }`.
+
+## Recipe
+
+Read-only against the **kb2** doc. Auth is HTTP Basic (`access:secret` over HTTPS,
+per @onshape/auth — production should HMAC-sign). List the feature tree, then
+verify by asserting `features[]` is non-empty and reading a feature's `featureType`.
+
+```bash
+export ONSHAPE_ACCESS_KEY=…  ONSHAPE_SECRET_KEY=…
+DID=378e93b0ad360aa043a0220b
+WID=09273312fedee7bf3c3482ad
+EID=a77918b06d5131918477a269
+BASE=https://cad.onshape.com/api/v10
+
+# GET the feature list
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "$BASE/partstudios/d/$DID/w/$WID/e/$EID/features" > features.json
+
+# verify: features[] non-empty, and print the first feature's type + name
+jq -e '.features | length > 0' features.json >/dev/null \
+  && echo "OK: $(jq -r '.features | length') features; first = \
+$(jq -r '.features[0].featureType' features.json) / $(jq -r '.features[0].name' features.json)" \
+  || { echo "FAIL: empty feature tree"; exit 1; }
+```
+
+Substitute `/w/$WID` → `/v/{vid}` or `/m/{mid}` to read a version/microversion.
+To change a parameter (not just read), build the update envelope and POST to
+`…/features/featureid/{fid}` — that flow is documented in @onshape/api and the
+envelope schema in @onshape/features.
+
+See also: @onshape/features (BTM* feature-update envelope),
+@onshape/sketches, @onshape/parts, @onshape/massproperties (mass/volume math),
+@onshape/featurescript (snippet eval + value tree), @onshape/auth (HMAC signing),
+@onshape/api (runnable edit+verify script), @onshape/playwright (UI fallback).

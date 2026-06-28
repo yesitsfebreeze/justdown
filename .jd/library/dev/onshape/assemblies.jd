@@ -1,0 +1,183 @@
+---
+name: onshape_assemblies
+description: Read and edit an Onshape Assembly tab over the REST API — get the assembly definition (instances, occurrences, mates/features, subAssemblies), bounding boxes and mass properties, insert instances, add/update/delete mate features, transform/translate occurrences, and create assembly tabs. Use for the structural/positioning layer above parts.
+kind: knowledge
+tags: [onshape, cad, rest, api, assemblies, mates, instances, occurrences]
+use_when: [get an onshape assembly definition, list assembly instances or occurrences, read assembly mates and features, insert a part or subassembly instance into an assembly, add or update or delete an assembly mate feature, transform or translate an assembly instance, assembly bounding box or mass properties, create a new assembly tab]
+not_when: []
+requires: [onshape_auth]
+provides: [get-assembly-definition, list-instances, list-occurrences, get-mates, insert-instance, add-mate, update-mate, delete-feature, transform-occurrences, assembly-massproperties, assembly-boundingbox, create-assembly]
+---
+
+# Onshape Assemblies
+
+An **Assembly** tab positions instances of parts and sub-assemblies in 3D space and
+constrains them with **mate features**. It sits above @onshape/parts /
+@onshape/partstudios: a Part Studio defines geometry once; an Assembly references it
+as one or more *instances* and locks their relative motion. The assembly-definition
+GET is the entry point — everything else (mass, bbox, mate edits) reads off the same
+`did/{wvm}/{wvmid}/eid` address.
+
+## Model
+
+- Addressed by `did` + middle coordinate + `eid`, where `eid` selects an Assembly
+  element. The middle coordinate is the path family `/{wvm}/{wvmid}` — substitute
+  `w`→`v`/`m` to read against a version/microversion. **Writes must target a
+  workspace `/w/`** (see @onshape/api); insert/modify/feature paths are workspace-only
+  (`/d/{did}/w/{wid}/e/{eid}`), exports use `/{wv}/`.
+- **Instance** — one placement of a referenced element (part, Part Studio, sub-assembly,
+  or sketch). An instance carries its own `documentId`/`elementId`/`partId`/`configuration`
+  and is identified inside the assembly by a node id (`nid`, used by the delete-instance path).
+- **Occurrence** — a leaf in the flattened instance tree, addressed by a `path` (an array
+  of instance ids walking down through nested sub-assemblies). The same instance appears as
+  multiple occurrences when its parent sub-assembly is itself instanced more than once. Each
+  occurrence carries a 4×4 `transform` (row-major, 16 numbers) placing it in root space.
+- **Mate feature** — an assembly feature (`BTMFeature-134`) constraining occurrences;
+  it has a `featureId` (`fid`). Mates expose driven **mate values** read/written via the
+  `matevalues` endpoints. Features are the same call shape as @onshape/features but live
+  on the assembly's own feature list.
+- **rootAssembly / subAssemblies** — the definition splits into the top-level
+  `rootAssembly` (its own `instances[]` + `occurrences[]` + `features[]`) and a flat
+  `subAssemblies[]` list (each a referenced assembly with its own instances/features),
+  plus `parts[]` and `partStudioFeatures[]` for the referenced geometry.
+
+## Endpoints
+
+Read (accept `/{wvm}/`; substitute `w`/`v`/`m`):
+
+| METHOD path | purpose |
+|---|---|
+| GET `/assemblies/d/{did}/{wvm}/{wvmid}/e/{eid}` | assembly definition — rootAssembly + subAssemblies + parts |
+| GET `…/e/{eid}/boundingboxes` | low/high XYZ bounding box |
+| GET `…/e/{eid}/massproperties` | mass / centroid / inertia (→ @onshape/massproperties) |
+| GET `…/e/{eid}/features` | feature (mate) definitions |
+| GET `…/e/{eid}/featurespecs` | feature spec definitions |
+| GET `…/e/{eid}/bom` | bill of materials content |
+| GET `…/e/{eid}/displaystates` · `/explodedviews` · `/namedpositions` | view/state lists |
+| GET `…/e/{eid}/shadedviews` | rendered shaded images |
+| GET `/assemblies/d/{did}/e/{eid}/namedViews` | named view camera data |
+| GET `/assemblies/d/{did}/{wv}/{wvid}/e/{eid}/matevalues` | read mate values |
+
+Write (workspace `/w/` only):
+
+| METHOD path | purpose |
+|---|---|
+| POST `/assemblies/d/{did}/w/{wid}` | create a new assembly tab |
+| POST `…/w/{wid}/e/{eid}/instances` | insert an instance (part / Part Studio / assembly / sketch) |
+| DELETE `…/w/{wid}/e/{eid}/instance/nodeid/{nid}` | delete an instance |
+| POST `…/w/{wid}/e/{eid}/features` | add a mate/feature to the assembly |
+| POST `…/w/{wid}/e/{eid}/features/featureid/{fid}` | update an existing feature |
+| DELETE `…/w/{wid}/e/{eid}/features/featureid/{fid}` | delete a feature |
+| POST `…/w/{wid}/e/{eid}/matevalues` | update mate values |
+| POST `…/w/{wid}/e/{eid}/occurrencetransforms` | transform a list of occurrences |
+| POST `…/w/{wid}/e/{eid}/transformedinstances` | create new instances with a transform |
+| POST `…/w/{wid}/e/{eid}/modify` | delete / suppress / transform instances in one call |
+| POST `…/w/{wid}/e/{eid}/bomelement` | get-or-create the BOM element |
+| POST `…/{wv}/{wvid}/e/{eid}/export/{gltf,obj,step}` · `/translations` | export the assembly |
+
+## Shapes
+
+Assembly definition (`GET …/e/{eid}`) — the response splits into the root assembly and
+the flat sub-assembly list; trimmed to the meaningful structure:
+
+```json
+{
+  "rootAssembly": {
+    "instances": [
+      {
+        "id": "M0...",
+        "type": "Part",
+        "documentId": "...", "elementId": "...", "partId": "JHD",
+        "configuration": "default", "isSuppressed": false
+      }
+    ],
+    "occurrences": [
+      { "path": ["M0..."], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "hidden": false }
+    ],
+    "features": [
+      { "id": "F...", "featureType": "mate", "suppressed": false,
+        "featureData": { "name": "Fastened 1", "mateType": "FASTENED" } }
+    ]
+  },
+  "subAssemblies": [
+    { "documentId": "...", "elementId": "...", "instances": [], "features": [] }
+  ],
+  "parts": [ { "partId": "JHD", "bodyType": "solid" } ],
+  "partStudioFeatures": []
+}
+```
+
+> Fields above the `rootAssembly`/`subAssemblies`/`parts`/`partStudioFeatures` keys are
+> per spec; per-instance/occurrence subfields (`type`, `transform`, `featureData`) are the
+> shapes Onshape returns at runtime — read the live response to confirm exact names.
+
+Insert an instance (`POST …/e/{eid}/instances`) — request body:
+
+```json
+{
+  "documentId": "<source did>",
+  "elementId": "<source eid>",
+  "versionId": "<vid>",
+  "partId": "<partId, omit for whole Part Studio>",
+  "isAssembly": false,
+  "isWholePartStudio": false,
+  "configuration": "default",
+  "isHidden": false,
+  "isSuppressed": false
+}
+```
+
+Add a mate (`POST …/e/{eid}/features`) wraps a `BTMFeature-134`:
+
+```json
+{ "feature": { "btType": "BTMFeature-134", "featureType": "mate",
+               "featureData": { "mateType": "FASTENED", "matedEntities": [] } } }
+```
+
+The update path (`POST …/features/featureid/{fid}`) sends the same wrapper; send the
+**whole** feature — omitted params reset. Transform occurrences
+(`POST …/occurrencetransforms`) takes `{ isRelative, occurrences: [...], transform: [16 numbers] }`.
+
+## Recipe
+
+Read-first: fetch the assembly definition with Basic auth and assert `rootAssembly` is
+present, then count its instances. Basic auth (`access:secret` over HTTPS) is local-testing
+only — production signs with HMAC (@onshape/auth, signer in `examples/onshape/onshape_edit.py`).
+
+```bash
+# env: ONSHAPE_ACCESS_KEY, ONSHAPE_SECRET_KEY ; from cad.onshape.com/documents/{did}/w/{wid}/e/{eid}
+BASE=https://cad.onshape.com
+DID=...; WID=...; EID=...
+
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Accept: application/json' \
+  "$BASE/api/v10/assemblies/d/$DID/w/$WID/e/$EID?includeMateFeatures=true" \
+  -o assembly.json
+
+# verify: rootAssembly present, and count instances
+jq -e '.rootAssembly != null' assembly.json >/dev/null \
+  && echo "OK rootAssembly present" || { echo "FAIL: no rootAssembly"; exit 1; }
+jq '.rootAssembly.instances | length' assembly.json   # -> instance count
+```
+
+`includeMateFeatures=true` populates `rootAssembly.features[]` with the mates; add
+`includeMateConnectors=true` for connector geometry. To read mass/bbox swap the path
+tail for `/massproperties` (→ @onshape/massproperties) or `/boundingboxes`.
+
+**Writes go to a throwaway scratch document only** — the capture docs are READ-ONLY.
+To prove a write without touching shared data, create a scratch assembly tab
+first, then insert into it:
+
+```bash
+# scratch: new assembly tab in YOUR own workspace, then verify it came back with an id
+curl -sS -u "$ONSHAPE_ACCESS_KEY:$ONSHAPE_SECRET_KEY" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"name":"jd-scratch-asm"}' \
+  "$BASE/api/v10/assemblies/d/$SCRATCH_DID/w/$SCRATCH_WID" \
+  | jq -e '.id' >/dev/null && echo "OK assembly created"
+```
+
+For UI-only checks (mate dialogs, exploded views) fall back to @onshape/playwright;
+prefer the API for anything geometric. See @onshape/api for the HMAC signer and the
+whole-feature update rule, @onshape/features for the shared feature call shape, and
+@onshape/parts for the geometry an instance references.

@@ -29,8 +29,8 @@
   --bg: #f7f7f7;            /* iA Writer's warm off-white (sampled from ia.net) */
   --text: #1a1a1a;
   --heading: var(--text);   /* iA Writer headings are ink, not colored */
-  --faint: #a6a6a6;       /* dimmed syntax / fences — legible, not washed out */
-  --muted: #6f6f6f;
+  --faint: #767676;       /* dimmed syntax / fences — matched to dark's bg-contrast (~4.4:1) so markers stay visible */
+  --muted: #515151;
   --accent: #1a1a1a;        /* monotone — the "accent" is ink; zero hue anywhere */
   --code-pill: #1a1a1a;
   --var-pill: #6f6f6f;
@@ -40,7 +40,7 @@
   --tint: #007aff;                      /* the single accent hue — caret, selection, links */
   --selection: color-mix(in srgb, var(--tint) 30%, transparent);  /* tint @ 30% */
   --dim: 0.34;                          /* focus mode: opacity of inactive text */
-  --rule: rgba(0, 0, 0, 0.07);
+  --rule: rgba(0, 0, 0, 0.10);
   --swatch-ring: rgba(0, 0, 0, 0.18);   /* swatch edge — pure black in light */
   --code-bg: rgba(0, 0, 0, 0.045);
   --overlay: rgba(20, 20, 22, 0.28);
@@ -121,11 +121,13 @@ body {
    EVERY element crossfades its colour surfaces on the single shared --theme-fade — a
    SYMMETRIC ease-in-out, NOT the front-loaded --ease that makes a crossfade look
    instant. Outside the flip the class is gone, so hover/focus keep their snappy feel.
-   Caveats, both fine for a deliberate one-shot flip: this `transition` shorthand
-   replaces each element's whole transition list for the ~420ms window, so any
-   in-flight motion (smear, caret, dim-fade) snaps; and gradient backgrounds use
-   background-image, which can't transition, so they still snap. */
-html.theming, html.theming * {
+   Caveat, fine for a deliberate one-shot flip: this `transition` shorthand replaces
+   each element's whole transition list for the ~420ms window, so any in-flight motion
+   (smear, caret, dim-fade) snaps. (The chrome's edge fades — topbar/footer/glass —
+   would also snap as gradients OF --bg, so they paint solid --bg under a mask instead,
+   making the colour a transitionable background-color.) */
+html.theming, html.theming *,
+html.theming *::before, html.theming *::after {
   transition: background-color var(--theme-fade),
               color var(--theme-fade),
               border-color var(--theme-fade),
@@ -141,9 +143,19 @@ html.theming, html.theming * {
   display: flex;
   justify-content: center;
   padding: 22px 28px 16px;
-  /* fade so editor text scrolling underneath stays clean */
-  background: linear-gradient(var(--bg) 62%, transparent);
   pointer-events: none;
+}
+/* fade so editor text scrolling underneath stays clean. Solid --bg + a mask for the
+   fade-to-transparent (not a gradient OF --bg) so the colour transitions on a theme
+   flip instead of snapping. On ::before so it never masks the search input. */
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg);
+  -webkit-mask-image: linear-gradient(#000 62%, transparent);
+  mask-image: linear-gradient(#000 62%, transparent);
 }
 .searchwrap {
   position: relative;
@@ -554,9 +566,19 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
   inset: 0;
   display: block;
 }
-/* faint milky body so it reads as glass, not just a blur; densest at the edge */
-.glass.top    { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 22%, transparent), transparent 62%); }
-.glass.bottom { background: linear-gradient(to top,    color-mix(in srgb, var(--bg) 22%, transparent), transparent 62%); }
+/* faint milky body so it reads as glass, not just a blur; densest at the edge. On
+   ::before (solid --bg masked to 22%→0) so the tint crossfades on a theme flip
+   instead of snapping, and the mask doesn't clip the blur layers (.glass > i). */
+.glass.top::before, .glass.bottom::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg);
+  pointer-events: none;
+}
+.glass.top::before    { -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.22), transparent 62%); mask-image: linear-gradient(to bottom, rgba(0,0,0,0.22), transparent 62%); }
+.glass.bottom::before { -webkit-mask-image: linear-gradient(to top,    rgba(0,0,0,0.22), transparent 62%); mask-image: linear-gradient(to top,    rgba(0,0,0,0.22), transparent 62%); }
 
 /* TOP band — edge at top, so masks run top→down (0% = edge). Each deeper
    layer is blurrier and confined nearer the top. */
@@ -1102,13 +1124,16 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
   user-select: none;
 }
 /* a soft bg fade behind the footer so the shortcuts stay readable over document
-   text — mirrors the topbar's gradient, denser at the very bottom edge. */
+   text — mirrors the topbar: solid --bg + a mask for the fade, so it crossfades
+   with the page on a theme flip instead of snapping. Denser at the very bottom. */
 .footer::before {
   content: "";
   position: fixed;
   left: 0; right: 0; bottom: 0;
   height: 56px;
-  background: linear-gradient(to top, var(--bg) 46%, transparent);
+  background-color: var(--bg);
+  -webkit-mask-image: linear-gradient(to top, #000 46%, transparent);
+  mask-image: linear-gradient(to top, #000 46%, transparent);
   pointer-events: none;
   z-index: -1;                 /* behind the footer's own text, above editor + glass */
 }

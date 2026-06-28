@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Skeuomorphism — Design Style Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --emboss-up: 0 1px 0 rgba(255, 255, 255, 0.55);
+      --emboss-down: 0 -1px 1px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "PT Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #2b2b2b;
+      /* Brushed-metal desk via fine vertical streaks over a tonal gradient */
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(255, 255, 255, 0.05) 0px,
+          rgba(255, 255, 255, 0.05) 1px,
+          rgba(0, 0, 0, 0.04) 2px,
+          rgba(0, 0, 0, 0.04) 3px),
+        linear-gradient(180deg, #f2f2f4 0%, #cfd3d7 45%, #9aa0a6 100%);
+      padding: 28px 16px 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 26px;
+    }
+
+    /* ---------- Header: brushed-metal title bar ---------- */
+    header {
+      width: 100%;
+      max-width: 520px;
+      padding: 16px 22px;
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid #6f767c;
+      background:
+        linear-gradient(180deg,
+          #fbfbfc 0%,
+          #d7dbde 48%,
+          #b3b9bf 52%,
+          #cdd2d6 100%);
+      box-shadow:
+        0 3px 6px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #4a4f54;
+      text-shadow: var(--emboss-up);
+    }
+
+    header p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: #6b7176;
+      text-shadow: var(--emboss-up);
+    }
+
+    /* ---------- Card: stitched leather panel ---------- */
+    .card {
+      width: 100%;
+      max-width: 520px;
+      border-radius: 16px;
+      padding: 10px;
+      /* Leather grain: layered radial mottling over a brown gradient */
+      background:
+        radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.10), transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(0, 0, 0, 0.30), transparent 45%),
+        linear-gradient(160deg, #6e4a2c 0%, #5a3b22 55%, #432a16 100%);
+      box-shadow:
+        0 8px 18px rgba(0, 0, 0, 0.5),
+        inset 0 1px 1px rgba(255, 255, 255, 0.18),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Inner stitched seam */
+    .card-inner {
+      border-radius: 11px;
+      padding: 22px 20px;
+      border: 2px dashed #d9b98c;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    }
+
+    .card h2 {
+      margin: 0 0 4px;
+      font-size: 19px;
+      font-weight: 700;
+      color: #f4e3c6;
+      text-shadow: var(--emboss-down);
+    }
+
+    .card .subtitle {
+      margin: 0 0 18px;
+      font-size: 13px;
+      color: #c8a877;
+      text-shadow: var(--emboss-down);
+    }
+
+    /* ---------- Felt note inside card ---------- */
+    .felt {
+      margin: 0 0 18px;
+      padding: 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #eafce9;
+      text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.5);
+      background:
+        radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.08), transparent 50%),
+        repeating-radial-gradient(circle at 50% 50%, rgba(0,0,0,0.04) 0, rgba(0,0,0,0.04) 1px, transparent 1px, transparent 2px),
+        linear-gradient(180deg, #2e6b3e 0%, #1f4d2b 100%);
+      box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.5),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.12);
+    }
+
+    /* ---------- Form field: recessed paper input ---------- */
+    .field { margin-bottom: 20px; }
+
+    .field label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #f0dfc2;
+      text-shadow: var(--emboss-down);
+    }
+
+    .field input {
+      width: 100%;
+      height: 44px;
+      padding: 0 14px;
+      font-family: inherit;
+      font-size: 16px;
+      color: #4a4030;
+      border: 1px solid #9a8a6a;
+      border-top-color: #6f6248;
+      border-radius: 8px;
+      outline: none;
+      background: linear-gradient(180deg, #efe8d4 0%, #fbf7ea 100%);
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.45),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .field input::placeholder { color: #a59c86; }
+
+    .field input:focus {
+      border-color: #6aa0e0;
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.45),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.7),
+        0 0 0 3px rgba(90, 169, 245, 0.45);
+    }
+
+    /* ---------- Primary button: glossy raised pill ---------- */
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 13px 20px;
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #ffffff;
+      text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.45);
+      cursor: pointer;
+      border: 1px solid #1858ad;
+      border-radius: 10px;
+      background:
+        linear-gradient(180deg,
+          #7bbcf8 0%,
+          #5aa9f5 48%,
+          #2f86e8 52%,
+          #1f6fd6 100%);
+      box-shadow:
+        0 2px 3px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Specular gloss sweep on the top half */
+    .btn {
+      position: relative;
+      overflow: hidden;
+    }
+    .btn::before {
+      content: "";
+      position: absolute;
+      inset: 1px 1px auto 1px;
+      height: 46%;
+      border-radius: 9px 9px 50% 50%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.05));
+      pointer-events: none;
+    }
+
+    .btn:active {
+      background: linear-gradient(180deg, #1f6fd6 0%, #2f86e8 50%, #5aa9f5 100%);
+      box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.45),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+      transform: translateY(1px);
+    }
+
+    footer {
+      font-size: 12px;
+      color: #5f656a;
+      text-shadow: var(--emboss-up);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Workshop Notes</h1>
+    <p>Skeuomorphism — real materials, real depth</p>
+  </header>
+
+  <main class="card">
+    <div class="card-inner">
+      <h2>New Entry</h2>
+      <p class="subtitle">Bound in leather, stitched by hand</p>
+
+      <div class="felt">
+        Pinned to the green felt board: every surface here imitates a physical
+        object — brushed metal, tooled leather, recessed paper, glossy glass.
+      </div>
+
+      <div class="field">
+        <label for="title">Note title</label>
+        <input id="title" type="text" placeholder="e.g. Sketch ideas for Sunday" />
+      </div>
+
+      <button class="btn" type="button">Save to Notebook</button>
+    </div>
+  </main>
+
+  <footer>iOS-era reference · ~2007–2012</footer>
+</body>
+</html>

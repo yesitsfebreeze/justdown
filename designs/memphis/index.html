@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memphis Design Style Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1a1a1a;
+      --paper: #fdf6e3;
+      --pink: #ff2e88;
+      --cyan: #21d4fd;
+      --yellow: #ffd23f;
+      --red: #ff5252;
+      --blue: #2962ff;
+      --mint: #2bd9b1;
+      --white: #ffffff;
+      --shadow-pop: 6px 6px 0 0 var(--ink);
+      --shadow-pop-lg: 10px 10px 0 0 var(--ink);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Fredoka", system-ui, sans-serif;
+      color: var(--ink);
+      background-color: var(--paper);
+      /* terrazzo / confetti speckle field */
+      background-image:
+        radial-gradient(var(--pink) 14%, transparent 15%),
+        radial-gradient(var(--cyan) 14%, transparent 15%),
+        radial-gradient(var(--yellow) 10%, transparent 11%),
+        radial-gradient(var(--blue) 8%, transparent 9%);
+      background-size: 120px 120px, 120px 120px, 80px 80px, 160px 160px;
+      background-position: 0 0, 60px 60px, 30px 90px, 90px 20px;
+      padding: 32px 16px 64px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* big decorative shapes scattered behind content */
+    .deco {
+      position: fixed;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .deco.tri {
+      width: 0; height: 0;
+      border-left: 60px solid transparent;
+      border-right: 60px solid transparent;
+      border-bottom: 110px solid var(--red);
+      top: 12%; left: 4%;
+      transform: rotate(-18deg);
+    }
+    .deco.circle {
+      width: 130px; height: 130px;
+      border-radius: 50%;
+      background: var(--mint);
+      border: 4px solid var(--ink);
+      bottom: 8%; left: 6%;
+    }
+    .deco.zig {
+      top: 60%; right: 3%;
+      width: 120px; height: 60px;
+      background:
+        linear-gradient(135deg, var(--yellow) 25%, transparent 25%) 0 0 / 30px 30px,
+        linear-gradient(225deg, var(--yellow) 25%, transparent 25%) 0 0 / 30px 30px;
+      transform: rotate(12deg);
+    }
+    .deco.squiggle {
+      top: 6%; right: 8%;
+      width: 160px; height: 50px;
+      border: 6px solid var(--blue);
+      border-color: var(--blue) transparent transparent transparent;
+      border-radius: 50%;
+      transform: rotate(-8deg);
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    header.site {
+      background: var(--cyan);
+      border: 4px solid var(--ink);
+      border-radius: 12px;
+      box-shadow: var(--shadow-pop-lg);
+      padding: 24px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transform: rotate(-1deg);
+    }
+    header.site .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header.site .mark {
+      width: 38px; height: 38px;
+      background: var(--pink);
+      border: 3px solid var(--ink);
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(8deg);
+    }
+    header.site h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    header.site nav {
+      display: flex;
+      gap: 8px;
+    }
+    header.site nav a {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--ink);
+      background: var(--yellow);
+      border: 3px solid var(--ink);
+      border-radius: 999px;
+      padding: 6px 14px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 4px solid var(--ink);
+      border-radius: 12px;
+      box-shadow: var(--shadow-pop);
+      padding: 32px;
+      transform: rotate(0.6deg);
+    }
+    .card .tag {
+      display: inline-block;
+      background: var(--pink);
+      color: var(--white);
+      border: 3px solid var(--ink);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 12px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+    .card p {
+      margin: 0 0 24px;
+      font-weight: 400;
+      line-height: 1.5;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .field label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .field input {
+      font-family: inherit;
+      font-size: 1rem;
+      padding: 12px 14px;
+      border: 3px solid var(--ink);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--ink);
+      outline: none;
+    }
+    .field input:focus {
+      background: var(--white);
+      box-shadow: 4px 4px 0 0 var(--mint);
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      color: var(--white);
+      background: var(--red);
+      border: 4px solid var(--ink);
+      border-radius: 12px;
+      box-shadow: var(--shadow-pop);
+      padding: 14px 28px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    .btn:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 8px 8px 0 0 var(--ink);
+    }
+    .btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 0 var(--ink);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .btn { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <span class="deco tri" aria-hidden="true"></span>
+  <span class="deco circle" aria-hidden="true"></span>
+  <span class="deco zig" aria-hidden="true"></span>
+  <span class="deco squiggle" aria-hidden="true"></span>
+
+  <div class="page">
+    <header class="site">
+      <div class="logo">
+        <span class="mark" aria-hidden="true"></span>
+        <h1>Bauhaus&nbsp;Bash</h1>
+      </div>
+      <nav>
+        <a href="#">Shop</a>
+        <a href="#">Vibe</a>
+      </nav>
+    </header>
+
+    <section class="card">
+      <span class="tag">New Drop</span>
+      <h2>Join the Squiggle Club</h2>
+      <p>
+        Loud color, louder shapes. Drop your email and we'll send you confetti,
+        terrazzo, and exactly zero beige. The 80s called &mdash; they want their
+        good taste back, and we said no.
+      </p>
+
+      <form onsubmit="return false">
+        <div class="field">
+          <label for="email">Your email</label>
+          <input id="email" type="email" name="email" placeholder="you@memphis.io" />
+        </div>
+        <button class="btn" type="submit">Sign me up</button>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

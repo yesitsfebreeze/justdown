@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neumorphism — Soft UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --surface: #e0e5ec;
+    --light: #ffffff;
+    --dark: #a3b1c6;
+    --text: #4d5b6e;
+    --muted: #8a98ab;
+    --accent: #6d8bbf;
+    --raised: -6px -6px 12px var(--light), 6px 6px 12px var(--dark);
+    --raised-sm: -4px -4px 8px var(--light), 4px 4px 8px var(--dark);
+    --inset: inset -4px -4px 8px var(--light), inset 4px 4px 8px var(--dark);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--surface);
+    color: var(--text);
+    font-family: "Poppins", system-ui, sans-serif;
+    font-weight: 400;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    padding: 48px 16px;
+  }
+
+  header {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border-radius: 20px;
+    box-shadow: var(--raised);
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+
+  .badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--inset);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--accent);
+  }
+
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border-radius: 20px;
+    box-shadow: var(--raised);
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .card-sub {
+    margin: -16px 0 0;
+    font-size: 15px;
+    color: var(--muted);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    padding-left: 4px;
+  }
+
+  .field input {
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--text);
+    border: none;
+    outline: none;
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 16px 20px;
+    box-shadow: var(--inset);
+  }
+
+  .field input::placeholder { color: var(--muted); }
+
+  .field input:focus {
+    box-shadow: var(--inset), 0 0 0 2px rgba(109, 139, 191, 0.25);
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    border: none;
+    cursor: pointer;
+    background: var(--surface);
+    border-radius: 50px;
+    padding: 16px 24px;
+    box-shadow: var(--raised);
+    transition: box-shadow 0.15s ease, color 0.15s ease;
+  }
+
+  .btn:hover { color: var(--text); }
+  .btn:active { box-shadow: var(--inset); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Soft UI</h1>
+    <div class="badge">N</div>
+  </header>
+
+  <main class="card">
+    <h2 class="card-title">Welcome back</h2>
+    <p class="card-sub">Sign in to your account to continue.</p>
+
+    <div class="field">
+      <label for="email">Email address</label>
+      <input id="email" type="email" placeholder="you@example.com" />
+    </div>
+
+    <button class="btn" type="button">Sign in</button>
+  </main>
+</body>
+</html>

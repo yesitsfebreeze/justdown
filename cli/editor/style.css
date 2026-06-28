@@ -525,13 +525,19 @@ body.cursor-outline .cm-smear path { fill: none; stroke-width: 2; }
 .cm-content ::selection { background: var(--selection) !important; }
 /* The joined rounded selection blob — soft tint fill, slightly stronger edge. */
 .cm-sel-blob {
-  position: absolute; top: 0; left: 0; width: 0; height: 0;
+  position: absolute; top: 0; left: 0;   /* width/height set in JS to the scroll area — a CSS size here would clip the path */
   overflow: visible; pointer-events: none; z-index: 0;
+  opacity: 0.30;   /* one flat tint — applied to the whole union so fill+stroke don't double up */
 }
+/* The path is the selection polygon inset by r; stroking it 2r (stroke-width set in
+   JS so it always matches the inset) with round joins fattens it back to full size
+   and rounds every corner uniformly. Fill and stroke are the same opaque tint so the
+   union is one solid shape (the alpha lives on .cm-sel-blob above). */
 .cm-sel-blob path {
-  fill: var(--selection);
-  stroke: color-mix(in srgb, var(--tint) 35%, transparent);
-  stroke-width: 1;
+  fill: var(--tint);
+  stroke: var(--tint);
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 .cm-activeLine { background: transparent; }
 .cm-placeholder { color: var(--faint); font-style: italic; }

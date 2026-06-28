@@ -1043,6 +1043,48 @@ function roundedQuadPath(pts, r) {
   return d + "Z";
 }
 
+// Inset an axis-aligned (rectilinear) polygon inward by `r`. Each 90° corner is
+// moved along the sum of its two adjacent inward edge-normals — for right angles
+// that lands exactly on the intersection of the offset edges, for convex AND
+// reflex corners alike. Winding is read from the signed area so the normals point
+// into the shape regardless of trace direction. Used by the selection blob: inset
+// by R, then stroke 2R with round joins to round every edge uniformly.
+function insetRectilinear(pts, r) {
+  // Drop duplicates (contiguous selection rects share an edge → seam points
+  // repeat) and collinear midpoints, so every surviving vertex is a true corner.
+  const simp = [];
+  for (const p of pts) {
+    const last = simp[simp.length - 1];
+    if (last && Math.abs(last[0] - p[0]) < 0.5 && Math.abs(last[1] - p[1]) < 0.5) continue;
+    simp.push(p);
+  }
+  for (let i = simp.length - 1; i >= 0; i--) {
+    const a = simp[(i - 1 + simp.length) % simp.length], b = simp[i], c = simp[(i + 1) % simp.length];
+    const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if (Math.abs(cross) < 0.5) simp.splice(i, 1);   // collinear → not a corner
+  }
+  const n = simp.length;
+  if (n < 3) return simp;
+  let a2 = 0;
+  for (let i = 0; i < n; i++) { const p = simp[i], q = simp[(i + 1) % n]; a2 += p[0] * q[1] - q[0] * p[1]; }
+  const ccw = a2 > 0;
+  const norm = (a, b) => {
+    let dx = b[0] - a[0], dy = b[1] - a[1];
+    const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    return ccw ? [-dy, dx] : [dy, -dx];   // inward unit normal
+  };
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const prev = simp[(i - 1 + n) % n], p = simp[i], next = simp[(i + 1) % n];
+    const nIn = norm(prev, p), nOut = norm(p, next);
+    // miter inset: divide by (1 + nIn·nOut) so the offset hits the edge intersection
+    // for any corner angle (=1 at the 90° corners that survive simplification).
+    const k = r / (1 + nIn[0] * nOut[0] + nIn[1] * nOut[1]);
+    out.push([p[0] + (nIn[0] + nOut[0]) * k, p[1] + (nIn[1] + nOut[1]) * k]);
+  }
+  return out;
+}
+
 (function smearCursor() {
   // Always wire up the engine; whether it actually animates is gated per-move by
   // `smearEnabled` (the Smear setting). Reduced-motion only steers the DEFAULT
@@ -1176,7 +1218,7 @@ function roundedQuadPath(pts, r) {
   svg.appendChild(path);
   view.scrollDOM.appendChild(svg);
 
-  const R = 6;   // corner radius; clamped per-corner to half the shorter edge
+  const R = 3;   // corner radius — every edge rounds by this via the inset+stroke trick (see CSS)
 
   const outline = (rs) => {
     rs = rs.slice().sort((a, b) => a.t - b.t);
@@ -1186,9 +1228,16 @@ function roundedQuadPath(pts, r) {
     return pts;
   };
 
+  const polyPath = (pts) => pts.length < 3 ? ""
+    : "M " + pts.map((p) => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" L ") + " Z";
+
   const paint = () => {
     const divs = view.scrollDOM.querySelectorAll(".cm-selectionBackground");
     if (!divs.length) { path.setAttribute("d", ""); return; }
+    // Size the SVG viewport to the full scroll area: the path is in content coords,
+    // so a 0×0 viewport would clip every shape away.
+    svg.setAttribute("width", view.scrollDOM.scrollWidth);
+    svg.setAttribute("height", view.scrollDOM.scrollHeight);
     const sb = view.scrollDOM.getBoundingClientRect();
     const sx = view.scrollDOM.scrollLeft, sy = view.scrollDOM.scrollTop;
     const rects = Array.from(divs).map((el) => {
@@ -1201,7 +1250,15 @@ function roundedQuadPath(pts, r) {
       const g = groups[groups.length - 1];
       if (g && r.t <= g[g.length - 1].b + 1) g.push(r); else groups.push([r]);
     }
-    path.setAttribute("d", groups.map((g) => roundedQuadPath(outline(g), R)).join(" "));
+    // One filled shape per contiguous line-stack: the outline polygon inset by r,
+    // then stroked 2r with round joins so every corner — convex and the staircase's
+    // reflex ones — rounds uniformly. r clamps to half the smallest rect dim so tiny
+    // selections don't invert; stroke-width tracks 2r (set here, not CSS) so inset and
+    // stroke always cancel back to the true bounds.
+    const minDim = Math.min(...rects.map((c) => Math.min(c.r - c.l, c.b - c.t)));
+    const r = Math.max(0, Math.min(R, minDim / 2));
+    path.setAttribute("stroke-width", 2 * r);
+    path.setAttribute("d", groups.map((g) => polyPath(insetRectilinear(outline(g), r))).join(" "));
   };
   redrawSelection = () => {
     view.requestMeasure({ key: "selBlob", read: () => null, write: () => paint() });

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bento Grid — Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #F4F4F5;
+    --surface: #FFFFFF;
+    --accent: #6366F1;
+    --accent-press: #4F46E5;
+    --soft-accent: #EEF2FF;
+    --text: #18181B;
+    --muted: #71717A;
+    --hairline: #E4E4E7;
+    --radius-tile: 20px;
+    --radius-ctrl: 12px;
+    --gap: 20px;
+    --shadow-rest: 0 1px 2px rgba(24,24,27,0.04), 0 8px 24px rgba(24,24,27,0.06);
+    --shadow-lift: 0 2px 4px rgba(24,24,27,0.06), 0 16px 40px rgba(24,24,27,0.10);
+    --shadow-glow: 0 12px 32px rgba(99,102,241,0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: clamp(16px, 4vw, 48px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  /* Header band spans the full grid width */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--surface);
+    border-radius: var(--radius-tile);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-rest);
+    margin-bottom: var(--gap);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), #A855F7);
+    display: grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: 1.1rem;
+    box-shadow: var(--shadow-glow);
+  }
+  .brand h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+  .nav { display: flex; gap: 8px; }
+  .nav a {
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 999px;
+  }
+  .nav a.active { color: var(--text); background: var(--soft-accent); }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 999px;
+    background: #DDD6FE; color: var(--accent-press);
+    display: grid; place-items: center; font-weight: 700; font-size: 0.9rem;
+  }
+
+  /* The bento board */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 150px;
+    gap: var(--gap);
+  }
+
+  .tile {
+    background: var(--surface);
+    border-radius: var(--radius-tile);
+    padding: 24px;
+    box-shadow: var(--shadow-rest);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+
+  /* Varied spans */
+  .span-2-2 { grid-column: span 2; grid-row: span 2; }
+  .span-2-1 { grid-column: span 2; }
+  .span-1-2 { grid-row: span 2; }
+
+  .stat .num {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: auto;
+  }
+  .stat .delta { color: #16A34A; font-size: 0.85rem; font-weight: 600; }
+
+  /* Accent feature tile */
+  .feature {
+    background: linear-gradient(140deg, var(--accent), var(--accent-press));
+    color: #fff;
+    box-shadow: var(--shadow-glow);
+    justify-content: space-between;
+  }
+  .feature .eyebrow { color: rgba(255,255,255,0.75); }
+  .feature h2 {
+    font-size: clamp(1.5rem, 3vw, 2.1rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 8px;
+  }
+  .feature p { color: rgba(255,255,255,0.85); font-size: 0.95rem; margin-top: 8px; }
+
+  /* Card-with-button tile */
+  .card-title { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+  .card-body { color: var(--muted); font-size: 0.92rem; margin: 8px 0 auto; }
+
+  .btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border-radius: var(--radius-ctrl);
+    padding: 12px 18px;
+    margin-top: 16px;
+    align-self: flex-start;
+    box-shadow: 0 6px 16px rgba(99,102,241,0.30);
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .btn:hover { background: var(--accent-press); }
+  .btn:active { transform: translateY(1px); }
+
+  /* Form tile */
+  .field { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+  .field label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+  .field input {
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-ctrl);
+    padding: 12px 16px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(99,102,241,0.15);
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+  .chip {
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--accent-press); background: var(--soft-accent);
+    padding: 6px 12px; border-radius: 999px;
+  }
+
+  @media (max-width: 720px) {
+    .board { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .span-2-2, .span-2-1 { grid-column: span 2; }
+    .span-1-2 { grid-row: span 1; }
+    .nav { display: none; }
+  }
+  @media (max-width: 440px) {
+    .board { grid-template-columns: 1fr; }
+    .span-2-2, .span-2-1, .span-1-2 { grid-column: span 1; grid-row: span 1; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Header band -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">B</div>
+      <h1>Bento</h1>
+    </div>
+    <nav class="nav">
+      <a href="#" class="active">Overview</a>
+      <a href="#">Reports</a>
+      <a href="#">Team</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="avatar">SH</div>
+  </header>
+
+  <main class="board">
+
+    <!-- Big accent feature tile (2x2) -->
+    <section class="tile feature span-2-2">
+      <span class="eyebrow">This month</span>
+      <div>
+        <h2>Your board is performing 23% better.</h2>
+        <p>Engagement is up across every widget. Keep the momentum going.</p>
+      </div>
+    </section>
+
+    <!-- Stat tile -->
+    <section class="tile stat">
+      <span class="eyebrow">Active users</span>
+      <div class="num">12.4k</div>
+      <span class="delta">+8.2%</span>
+    </section>
+
+    <!-- Stat tile -->
+    <section class="tile stat">
+      <span class="eyebrow">Revenue</span>
+      <div class="num">$48k</div>
+      <span class="delta">+12%</span>
+    </section>
+
+    <!-- Card + primary button tile (wide) -->
+    <section class="tile span-2-1">
+      <h3 class="card-title">Invite your team</h3>
+      <p class="card-body">Share a workspace and collaborate on the same bento board in real time.</p>
+      <button class="btn" type="button">Send invites</button>
+    </section>
+
+    <!-- Form field tile (tall) -->
+    <section class="tile span-1-2">
+      <span class="eyebrow">Subscribe</span>
+      <div class="field">
+        <label for="email">Work email</label>
+        <input id="email" type="email" name="email" placeholder="you@company.com" />
+      </div>
+    </section>
+
+    <!-- Tags tile -->
+    <section class="tile">
+      <span class="eyebrow">Tags</span>
+      <div class="chips">
+        <span class="chip">Design</span>
+        <span class="chip">Grid</span>
+        <span class="chip">UI</span>
+        <span class="chip">Soft</span>
+      </div>
+    </section>
+
+  </main>
+
+</body>
+</html>

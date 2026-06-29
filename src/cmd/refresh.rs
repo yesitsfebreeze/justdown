@@ -4,9 +4,9 @@
 // parsed live on every query (see `query::live_cwd_rows`).
 //
 // For each belt entry (JUSTDOWN_REPOS, else <root>/.jd/.jdconfig, else the single
-// JUSTDOWN_REPO) we fetch the remote's published `<raw_base>/.jd/graph.db` into
-// `<cache-root>/belt/<slug>.db`. Best-effort: an unreachable remote is warned and
-// skipped, not fatal. Needs curl.
+// JUSTDOWN_REPO) we fetch the remote's published `<raw_base>/.jd/remote-graph.db`
+// into `<cache-root>/belt/<slug>.db`. Best-effort: an unreachable remote is warned
+// and skipped, not fatal. Needs curl.
 
 use super::config::Config;
 use super::query::curl_to_file;
@@ -30,7 +30,7 @@ pub fn run(cfg: &Config) -> i32 {
                 return 1;
             }
         }
-        let url = format!("{raw}/.jd/graph.db");
+        let url = format!("{raw}/.jd/{}", cfg.index);
         if curl_to_file(&url, &dest) {
             eprintln!("jd: refresh: cached {} → {}", r.slug, dest.display());
             ok += 1;

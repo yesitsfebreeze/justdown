@@ -3,7 +3,7 @@
 // real graph in a SQLite store instead of a flat graph.tsv + awk.
 //
 //   jd build          index <lib>/**/*.jd into the graph store (publish)
-//   jd refresh        download the online belt's prebuilt graphs into the cache
+//   jd refresh        download the belt's prebuilt remote-graph.db into the cache
 //   jd search <q>     rank files by purpose (graph-aware)
 //   jd get <ref>      a file as ordered sections, or one output profile
 //                     (--human|--agent|--frontmatter|--justfile)
@@ -96,15 +96,15 @@ fn help() {
 
 USAGE  jd <command> [args]
 
-  build                        scan <lib>/**/*.jd → write the graph store(s).
-                               This is how a repo PUBLISHES its library (consumers
-                               fetch it via `jd refresh`); queries here read the
-                               repo live, no build needed. Always recursive: every
-                               nested .jd/<lib> home builds its own store.
+  build                        scan <lib>/**/*.jd → write ONE merged store at
+                               <root>/.jd/remote-graph.db (every nested home
+                               unioned). This is how a repo PUBLISHES its library
+                               (consumers fetch it via `jd refresh`); queries here
+                               read the repo live, no build needed.
   refresh                      download every belt remote's prebuilt graph
-                               (<raw_base>/.jd/graph.db) into the local cache
-                               (<cache>/belt/<slug>.db). Queries read it offline;
-                               re-run to update. needs curl.
+                               (<raw_base>/.jd/remote-graph.db) into the local
+                               cache (<cache>/belt/<slug>.db). Queries read it
+                               offline; re-run to update. needs curl.
   search <query> [kind] [num] [category]
                                rank library files by need (graph-aware:
                                name/use_when > tags > prose; not_when vetoes)
@@ -155,7 +155,7 @@ OUTPUT text (default) or machine JSON via the global --json flag (versioned
        schema, e.g. justdown.search/1; errors as justdown.error/1 on stderr).
 EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable
 ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default
-       .jd/graph.db; the publish artifact `jd build` writes)
+       remote-graph.db; the publish artifact `jd build` writes under .jd/)
        JUSTDOWN_NESTED (default on; =0 to disable nested .jd composition)
        JUSTDOWN_ROOT  JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_REF
        JUSTDOWN_REPOS (belt override; else read from <root>/.jd/.jdconfig —

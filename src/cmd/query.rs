@@ -892,9 +892,9 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
             }
         }
     } else {
-        // Online paths key relative to the remote's `.jd` home, so the file
-        // lives under `<raw_base>/.jd/<path>`.
-        let url = format!("{}/.jd/{}", online_base(cfg, row), row.path);
+        // Cached-belt paths are repo-root-relative (they carry their home's
+        // `.jd/…` prefix), so the file lives at `<raw_base>/<path>`.
+        let url = format!("{}/{}", online_base(cfg, row), row.path);
         match curl_to_string(&url) {
             Some(b) => b,
             None => {

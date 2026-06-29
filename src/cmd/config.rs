@@ -166,7 +166,7 @@ impl Config {
     pub fn from_env() -> Config {
         let lib = env_or("JUSTDOWN_LIB", "library");
         let root = resolve_root(&lib);
-        let index = env_or("JUSTDOWN_INDEX", "graph.db");
+        let index = env_or("JUSTDOWN_INDEX", "remote-graph.db");
         let repo = env_or("JUSTDOWN_REPO", "yesitsfebreeze/justdown");
         let branch = env_or("JUSTDOWN_BRANCH", "main");
         let ref_ = env_or("JUSTDOWN_REF", &branch);
@@ -210,36 +210,18 @@ impl Config {
     }
 
     /// The repo-scoped justdown home — the `.jd` dir, which IS the root. Holds
-    /// the authored `<lib>/`, the built `graph.db`, vendored `remotes/`, and the
-    /// `.jdconfig` belt; the derived parts are gitignored and rebuildable. The
-    /// machine-scoped `~/.jd` (see `home_cache_dir`) shares this exact layout, so
-    /// one resolver walks both; nearer scope wins.
+    /// the authored `<lib>/`, the published `remote-graph.db`, and the `.jdconfig`
+    /// belt.
     pub fn cache_dir(&self) -> PathBuf {
         self.root.clone()
     }
 
-    /// Repo-scoped index path — also this repo's published toolbelt index (the
-    /// contract path consumers fetch). An absolute `JUSTDOWN_INDEX` escapes the
-    /// cache dir.
+    /// This repo's published graph (`<root>/.jd/remote-graph.db` by default) — the
+    /// single merged store a consumer downloads via `jd refresh`. Committed, not
+    /// gitignored. `jd build` writes it; local queries read the repo live and
+    /// never touch it. An absolute `JUSTDOWN_INDEX` escapes the cache dir.
     pub fn index_path(&self) -> PathBuf {
         self.cache_dir().join(&self.index)
-    }
-
-    /// The store *filename* used inside a nested `.jd` home (`<home>/<basename>`).
-    /// `JUSTDOWN_INDEX`'s basename names it (default `graph.db`); an absolute
-    /// `JUSTDOWN_INDEX` stays a ROOT-only publish seam and is **not** propagated
-    /// to nested homes — they'd clobber one another — so nested stores fall back
-    /// to the default `graph.db` then.
-    pub fn index_basename(&self) -> String {
-        if std::path::Path::new(&self.index).is_absolute() {
-            return "graph.db".to_string();
-        }
-        std::path::Path::new(&self.index)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .filter(|s| !s.is_empty())
-            .unwrap_or("graph.db")
-            .to_string()
     }
 
     /// Whether nested-home composition is enabled (default on). `JUSTDOWN_NESTED=0`

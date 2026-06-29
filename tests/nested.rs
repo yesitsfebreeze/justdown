@@ -78,21 +78,20 @@ fn run(root: &Path, nested: bool, args: &[&str]) -> (i32, String, String) {
 fn recursive_build_and_root_union_resolve_all_homes() {
     let root = build_fixture("union");
 
-    // (a) each nested home builds its own store
-    let (code, _out, err) = run(&root, true, &["build", "--recursive"]);
-    assert_eq!(code, 0, "recursive build failed: {err}");
-    for home in [".jd", "packages/a/.jd", ".voit/.jd"] {
-        assert!(
-            root.join(home).join("graph.db").exists(),
-            "{home}/graph.db not built"
-        );
-    }
+    // (a) build writes ONE merged publish artifact at the root home; the pruned
+    // home never contributes (and no stray per-home stores are written).
+    let (code, _out, err) = run(&root, true, &["build"]);
+    assert_eq!(code, 0, "build failed: {err}");
     assert!(
-        !root.join("node_modules/dep/.jd/graph.db").exists(),
+        root.join(".jd/remote-graph.db").exists(),
+        "merged remote-graph.db not built"
+    );
+    assert!(
+        !root.join("node_modules/dep/.jd/remote-graph.db").exists(),
         "pruned home must not be built"
     );
 
-    // (b) the root resolves keys from every home at once
+    // (b) the root resolves keys from every home at once (live, not from build)
     for key in ["core/root-tool", "pkg/a-tool", "voit/v-tool"] {
         let (code, out, err) = run(&root, true, &["get", key, "--frontmatter"]);
         assert_eq!(code, 0, "get {key} failed: {err}\n{out}");

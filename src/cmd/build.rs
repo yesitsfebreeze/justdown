@@ -1,30 +1,21 @@
-// `jd build` — scan <lib>/**/*.jd and write a SQLite store at
-// <project>/.jd/graph.db. A thin wrapper over the library's multi-root builder.
+// `jd build` — scan every `.jd` home's <lib>/**/*.jd and write ONE merged store
+// at <project>/.jd/remote-graph.db. A thin wrapper over the library's multi-root
+// builder.
 //
-// This is the PUBLISH step: committing <project>/.jd/graph.db is how a repo
-// publishes its library (the contract path consumers fetch via `jd refresh`).
-// Local queries don't need it — they read the repo's .jd files live.
+// This is the PUBLISH step: committing <project>/.jd/remote-graph.db is how a repo
+// publishes its whole library (every nested home, unioned) — the single file a
+// consumer downloads via `jd refresh`. Local queries don't need it; they read the
+// repo's .jd files live. Node paths key relative to the repo root (so they carry
+// each home's `.jd/…` prefix) and a consumer's `get` fetches the body from there.
 
 use super::config::Config;
 use justdown::graph::{self, Root};
 use justdown::store::STORE_SCHEMA;
 use std::path::Path;
 
-/// Build an index at `out` from `libdir`, keying node paths relative to `base`.
-pub fn build_into(out: &Path, libdir: &Path, base: &Path) -> i32 {
-    if !libdir.is_dir() {
-        eprintln!("jd: no library dir: {}", libdir.display());
-        return 1;
-    }
-    build_roots(
-        out,
-        &[Root::with_base(libdir.to_path_buf(), base.to_path_buf())],
-    )
-}
-
-/// Build one index at `out` from many roots — the multi-remote merge. Later
-/// roots win key collisions (so `JUSTDOWN_REPOS` order = precedence). Creates
-/// `out`'s parent dir first (SQLite won't). Returns a process exit code.
+/// Build one index at `out` from many roots — the multi-home/multi-remote merge.
+/// Later roots win key collisions. Creates `out`'s parent dir first (SQLite
+/// won't). Returns a process exit code.
 pub fn build_roots(out: &Path, roots: &[Root]) -> i32 {
     if let Some(parent) = out.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
@@ -34,10 +25,7 @@ pub fn build_roots(out: &Path, roots: &[Root]) -> i32 {
     }
     match graph::build_index(out, roots, crate::CLI_VERSION) {
         Ok(n) => {
-            eprintln!(
-                "built {}: {n} entries (schema {STORE_SCHEMA})",
-                out.display()
-            );
+            eprintln!("built {}: {n} entries (schema {STORE_SCHEMA})", out.display());
             0
         }
         Err(e) => {
@@ -48,55 +36,29 @@ pub fn build_roots(out: &Path, roots: &[Root]) -> i32 {
 }
 
 pub fn run(cfg: &Config, _args: &[String]) -> i32 {
-    build_recursive(cfg)
-}
+    let project = cfg.project_dir();
+    // Discovery is deeper-first; reverse to shallow-first so deeper homes are
+    // applied LAST and win key collisions (matching the live query precedence).
+    let mut homes = graph::find_jd_homes(&project);
+    homes.reverse();
 
-/// Discover every nested `.jd/<lib>` home under the project tree and build each
-/// one's own self-contained store — `jd build` is always recursive (queries read
-/// the repo live, so the only reason to build is to publish, and a publish should
-/// cover every home). Each folder's library is the single source of truth for its
-/// own procedures (nothing is copied). The root home honours an absolute
-/// `JUSTDOWN_INDEX` (the publish seam); nested homes always write
-/// `<home>/<index-basename>`.
-fn build_recursive(cfg: &Config) -> i32 {
-    let basename = cfg.index_basename();
-    let root_canon = canon(&cfg.root);
-    let homes = graph::find_jd_homes(&cfg.project_dir());
+    // Every home's library is one root, keyed relative to the repo root so each
+    // node's path keeps its `.jd/…` prefix — what a consumer's `get` resolves
+    // against `<raw_base>/<path>`.
+    let roots: Vec<Root> = homes
+        .iter()
+        .map(|home| home.join(&cfg.lib))
+        .filter(|libdir| libdir.is_dir())
+        .map(|libdir| Root::with_base(libdir, project.clone()))
+        .collect();
 
-    let mut code = 0;
-    let mut built = 0usize;
-    for home in &homes {
-        let libdir = home.join(&cfg.lib);
-        if !libdir.is_dir() {
-            continue; // a `.jd` with no authored library — nothing to index
-        }
-        let is_root = canon(home) == root_canon;
-        let out = if is_root {
-            cfg.index_path()
-        } else {
-            home.join(&basename)
-        };
-        let c = build_into(&out, &libdir, home);
-        if c == 0 {
-            built += 1;
-        } else {
-            code = c;
-        }
-    }
-    if built == 0 {
+    if roots.is_empty() {
         eprintln!(
-            "jd: --recursive found no .jd/{} homes under {}",
+            "jd: build found no .jd/{} homes under {}",
             cfg.lib,
-            cfg.project_dir().display()
+            project.display()
         );
         return 1;
     }
-    eprintln!("built {built} nested .jd home(s)");
-    code
-}
-
-/// Canonicalize for identity comparison, falling back to the path itself when it
-/// doesn't exist yet (so a not-yet-built home still compares sanely).
-fn canon(p: &Path) -> std::path::PathBuf {
-    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+    build_roots(&cfg.index_path(), &roots)
 }

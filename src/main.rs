@@ -16,14 +16,9 @@
 // Exit codes (the machine contract): 0 ok · 2 no match / no file · 3 bad args
 // · 4 source unreachable. `lint` exits 1 on validation errors.
 
-mod build;
-mod config;
-mod explore;
-mod lint;
-mod mcp;
-mod pull;
-mod query;
+mod cmd;
 
+use cmd::{build, config, explore, lint, mcp, pull, query};
 use config::Format;
 use justdown::store::STORE_SCHEMA;
 use std::process::exit;

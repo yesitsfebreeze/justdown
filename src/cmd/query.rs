@@ -4,7 +4,7 @@
 // Merge is now three tiers: repo-LOCAL ⊕ machine-GLOBAL ⊕ ONLINE belt, nearer
 // scope shadowing farther by key (local > global > online).
 
-use crate::config::{Config, Format};
+use super::config::{Config, Format};
 use justdown::links;
 use justdown::render::{self, Vars};
 use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};

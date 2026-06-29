@@ -39,7 +39,7 @@ const STYLE_CSS: &str = include_str!("../editor/style.css");
 /// Source-tree asset dir, baked in at build time. `--dev` serves the editor
 /// files from here (live) instead of the embedded copies, so a save-and-refresh
 /// shows up without a rebuild — and the page auto-reloads via `/api/livereload`.
-const EDITOR_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/editor");
+const EDITOR_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/editor");
 
 /// How often a process re-registers its roots with the host.
 const HEARTBEAT: Duration = Duration::from_secs(5);

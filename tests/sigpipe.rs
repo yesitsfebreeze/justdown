@@ -13,16 +13,14 @@ use std::process::{Command, Stdio};
 /// child `jd` needs to use it (so the test is hermetic — no reliance on the
 /// caller having run `jd build`, and no network).
 fn env_with_store() -> Option<Vec<(String, String)>> {
-    // The repo root is two levels up from cli/target/<...>/... ; use the
-    // manifest dir cargo provides for the integration test instead.
-    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let repo_root = root.parent().unwrap(); // …/justdown
+    // The crate manifest dir is the repo root, so build the repo's own library.
+    let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let tmp = std::env::temp_dir().join(format!("jd-sigpipe-{}.db", std::process::id()));
     let _ = std::fs::remove_file(&tmp);
     // build into an absolute index path (escapes the cache dir, per the CLI)
     let status = Command::new(env!("CARGO_BIN_EXE_jd"))
         .arg("build")
-        .env("JUSTDOWN_ROOT", repo_root)
+        .env("JUSTDOWN_ROOT", &repo_root)
         .env("JUSTDOWN_INDEX", tmp.to_string_lossy().as_ref())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

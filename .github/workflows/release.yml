@@ -44,7 +44,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --locked --target ${{ matrix.target }} --manifest-path cli/Cargo.toml
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin jd
 
       - name: Package (unix)
         if: runner.os != 'Windows'
@@ -53,8 +53,8 @@ jobs:
           tag="${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
           name="jd-${tag}-${{ matrix.target }}"
           mkdir -p dist
-          # justdown is a Cargo workspace, so --target output lands in the
-          # top-level ./target dir (pinned by .cargo/config.toml), not cli/target.
+          # --target output lands in the top-level ./target dir (pinned by
+          # .cargo/config.toml).
           tar -czf "dist/${name}.tar.gz" -C "target/${{ matrix.target }}/release" jd
 
       - name: Package (windows)

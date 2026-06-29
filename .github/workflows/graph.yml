@@ -2,7 +2,7 @@ name: graph
 
 # Keep the committed index (.bombshell/jd/graph.db — the contract path consumers
 # fetch over raw) in sync with the library/ files. The index is BUILT BY THE jd
-# BINARY (cli/) — the same `jd build` you run locally. `jd build` writes
+# BINARY (src/) — the same `jd build` you run locally. `jd build` writes
 # .bombshell/jd/graph.db (not a root ./graph.db); on push to main it is rebuilt
 # and committed back, on pull requests it only verifies. graph.db is a SQLite
 # file that `jd build` produces deterministically, so a byte-diff is a valid check.
@@ -10,9 +10,9 @@ name: graph
 on:
   push:
     branches: [main]
-    paths: ["library/**", "cli/**", ".github/workflows/graph.yml"]
+    paths: ["library/**", "src/**", "Cargo.toml", ".github/workflows/graph.yml"]
   pull_request:
-    paths: ["library/**", "cli/**", ".github/workflows/graph.yml"]
+    paths: ["library/**", "src/**", "Cargo.toml", ".github/workflows/graph.yml"]
 
 jobs:
   build:
@@ -27,12 +27,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build jd
-        run: cargo build --release --manifest-path cli/Cargo.toml
+        run: cargo build --release --bin jd
 
       - name: Rebuild the index
-        # justdown is a Cargo workspace, so the build output lands in the
-        # top-level ./target dir (pinned by .cargo/config.toml), not
-        # ./cli/target. Reference the path cargo actually writes.
+        # The build output lands in the top-level ./target dir (pinned by
+        # .cargo/config.toml).
         run: ./target/release/jd build
 
       # On a PR we cannot reliably push; just fail if the author forgot to rebuild.

@@ -9,7 +9,7 @@
 // index — committing <project>/.jd/graph.db is how a repo publishes (the
 // contract path consumers fetch). `jd pull` reuses `build_into` for cloned belts.
 
-use crate::config::Config;
+use super::config::Config;
 use justdown::graph::{self, Root};
 use justdown::store::STORE_SCHEMA;
 use std::path::Path;

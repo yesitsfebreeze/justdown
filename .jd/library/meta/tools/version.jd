@@ -1,8 +1,8 @@
 ---
 name: tools_version
-description: Set the justdown version everywhere at once — sync cli/Cargo.toml, core/Cargo.toml, the Claude plugin manifest, and Cargo.lock to one MAJOR.MINOR.PATCH value. Use when the user asks to bump the version so every manifest agrees before a release.
+description: Set the justdown version everywhere at once — sync Cargo.toml and Cargo.lock to one MAJOR.MINOR.PATCH value. Use when the user asks to bump the version before a release.
 kind: tool
-tags: [version, bump, release, manifest, cargo, plugin]
+tags: [version, bump, release, manifest, cargo]
 use_when: [bump the version, set the version, sync all versions, update version everywhere, make versions match]
 danger: low
 side_effects: [file-write]
@@ -12,17 +12,16 @@ run: bump
 
 # Version bump
 
-One source of truth for the project version. The version is declared in four
+One source of truth for the project version. justdown is a single crate
+(`Cargo.toml` → `[lib] justdown` + `[[bin]] jd`), so the version lives in two
 places that must never drift apart:
 
-- `cli/Cargo.toml` — the `jd` crate (`[package] version`)
-- `core/Cargo.toml` — the `justdown` crate (`[package] version`)
-- `.claude-plugin/plugin.json` — the Claude Code plugin manifest
-- `Cargo.lock` — regenerated from the manifests so the lock matches
+- `Cargo.toml` — the package version (`[package] version`)
+- `Cargo.lock` — regenerated from the manifest so the lock matches
 
-`bump` rewrites the first three and runs `cargo update --workspace` to bring the
+`bump` rewrites the manifest and runs `cargo update --workspace` to bring the
 lock in line. It edits only the `[package]` version (the first `version =` line
-of each `Cargo.toml`), never a dependency's. The spec badge in the README
+of `Cargo.toml`), never a dependency's. The spec badge in the README
 (`spec-vX.Y`) is a *separate* number — it tracks the `.jd` format, not the
 release, and is intentionally left untouched.
 
@@ -38,10 +37,7 @@ bump version:
     *) echo "version must be MAJOR.MINOR.PATCH, got '{{version}}'" >&2; exit 1 ;;
   esac
   root="$(git rev-parse --show-toplevel)"
-  for f in cli/Cargo.toml core/Cargo.toml; do
-    sed -i '0,/^version = .*/s//version = "{{version}}"/' "$root/$f"
-  done
-  sed -i 's/"version": "[^"]*"/"version": "{{version}}"/' "$root/.claude-plugin/plugin.json"
+  sed -i '0,/^version = .*/s//version = "{{version}}"/' "$root/Cargo.toml"
   ( cd "$root" && cargo update --workspace >/dev/null 2>&1 || true )
-  echo "version → {{version}} (cli, core, plugin.json, Cargo.lock)"
+  echo "version → {{version}} (Cargo.toml, Cargo.lock)"
 ```

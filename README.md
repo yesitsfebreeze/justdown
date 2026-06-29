@@ -70,7 +70,8 @@ stay thin; the entire execution glue is one parser extension that lifts
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
 - [`install.jd`](install.jd) — install and use justdown: install the `jd`
   binary, what tools it gives, and how to wire it into an agent.
-- [`cli/`](cli/) — the CLI itself: **`jd`**, a small self-contained Rust binary
+- [`src/`](src/) — one Rust crate: the `justdown` library (the `.jd` spec —
+  parser, render, graph) plus **`jd`**, a small self-contained binary
   (`search`, `get`, `ls`, `links`, `path`, `build`, `lint`) over the library graph.
 - [`.jd/library/`](.jd/library/) — `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode

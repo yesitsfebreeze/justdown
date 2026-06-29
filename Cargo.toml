@@ -1,6 +1,35 @@
-[workspace]
-members = ["core", "cli"]
-resolver = "2"
+[package]
+name = "justdown"
+version = "0.6.0"
+edition = "2021"
+description = "justdown — the .jd library graph: parser, <<var>> injection, and the `jd` CLI that builds, queries, and merges it"
+license = "MIT"
+
+# One crate, two faces: the `justdown` library (the .jd spec — parser, render,
+# graph) and the `jd` binary (build/query/merge on top). The CLI is the binary;
+# the library exists only so other consumers reuse the spec instead of redrifting
+# their own parser. Same crate, so the spec lives in exactly one place.
+[lib]
+name = "justdown"
+path = "src/lib.rs"
+
+[[bin]]
+name = "jd"
+path = "src/main.rs"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10"
+serde_json = "1"
+tiny_http = "0.12"
+
+# unix-only: reset SIGPIPE to SIG_DFL so `jd … | head` exits cleanly instead of
+# panicking with "failed printing to stdout: Broken pipe". Rust sets SIGPIPE to
+# SIG_IGN by default; `jd` is a pipeable data source (`--json | jq`), so a closed
+# downstream pipe must not crash it.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [profile.release]
 opt-level = 3

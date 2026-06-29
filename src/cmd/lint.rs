@@ -5,7 +5,7 @@
 // need the whole corpus — duplicate name/key and `@link` resolution — and the
 // walk + reporting. Exits 1 on any error (CI-gateable); warnings don't fail.
 
-use crate::config::Config;
+use super::config::Config;
 use justdown::jd::{self, Node};
 use justdown::links::{classify, Link, NameIndex, Resolve};
 use justdown::lint::{lint_node, Finding};

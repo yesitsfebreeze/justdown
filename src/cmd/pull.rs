@@ -11,8 +11,8 @@
 // files at <scope>/remotes/<slug>/…. Later list entries win key collisions.
 // Repos consume the merged graph via the local⊕global⊕online tiers. Needs git.
 
-use crate::build;
-use crate::config::Config;
+use super::build;
+use super::config::Config;
 use justdown::graph::Root;
 use std::path::Path;
 use std::process::Command;

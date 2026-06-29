@@ -252,6 +252,22 @@ fn online_base<'a>(cfg: &'a Config, r: &'a Row) -> &'a str {
     }
 }
 
+/// The display path for a row's source file: the remote URL for online rows, the
+/// nested-home-qualified path for a nested local row (so it points at the real
+/// file, not an ambiguous root-relative path), or the bare relative path for the
+/// root/global home.
+fn raw_display(cfg: &Config, r: &Row) -> String {
+    if r.source.is_local() {
+        if r.origin.is_empty() {
+            r.path.clone()
+        } else {
+            format!("{}/{}", r.origin, r.path)
+        }
+    } else {
+        format!("{}/{}", online_base(cfg, r), r.path)
+    }
+}
+
 /// Load a store's rows from `path`, tagged `source`. None if the file is
 /// absent, unopenable, or unreadable — callers treat each tier as best-effort.
 fn load_store(path: &std::path::Path, source: Source) -> Option<Vec<Row>> {
@@ -263,20 +279,86 @@ fn load_store(path: &std::path::Path, source: Source) -> Option<Vec<Row>> {
         .and_then(|s| s.load_rows(source).ok())
 }
 
-/// Gather the merged, deduped row set across the three tiers — repo-LOCAL
-/// (`<root>/.jd`), machine-GLOBAL (`~/.jd`), and ONLINE.
-/// Nearer scope shadows farther by key (local > global > online). On the
+/// Canonicalize a path for identity comparison, falling back to the path itself
+/// when it can't be resolved (e.g. it doesn't exist yet).
+fn canon(p: &std::path::Path) -> std::path::PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+}
+
+/// One repo-LOCAL store to load: its on-disk path, plus the `origin` to stamp on
+/// every row so `get` reads its files from the right home. Origin is empty for
+/// the root home (files resolve under `cfg.root`, as before) and the absolute
+/// home dir for nested homes.
+struct LocalHome {
+    store: std::path::PathBuf,
+    origin: String,
+}
+
+/// The repo-LOCAL stores to union, **deeper-first** so a deeper home's key wins
+/// on collision (the keep-first dedup in [`gather`] applies it). With nested
+/// composition off (`JUSTDOWN_NESTED=0`) this is just the root store; otherwise
+/// it's every discovered `.jd/<index-basename>` under the project tree, with the
+/// root home keyed to its (possibly absolute, publish-seam) `index_path`.
+fn local_homes(cfg: &Config) -> Vec<LocalHome> {
+    let root_store = || LocalHome {
+        store: cfg.index_path(),
+        origin: String::new(),
+    };
+    if !Config::nested_enabled() {
+        return vec![root_store()];
+    }
+    let basename = cfg.index_basename();
+    let root_canon = canon(&cfg.root);
+    let mut out: Vec<LocalHome> = Vec::new();
+    let mut saw_root = false;
+    for home in justdown::graph::find_jd_homes(&cfg.project_dir()) {
+        if canon(&home) == root_canon {
+            saw_root = true;
+            out.push(root_store());
+        } else {
+            out.push(LocalHome {
+                store: home.join(&basename),
+                origin: home.to_string_lossy().into_owned(),
+            });
+        }
+    }
+    // The root home is the precedence floor: ensure it's present (and last, so it
+    // loses collisions to deeper homes) even if discovery missed it.
+    if !saw_root {
+        out.push(root_store());
+    }
+    out
+}
+
+/// Gather the merged, deduped row set across the tiers — repo-LOCAL
+/// (`<root>/.jd` plus any nested `.jd` homes), machine-GLOBAL (`~/.jd`), and
+/// ONLINE. Nearer scope shadows farther by key (local > global > online); among
+/// local homes, the deeper home wins and each shadowed key is logged. On the
 /// degrade path (no online) a note goes to stderr; only a total absence of
 /// sources is a hard error (exit 4).
 fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
-    let local = load_store(&cfg.index_path(), Source::Local);
+    // Load every local home in deeper-first order, tagging each row's origin so
+    // `get` can read its file from the right home.
+    let mut local: Vec<Row> = Vec::new();
+    let mut any_local = false;
+    for home in local_homes(cfg) {
+        if let Some(mut rows) = load_store(&home.store, Source::Local) {
+            any_local = true;
+            if !home.origin.is_empty() {
+                for r in &mut rows {
+                    r.origin = home.origin.clone();
+                }
+            }
+            local.extend(rows);
+        }
+    }
     let global = cfg
         .home_index_path()
         .as_deref()
         .and_then(|p| load_store(p, Source::Global));
     let online = fetch_online_belt(cfg);
 
-    if local.is_none() && global.is_none() && online.is_empty() {
+    if !any_local && global.is_none() && online.is_empty() {
         emit_err(
             cfg,
             "source-unreachable",
@@ -284,21 +366,33 @@ fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
         );
         return Err(4);
     }
-    if online.is_empty() && (local.is_some() || global.is_some()) {
+    if online.is_empty() && (any_local || global.is_some()) {
         eprintln!("jd: note: online belt unreachable; using local/global only");
     }
 
-    // Merge order = precedence: local, then global, then the online belt. Dedup
-    // by key keeps the first (nearest) tier seen, so local shadows global shadows
-    // online — the same rule the old local⊕online merge used, two tiers deeper.
+    // Merge order = precedence: local (deeper-first), then global, then the
+    // online belt. Dedup by key keeps the first (nearest) row seen, so a deeper
+    // local home shadows a shallower one, and local shadows global shadows online.
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for row in local
-        .into_iter()
-        .flatten()
-        .chain(global.into_iter().flatten())
-        .chain(online)
-    {
+    for row in local {
+        if seen.insert(row.key.clone()) {
+            out.push(row);
+        } else {
+            // A nearer (deeper) local home already defined this key — make the
+            // shadow observable rather than silent.
+            let where_ = if row.origin.is_empty() {
+                "<root>".to_string()
+            } else {
+                row.origin.clone()
+            };
+            eprintln!(
+                "jd: note: '{}' in {where_} shadowed by a deeper .jd home",
+                row.key
+            );
+        }
+    }
+    for row in global.into_iter().flatten().chain(online) {
         if seen.insert(row.key.clone()) {
             out.push(row);
         }
@@ -573,11 +667,7 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
                 .iter()
                 .map(|s| {
                     let r = s.row;
-                    let raw = if r.source.is_local() {
-                        r.path.clone()
-                    } else {
-                        format!("{}/{}", online_base(cfg, r), r.path)
-                    };
+                    let raw = raw_display(cfg, r);
                     SearchResult {
                         name: &r.name,
                         kind: &r.kind,
@@ -608,11 +698,7 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
         Format::Text => {
             for (i, s) in shown.iter().enumerate() {
                 let r = s.row;
-                let mut raw = if r.source.is_local() {
-                    r.path.clone()
-                } else {
-                    format!("{}/{}", online_base(cfg, r), r.path)
-                };
+                let mut raw = raw_display(cfg, r);
                 if r.source.is_local() {
                     raw.push_str(&format!(" ({})", r.source.label()));
                 }
@@ -664,11 +750,7 @@ fn emit_fallback(cfg: &Config, query: &str, rows: &[Row]) -> i32 {
     let row = rows.iter().find(|r| r.key == FALLBACK_KEY);
     match (row, cfg.format) {
         (Some(r), Format::Json) => {
-            let raw = if r.source.is_local() {
-                r.path.clone()
-            } else {
-                format!("{}/{}", online_base(cfg, r), r.path)
-            };
+            let raw = raw_display(cfg, r);
             println!(
                 "{}",
                 to_json(&SearchOut {
@@ -807,11 +889,13 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
 
     let body = if row.source.is_local() {
         // Resolve the path against the home for the tier. Repo-local paths key
-        // relative to the `.jd` home (root), covering both authored
-        // (`library/…`) and vendored (`remotes/<slug>/…`) files; machine-global
-        // files live under ~/.jd.
+        // relative to the `.jd` home, covering both authored (`library/…`) and
+        // vendored (`remotes/<slug>/…`) files; a nested home stamps its dir on
+        // `origin`, so its files resolve there rather than under the root home.
+        // Machine-global files live under ~/.jd.
         let bases: Vec<std::path::PathBuf> = match row.source {
             Source::Global => Config::home_cache_dir().into_iter().collect(),
+            _ if !row.origin.is_empty() => vec![std::path::PathBuf::from(&row.origin)],
             _ => vec![cfg.root.clone()],
         };
         match bases

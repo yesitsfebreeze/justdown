@@ -96,9 +96,13 @@ fn help() {
 
 USAGE  jd <command> [args]
 
-  build [--global]             scan <lib>/**/*.jd → write the graph store
+  build [--global] [--recursive]
+                               scan <lib>/**/*.jd → write the graph store
                                (default: <root>/.jd — also this repo's
-                               published index; --global: ~/.jd)
+                               published index; --global: ~/.jd). --recursive
+                               (-r) discovers every nested .jd/<lib> home under
+                               the project tree and builds each its own store;
+                               queries union them all (see MERGE).
   pull  [--local]              clone/refresh every JUSTDOWN_REPOS entry into a
                                cache scope's remotes/<slug>/ and index them as one
                                merged belt (default: ~/.jd; --local:
@@ -146,11 +150,17 @@ REF    name · path · key(dir/name) · @dir/name
 MERGE  queries union three tiers — repo-LOCAL (<root>/.jd) ⊕
        machine-GLOBAL (~/.jd) ⊕ ONLINE; nearer scope trumps by key
        (local > global > online). Build the local store with `jd build`.
+       NESTED: repo-LOCAL is itself the union of every .jd home found under
+       the project tree (each owns its <lib>/ + graph.db, no sources copied);
+       on a key collision the deeper home wins (shadowed keys logged). Build
+       them with `jd build --recursive`; disable with JUSTDOWN_NESTED=0.
 OUTPUT text (default) or machine JSON via the global --json flag (versioned
        schema, e.g. justdown.search/1; errors as justdown.error/1 on stderr).
 EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable
 ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default
-       .jd/graph.db; absolute path escapes the cache — the publish seam)
+       .jd/graph.db; absolute path escapes the cache — the publish seam,
+       root-only: nested homes use its basename inside their own .jd)
+       JUSTDOWN_NESTED (default on; =0 to disable nested .jd composition)
        JUSTDOWN_ROOT  JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_REF
        JUSTDOWN_REPOS (pull belt override; else read from .jd/.jdconfig —
        one owner/repo[@ref] or URL per line, ~/.jd then <root>/.jd)

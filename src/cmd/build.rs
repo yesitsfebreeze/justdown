@@ -62,7 +62,59 @@ pub fn run(cfg: &Config, args: &[String]) -> i32 {
             }
         }
     } else {
+        if args.iter().any(|a| a == "--recursive" || a == "-r") {
+            return build_recursive(cfg);
+        }
         (cfg.index_path(), cfg.root.clone())
     };
     build_into(&out, &cfg.lib_dir(), &base)
+}
+
+/// `jd build --recursive` — discover every nested `.jd/<lib>` home under the
+/// project tree and build each one's own self-contained store. Each folder's
+/// library is the single source of truth for its own procedures (nothing is
+/// copied); the root resolves the union at query time. The root home honours an
+/// absolute `JUSTDOWN_INDEX` (the publish seam); nested homes always write
+/// `<home>/<index-basename>`.
+fn build_recursive(cfg: &Config) -> i32 {
+    let basename = cfg.index_basename();
+    let root_canon = canon(&cfg.root);
+    let homes = graph::find_jd_homes(&cfg.project_dir());
+
+    let mut code = 0;
+    let mut built = 0usize;
+    for home in &homes {
+        let libdir = home.join(&cfg.lib);
+        if !libdir.is_dir() {
+            continue; // a `.jd` with no authored library — nothing to index
+        }
+        let is_root = canon(home) == root_canon;
+        let out = if is_root {
+            cfg.index_path()
+        } else {
+            home.join(&basename)
+        };
+        let c = build_into(&out, &libdir, home);
+        if c == 0 {
+            built += 1;
+        } else {
+            code = c;
+        }
+    }
+    if built == 0 {
+        eprintln!(
+            "jd: --recursive found no .jd/{} homes under {}",
+            cfg.lib,
+            cfg.project_dir().display()
+        );
+        return 1;
+    }
+    eprintln!("built {built} nested .jd home(s)");
+    code
+}
+
+/// Canonicalize for identity comparison, falling back to the path itself when it
+/// doesn't exist yet (so a not-yet-built home still compares sanely).
+fn canon(p: &Path) -> std::path::PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }

@@ -3,7 +3,7 @@
 // rather than a flat tsv.
 
 use justdown::render::Vars;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct Config {
     pub root: PathBuf,
@@ -223,6 +223,42 @@ impl Config {
     /// cache dir.
     pub fn index_path(&self) -> PathBuf {
         self.cache_dir().join(&self.index)
+    }
+
+    /// The store *filename* used inside a nested `.jd` home (`<home>/<basename>`).
+    /// `JUSTDOWN_INDEX`'s basename names it (default `graph.db`); an absolute
+    /// `JUSTDOWN_INDEX` stays a ROOT-only publish seam and is **not** propagated
+    /// to nested homes — they'd clobber one another — so nested stores fall back
+    /// to the default `graph.db` then.
+    pub fn index_basename(&self) -> String {
+        if std::path::Path::new(&self.index).is_absolute() {
+            return "graph.db".to_string();
+        }
+        std::path::Path::new(&self.index)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("graph.db")
+            .to_string()
+    }
+
+    /// Whether nested-home composition is enabled (default on). `JUSTDOWN_NESTED=0`
+    /// opts out, restoring the exact pre-feature single-home union.
+    pub fn nested_enabled() -> bool {
+        !matches!(
+            std::env::var("JUSTDOWN_NESTED").ok().as_deref(),
+            Some("0") | Some("false") | Some("off")
+        )
+    }
+
+    /// The project directory that owns the repo-LOCAL `.jd` home — its parent.
+    /// Nested-home discovery walks down from here. Falls back to the root itself
+    /// when it has no parent (e.g. a filesystem-root home).
+    pub fn project_dir(&self) -> PathBuf {
+        self.root
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.root.clone())
     }
 
     /// The machine-scoped cache root: `~/.jd`, shared across repos. None when

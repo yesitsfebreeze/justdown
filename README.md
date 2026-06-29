@@ -108,6 +108,26 @@ jd get release tools        # just the runnable steps
 jd explore                  # open the built-in .jd explorer in your browser
 ```
 
+### Nested libraries — one repo, many `.jd` homes
+
+Any folder in a tree can own its own `.jd/library` and build its own
+`graph.db` — `./.jd`, `./.voit/.jd`, `./packages/x/.jd`, all at once. Build them
+in one pass and query them as one graph, with **no `.jd` sources copied** between
+folders:
+
+```sh
+jd build --recursive        # build every nested .jd/library found under the tree
+jd get pkg/a-tool           # resolves across all of them from the repo root
+```
+
+The repo-LOCAL tier becomes the **union of every `.jd` home** discovered under
+the project tree (heavy dirs like `node_modules`/`target` are pruned, depth-capped).
+On a key collision the **deeper home wins** (the shadowed key is logged), then
+local still trumps machine-GLOBAL (`~/.jd`) trumps ONLINE — the existing tiers are
+unchanged. Each folder's library stays the single source of truth for its own
+procedures. Turn it off with `JUSTDOWN_NESTED=0`. See
+[`docs/nested-composition.md`](docs/nested-composition.md).
+
 ### `jd explore` — the built-in explorer
 
 `jd explore` serves a full-bleed, iA-Writer-style `.jd` explorer (CodeMirror 6 with

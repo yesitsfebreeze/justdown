@@ -39,6 +39,71 @@ impl Root {
     }
 }
 
+/// Directory names never descended into during nested-home discovery: VCS
+/// metadata, dependency installs, build output, and worktrees. Keeps the walk
+/// off node_modules-scale trees without pulling in a gitignore parser.
+const PRUNE_DIRS: &[&str] = &[
+    ".git",
+    ".git-fs",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "vendor",
+    ".worktrees",
+];
+
+/// How deep below the start dir nested-home discovery descends — a backstop so a
+/// pathological tree can't make the walk unbounded.
+const MAX_HOME_DEPTH: usize = 8;
+
+/// Find every `.jd` home directory at or below `start` — the nested-composition
+/// discovery walk. A home is any directory literally named `.jd`; its own subtree
+/// is not descended (a library tree holds no further homes). Heavy dirs
+/// ([`PRUNE_DIRS`]) and symlinks are skipped, and the descent is depth-capped.
+/// Results are sorted **deeper-first**, ties broken by path, so a caller can
+/// apply deeper-wins precedence by keeping the first row seen per key.
+pub fn find_jd_homes(start: &Path) -> Vec<PathBuf> {
+    let mut homes = Vec::new();
+    walk_homes(start, 0, &mut homes);
+    homes.sort_by(|a, b| {
+        b.components()
+            .count()
+            .cmp(&a.components().count())
+            .then_with(|| a.cmp(b))
+    });
+    homes
+}
+
+fn walk_homes(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+    if depth > MAX_HOME_DEPTH {
+        return;
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        // Don't follow symlinks (avoids cycles); only real dirs are walked.
+        match entry.file_type() {
+            Ok(t) if t.is_dir() => {}
+            _ => continue,
+        }
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if name == ".jd" {
+            out.push(path); // a home — record it, don't descend into it
+            continue;
+        }
+        if PRUNE_DIRS.contains(&name) {
+            continue;
+        }
+        walk_homes(&path, depth + 1, out);
+    }
+}
+
 /// Recursively collect every `*.jd` file under `dir`.
 pub fn collect_jd(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = match std::fs::read_dir(dir) {
@@ -130,5 +195,38 @@ mod tests {
         assert_eq!(rows[0].name, "from_over", "later root wins");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn find_homes_discovers_nested_prunes_heavy_and_orders_deeper_first() {
+        let root = std::env::temp_dir().join("jd_find_homes_test");
+        let _ = std::fs::remove_dir_all(&root);
+        // a root home, a nested home two levels down, one inside node_modules
+        // (must be pruned), and a `.jd` inside another `.jd` (must not recurse).
+        std::fs::create_dir_all(root.join(".jd/library")).unwrap();
+        std::fs::create_dir_all(root.join("packages/x/.jd/library")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules/dep/.jd/library")).unwrap();
+        std::fs::create_dir_all(root.join(".jd/library/.jd")).unwrap();
+
+        let homes = find_jd_homes(&root);
+        assert!(homes.contains(&root.join(".jd")), "root home found");
+        assert!(
+            homes.contains(&root.join("packages/x/.jd")),
+            "nested home found"
+        );
+        assert!(
+            !homes.iter().any(|h| h.starts_with(root.join("node_modules"))),
+            "node_modules pruned: {homes:?}"
+        );
+        assert!(
+            !homes.iter().any(|h| h.ends_with("library/.jd")),
+            "a home's own subtree is not descended: {homes:?}"
+        );
+        // deeper-first: packages/x/.jd (more components) precedes root .jd
+        let deep = homes.iter().position(|h| h == &root.join("packages/x/.jd"));
+        let shallow = homes.iter().position(|h| h == &root.join(".jd"));
+        assert!(deep < shallow, "deeper home sorts first: {homes:?}");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

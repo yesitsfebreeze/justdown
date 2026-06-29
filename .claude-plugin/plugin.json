@@ -1,0 +1,28 @@
+{
+	"$schema": "https://code.claude.com/schemas/plugin.json",
+	"name": "justdown",
+	"version": "0.6.0",
+	"description": "One library-lookup MCP server over the .jd graph. Search the library by need, fetch a shard as ordered sections, trace its @links — instead of an MCP server per capability. Wraps the jd binary's read verbs (search/get/ls/links/path).",
+	"author": {
+		"name": "febreeze",
+		"url": "https://github.com/yesitsfebreeze"
+	},
+	"license": "MIT",
+	"homepage": "https://github.com/yesitsfebreeze/justdown#readme",
+	"repository": "https://github.com/yesitsfebreeze/justdown",
+	"keywords": [
+		"mcp",
+		"justdown",
+		"jd",
+		"tool-library",
+		"knowledge",
+		"agent"
+	],
+	"mcpServers": {
+		"justdown": {
+			"command": "jd",
+			"args": ["mcp"],
+			"description": "justdown library-lookup MCP server (jd mcp)"
+		}
+	}
+}

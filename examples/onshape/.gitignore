@@ -1,8 +1,0 @@
-node_modules/
-test-results/
-playwright-report/
-auth.json
-__pycache__/
-captures/openapi.json
-captures/groups/
-captures/SHARED.md

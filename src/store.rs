@@ -17,26 +17,24 @@ pub struct Store {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Source {
-    /// repo-scoped home: <project>/.jd
+    /// repo-scoped home: <project>/.jd — parsed live on every query.
     Local,
-    /// machine-scoped home: ~/.jd (shared across repos)
-    Global,
-    /// the published index fetched over the network
+    /// a cached belt remote, loaded from the local download cache (its files are
+    /// still fetched over the network on `get`).
     Online,
 }
 
 impl Source {
-    /// On-disk tiers (repo Local + machine Global) are read from the filesystem
-    /// and share `get`'s read path; only Online is fetched.
+    /// The repo-local tier is read straight off the filesystem and shares `get`'s
+    /// read path; only the cached belt's file bodies are fetched.
     pub fn is_local(self) -> bool {
-        matches!(self, Source::Local | Source::Global)
+        matches!(self, Source::Local)
     }
 
     /// Stable tier name for output envelopes.
     pub fn label(self) -> &'static str {
         match self {
             Source::Local => "local",
-            Source::Global => "global",
             Source::Online => "online",
         }
     }
@@ -109,6 +107,45 @@ impl Row {
             fuzzy,
         }
     }
+}
+
+/// Resolve a node's raw `@…` tokens into (direct keys, fuzzy terms) against the
+/// corpus `idx` — the one rule shared by the on-disk build and the live in-memory
+/// build: `@dir/name` stays verbatim, `@name` resolves to its canonical key when
+/// unique (else kept bare for lint to flag), `@?term` is a fuzzy term.
+fn resolve_edges(idx: &NameIndex, n: &Node) -> (Vec<String>, Vec<String>) {
+    let mut links = Vec::new();
+    let mut fuzzy = Vec::new();
+    for token in &n.links {
+        match links::classify(token) {
+            Link::Key(k) => links.push(k.to_string()),
+            Link::Name(name) => links.push(match idx.resolve(name) {
+                Resolve::Unique(k) => k,
+                _ => name.to_string(),
+            }),
+            Link::Fuzzy(term) => fuzzy.push(term.to_string()),
+        }
+    }
+    (links, fuzzy)
+}
+
+/// Build query [`Row`]s from parsed nodes entirely in memory, resolving edges
+/// against the node set exactly as [`Store::build`] does — the live counterpart
+/// to [`Store::load_rows`], with no SQLite round-trip. Used to query the repo's
+/// `.jd` files fresh on every call (they change too often to cache).
+pub fn rows_from_nodes(nodes: &[Node], source: Source) -> Vec<Row> {
+    let idx = NameIndex::build(nodes.iter().map(|n| (n.key.as_str(), n.name.as_str())));
+    nodes
+        .iter()
+        .map(|n| {
+            let (links, fuzzy) = resolve_edges(&idx, n);
+            Row {
+                links,
+                fuzzy,
+                ..Row::from_node(n, source)
+            }
+        })
+        .collect()
 }
 
 const SCHEMA_SQL: &str = "
@@ -280,21 +317,12 @@ impl Store {
                     n.run,
                     n.has_frontmatter as i64,
                 ])?;
-                for token in &n.links {
-                    let (dst, kind) = match links::classify(token) {
-                        Link::Key(k) => (k.to_string(), "direct"),
-                        Link::Name(name) => {
-                            // resolve to the canonical key when unique; otherwise
-                            // keep the bare name (lint flags it as unresolved).
-                            let dst = match idx.resolve(name) {
-                                Resolve::Unique(k) => k,
-                                _ => name.to_string(),
-                            };
-                            (dst, "direct")
-                        }
-                        Link::Fuzzy(term) => (term.to_string(), "fuzzy"),
-                    };
-                    ins_edge.execute(params![n.key, dst, kind])?;
+                let (direct, fuzzy) = resolve_edges(&idx, n);
+                for dst in &direct {
+                    ins_edge.execute(params![n.key, dst, "direct"])?;
+                }
+                for term in &fuzzy {
+                    ins_edge.execute(params![n.key, term, "fuzzy"])?;
                 }
             }
             let mut ins_meta =

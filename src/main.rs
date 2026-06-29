@@ -2,8 +2,8 @@
 // library graph. A Rust port of the original pure-POSIX justfile, backed by a
 // real graph in a SQLite store instead of a flat graph.tsv + awk.
 //
-//   jd build          index <lib>/**/*.jd into the graph store
-//   jd pull           clone/refresh the online library into a cache scope
+//   jd build          index <lib>/**/*.jd into the graph store (publish)
+//   jd refresh        download the online belt's prebuilt graphs into the cache
 //   jd search <q>     rank files by purpose (graph-aware)
 //   jd get <ref>      a file as ordered sections, or one output profile
 //                     (--human|--agent|--frontmatter|--justfile)
@@ -18,7 +18,7 @@
 
 mod cmd;
 
-use cmd::{build, config, explore, lint, mcp, pull, query};
+use cmd::{build, config, explore, lint, mcp, query, refresh};
 use config::Format;
 use justdown::store::STORE_SCHEMA;
 use std::process::exit;
@@ -53,7 +53,7 @@ fn main() {
 
     let code = match cmd {
         "build" => build::run(&cfg, rest),
-        "pull" => pull::run(&cfg, rest),
+        "refresh" => refresh::run(&cfg),
         "search" => query::search(&cfg, rest),
         "get" => query::get(&cfg, rest),
         "ls" => query::ls(&cfg),
@@ -79,13 +79,13 @@ fn main() {
 fn version(cfg: &config::Config) -> i32 {
     println!("jd {CLI_VERSION}  ·  store schema justdown.store/{STORE_SCHEMA}");
     match justdown::store::Store::schema_of(&cfg.index_path()) {
-        None => println!("local store: none — run `jd build`"),
+        None => println!("published store: none — run `jd build` to publish"),
         Some(v) if v > STORE_SCHEMA => {
             eprintln!(
-                "jd: warning: local store is schema {v} but this CLI supports {STORE_SCHEMA} — upgrade the CLI or `jd build`"
+                "jd: warning: published store is schema {v} but this CLI supports {STORE_SCHEMA} — upgrade the CLI or `jd build`"
             );
         }
-        Some(v) => println!("local store: schema {v} (ok)"),
+        Some(v) => println!("published store: schema {v} (ok)"),
     }
     0
 }
@@ -96,17 +96,15 @@ fn help() {
 
 USAGE  jd <command> [args]
 
-  build [--global] [--recursive]
-                               scan <lib>/**/*.jd → write the graph store
-                               (default: <root>/.jd — also this repo's
-                               published index; --global: ~/.jd). --recursive
-                               (-r) discovers every nested .jd/<lib> home under
-                               the project tree and builds each its own store;
-                               queries union them all (see MERGE).
-  pull  [--local]              clone/refresh every JUSTDOWN_REPOS entry into a
-                               cache scope's remotes/<slug>/ and index them as one
-                               merged belt (default: ~/.jd; --local:
-                               <root>/.jd). later entries win. needs git.
+  build                        scan <lib>/**/*.jd → write the graph store(s).
+                               This is how a repo PUBLISHES its library (consumers
+                               fetch it via `jd refresh`); queries here read the
+                               repo live, no build needed. Always recursive: every
+                               nested .jd/<lib> home builds its own store.
+  refresh                      download every belt remote's prebuilt graph
+                               (<raw_base>/.jd/graph.db) into the local cache
+                               (<cache>/belt/<slug>.db). Queries read it offline;
+                               re-run to update. needs curl.
   search <query> [kind] [num] [category]
                                rank library files by need (graph-aware:
                                name/use_when > tags > prose; not_when vetoes)
@@ -147,23 +145,21 @@ USAGE  jd <command> [args]
   help                         this
 
 REF    name · path · key(dir/name) · @dir/name
-MERGE  queries union three tiers — repo-LOCAL (<root>/.jd) ⊕
-       machine-GLOBAL (~/.jd) ⊕ ONLINE; nearer scope trumps by key
-       (local > global > online). Build the local store with `jd build`.
-       NESTED: repo-LOCAL is itself the union of every .jd home found under
-       the project tree (each owns its <lib>/ + graph.db, no sources copied);
-       on a key collision the deeper home wins (shadowed keys logged). Build
-       them with `jd build --recursive`; disable with JUSTDOWN_NESTED=0.
+MERGE  queries merge two graphs — the LIVE repo-local <root>/.jd files (parsed
+       fresh every call) shadow the CACHED belt (`jd refresh`) by key
+       (local > cached). NESTED: the live graph is itself every .jd home found
+       under the project tree (each owns its <lib>/, no sources copied); on a key
+       collision the deeper home wins (shadowed keys logged). Disable nesting
+       with JUSTDOWN_NESTED=0.
 OUTPUT text (default) or machine JSON via the global --json flag (versioned
        schema, e.g. justdown.search/1; errors as justdown.error/1 on stderr).
 EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable
 ENV    JUSTDOWN_LIB (default library)  JUSTDOWN_INDEX (default
-       .jd/graph.db; absolute path escapes the cache — the publish seam,
-       root-only: nested homes use its basename inside their own .jd)
+       .jd/graph.db; the publish artifact `jd build` writes)
        JUSTDOWN_NESTED (default on; =0 to disable nested .jd composition)
        JUSTDOWN_ROOT  JUSTDOWN_REPO  JUSTDOWN_BRANCH  JUSTDOWN_REF
-       JUSTDOWN_REPOS (pull belt override; else read from .jd/.jdconfig —
-       one owner/repo[@ref] or URL per line, ~/.jd then <root>/.jd)
+       JUSTDOWN_REPOS (belt override; else read from <root>/.jd/.jdconfig —
+       one owner/repo[@ref] or URL per line)
        JUSTDOWN_RAW_BASE
        JUSTDOWN_VAR_<NAME>  host value for the <<name>> escape (lower-cased)
 GLOBAL --json  machine JSON on any command (replaces JUSTDOWN_FORMAT)

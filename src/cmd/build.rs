@@ -1,13 +1,9 @@
-// `jd build` — scan <lib>/**/*.jd and write a SQLite store. A thin wrapper over
-// the library's multi-root builder. Two scopes share one builder, differing only
-// in where the index lands and what base its keys are relative to:
+// `jd build` — scan <lib>/**/*.jd and write a SQLite store at
+// <project>/.jd/graph.db. A thin wrapper over the library's multi-root builder.
 //
-//   jd build              repo home    → <project>/.jd/graph.db (base = the .jd home)
-//   jd build --global     machine home → ~/.jd/graph.db         (base ~/.jd)
-//
-// The default output is both this repo's local tier AND its published toolbelt
-// index — committing <project>/.jd/graph.db is how a repo publishes (the
-// contract path consumers fetch). `jd pull` reuses `build_into` for cloned belts.
+// This is the PUBLISH step: committing <project>/.jd/graph.db is how a repo
+// publishes its library (the contract path consumers fetch via `jd refresh`).
+// Local queries don't need it — they read the repo's .jd files live.
 
 use super::config::Config;
 use justdown::graph::{self, Root};
@@ -51,30 +47,16 @@ pub fn build_roots(out: &Path, roots: &[Root]) -> i32 {
     }
 }
 
-pub fn run(cfg: &Config, args: &[String]) -> i32 {
-    // (out, base) per scope; libdir is always the configured authored lib.
-    let (out, base) = if args.iter().any(|a| a == "--global") {
-        match Config::home_cache_dir() {
-            Some(d) => (d.join(&cfg.index), d),
-            None => {
-                eprintln!("jd: build --global: $HOME is unset");
-                return 1;
-            }
-        }
-    } else {
-        if args.iter().any(|a| a == "--recursive" || a == "-r") {
-            return build_recursive(cfg);
-        }
-        (cfg.index_path(), cfg.root.clone())
-    };
-    build_into(&out, &cfg.lib_dir(), &base)
+pub fn run(cfg: &Config, _args: &[String]) -> i32 {
+    build_recursive(cfg)
 }
 
-/// `jd build --recursive` — discover every nested `.jd/<lib>` home under the
-/// project tree and build each one's own self-contained store. Each folder's
-/// library is the single source of truth for its own procedures (nothing is
-/// copied); the root resolves the union at query time. The root home honours an
-/// absolute `JUSTDOWN_INDEX` (the publish seam); nested homes always write
+/// Discover every nested `.jd/<lib>` home under the project tree and build each
+/// one's own self-contained store — `jd build` is always recursive (queries read
+/// the repo live, so the only reason to build is to publish, and a publish should
+/// cover every home). Each folder's library is the single source of truth for its
+/// own procedures (nothing is copied). The root home honours an absolute
+/// `JUSTDOWN_INDEX` (the publish seam); nested homes always write
 /// `<home>/<index-basename>`.
 fn build_recursive(cfg: &Config) -> i32 {
     let basename = cfg.index_basename();

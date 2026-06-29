@@ -1,14 +1,15 @@
 // The query surface: search / get / ls / links. A faithful port of the
 // original justfile awk — same field-weighted scoring, not_when veto, kind &
 // category narrowing, degrade-not-fail, text + JSON output, exit codes (0/2/3/4).
-// Merge is now three tiers: repo-LOCAL ⊕ machine-GLOBAL ⊕ ONLINE belt, nearer
-// scope shadowing farther by key (local > global > online).
+// Merge is two graphs: the repo-LOCAL `.jd` files, parsed LIVE on every query
+// (they change often), shadow a CACHED belt of prebuilt remote graphs that
+// `jd refresh` downloads (slow-changing, queried offline).
 
 use super::config::{Config, Format};
-use justdown::links;
+use justdown::store::{rows_from_nodes, Row, Source, Store};
+use justdown::{graph, jd, links};
 use justdown::render::{self, Vars};
 use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
-use justdown::store::{Row, Source, Store};
 use serde::Serialize;
 
 // ---------------------------------------------------------------------------
@@ -168,7 +169,7 @@ const NET_CONNECT_TIMEOUT: &str = "5";
 /// (curl absent, unreachable, 404, or a network timeout). justdown already
 /// requires curl on PATH; the online merge degrades to local-only when it
 /// isn't there or can't answer in time.
-fn curl_to_file(url: &str, dest: &std::path::Path) -> bool {
+pub(crate) fn curl_to_file(url: &str, dest: &std::path::Path) -> bool {
     std::process::Command::new("curl")
         .args([
             "-fsSL",
@@ -205,34 +206,22 @@ fn curl_to_string(url: &str) -> Option<String> {
     }
 }
 
-/// Download one online store at `url` to a temp file (tagged `n` so concurrent
-/// belt fetches don't collide) and load its rows as Online. Best-effort: any
-/// failure (unreachable, 404, unreadable) yields None so callers degrade.
-fn fetch_store(url: &str, n: usize) -> Option<Vec<Row>> {
-    let tmp = std::env::temp_dir().join(format!("jd-online-{}-{n}.db", std::process::id()));
-    if !curl_to_file(url, &tmp) {
-        return None;
-    }
-    let rows = Store::open(&tmp)
-        .ok()
-        .and_then(|s| s.load_rows(Source::Online).ok());
-    let _ = std::fs::remove_file(&tmp);
-    rows
-}
-
-/// Fetch the whole online belt: every remote's published `.jd/graph.db`
-/// (the contract location), in belt order, each row tagged with its remote's raw
-/// base so `get` fetches files from the right repo. Remotes that are non-GitHub,
-/// unreachable, or index-less are silently skipped.
-fn fetch_online_belt(cfg: &Config) -> Vec<Row> {
+/// Load the cached belt: every remote's prebuilt `graph.db` as downloaded into
+/// the local cache by `jd refresh`. Read offline — no network here. Each row is
+/// tagged with its remote's raw base so `get` fetches that file's body from the
+/// right repo. Remotes that are non-GitHub or not yet cached are silently
+/// skipped (run `jd refresh`).
+fn cached_belt_rows(cfg: &Config) -> Vec<Row> {
     // Walk the belt last→first so that, with `gather`'s keep-first dedup, a later
     // belt entry shadows an earlier one — matching `build_roots`' later-root-wins
-    // rule, so online and built-graph precedence agree ("later entries win").
+    // rule, so cached and built-graph precedence agree ("later entries win").
     let mut out = Vec::new();
-    for (i, r) in cfg.remotes().iter().enumerate().rev() {
+    for r in cfg.remotes().iter().rev() {
         let Some(raw) = r.raw_base() else { continue };
-        let url = format!("{raw}/.jd/graph.db");
-        if let Some(mut rows) = fetch_store(&url, i) {
+        let Some(cache) = Config::belt_cache_path(&r.slug) else {
+            continue;
+        };
+        if let Some(mut rows) = load_store(&cache, Source::Online) {
             for row in &mut rows {
                 row.origin = raw.clone();
             }
@@ -285,102 +274,97 @@ fn canon(p: &std::path::Path) -> std::path::PathBuf {
     std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
-/// One repo-LOCAL store to load: its on-disk path, plus the `origin` to stamp on
-/// every row so `get` reads its files from the right home. Origin is empty for
-/// the root home (files resolve under `cfg.root`, as before) and the absolute
-/// home dir for nested homes.
-struct LocalHome {
-    store: std::path::PathBuf,
-    origin: String,
+/// Parse one `.jd` home's `<lib>/` tree into live query rows. Files key relative
+/// to the home (`library/foo/bar.jd`), matching `jd build`, so `get` reads each
+/// body back under the home dir. Edges resolve within the home — self-contained,
+/// like a nested home's own built store. `origin` is stamped by the caller.
+fn parse_home(home: &std::path::Path, lib: &str) -> Vec<Row> {
+    let libdir = home.join(lib);
+    if !libdir.is_dir() {
+        return Vec::new();
+    }
+    let mut files = Vec::new();
+    graph::collect_jd(&libdir, &mut files);
+    // LC_ALL=C byte-order sort, matching `jd build`'s reproducible walk order.
+    files.sort_by(|a, b| {
+        a.as_os_str()
+            .as_encoded_bytes()
+            .cmp(b.as_os_str().as_encoded_bytes())
+    });
+    let nodes: Vec<jd::Node> = files
+        .iter()
+        .filter_map(|f| {
+            let rel = f.strip_prefix(home).unwrap_or(f);
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            let content = std::fs::read_to_string(f).ok()?;
+            Some(jd::parse(&rel, &content))
+        })
+        .collect();
+    rows_from_nodes(&nodes, Source::Local)
 }
 
-/// The repo-LOCAL stores to union, **deeper-first** so a deeper home's key wins
-/// on collision (the keep-first dedup in [`gather`] applies it). With nested
-/// composition off (`JUSTDOWN_NESTED=0`) this is just the root store; otherwise
-/// it's every discovered `.jd/<index-basename>` under the project tree, with the
-/// root home keyed to its (possibly absolute, publish-seam) `index_path`.
-fn local_homes(cfg: &Config) -> Vec<LocalHome> {
-    let root_store = || LocalHome {
-        store: cfg.index_path(),
-        origin: String::new(),
-    };
-    if !Config::nested_enabled() {
-        return vec![root_store()];
-    }
-    let basename = cfg.index_basename();
+/// The LIVE repo graph: every repo-local `.jd` home parsed fresh on this query
+/// (never a cached store — these files change too often). Homes come back
+/// **deeper-first** so a deeper home's key wins (the keep-first dedup in
+/// [`gather`] applies it). With nesting off (`JUSTDOWN_NESTED=0`) it's just the
+/// root home. Each row carries the home dir as `origin` (empty for the root, so
+/// `get` reads it under `cfg.root`).
+fn live_cwd_rows(cfg: &Config) -> Vec<Row> {
     let root_canon = canon(&cfg.root);
-    let mut out: Vec<LocalHome> = Vec::new();
+    let homes = if Config::nested_enabled() {
+        graph::find_jd_homes(&cfg.project_dir())
+    } else {
+        Vec::new()
+    };
+    let mut out: Vec<Row> = Vec::new();
     let mut saw_root = false;
-    for home in justdown::graph::find_jd_homes(&cfg.project_dir()) {
-        if canon(&home) == root_canon {
-            saw_root = true;
-            out.push(root_store());
+    for home in &homes {
+        let is_root = canon(home) == root_canon;
+        saw_root |= is_root;
+        let origin = if is_root {
+            String::new()
         } else {
-            out.push(LocalHome {
-                store: home.join(&basename),
-                origin: home.to_string_lossy().into_owned(),
-            });
+            home.to_string_lossy().into_owned()
+        };
+        for mut row in parse_home(home, &cfg.lib) {
+            row.origin = origin.clone();
+            out.push(row);
         }
     }
-    // The root home is the precedence floor: ensure it's present (and last, so it
+    // The root home is the precedence floor: ensure it's parsed (and last, so it
     // loses collisions to deeper homes) even if discovery missed it.
     if !saw_root {
-        out.push(root_store());
+        out.extend(parse_home(&cfg.root, &cfg.lib));
     }
     out
 }
 
-/// Gather the merged, deduped row set across the tiers — repo-LOCAL
-/// (`<root>/.jd` plus any nested `.jd` homes), machine-GLOBAL (`~/.jd`), and
-/// ONLINE. Nearer scope shadows farther by key (local > global > online); among
-/// local homes, the deeper home wins and each shadowed key is logged. On the
-/// degrade path (no online) a note goes to stderr; only a total absence of
-/// sources is a hard error (exit 4).
+/// Gather the merged, deduped row set from the two graphs: the LIVE repo-local
+/// `.jd` files (deeper homes first) shadowing the CACHED belt (`jd refresh`).
+/// Local always wins by key; among local homes the deeper one wins and each
+/// shadowed key is logged. Only a total absence of both is a hard error (exit 4).
 fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
-    // Load every local home in deeper-first order, tagging each row's origin so
-    // `get` can read its file from the right home.
-    let mut local: Vec<Row> = Vec::new();
-    let mut any_local = false;
-    for home in local_homes(cfg) {
-        if let Some(mut rows) = load_store(&home.store, Source::Local) {
-            any_local = true;
-            if !home.origin.is_empty() {
-                for r in &mut rows {
-                    r.origin = home.origin.clone();
-                }
-            }
-            local.extend(rows);
-        }
-    }
-    let global = cfg
-        .home_index_path()
-        .as_deref()
-        .and_then(|p| load_store(p, Source::Global));
-    let online = fetch_online_belt(cfg);
+    let local = live_cwd_rows(cfg);
+    let cached = cached_belt_rows(cfg);
 
-    if !any_local && global.is_none() && online.is_empty() {
+    if local.is_empty() && cached.is_empty() {
         emit_err(
             cfg,
             "source-unreachable",
-            "no local or global store and online belt unreachable",
+            "no repo-local .jd files and no cached belt (run `jd refresh`)",
         );
         return Err(4);
     }
-    if online.is_empty() && (any_local || global.is_some()) {
-        eprintln!("jd: note: online belt unreachable; using local/global only");
-    }
 
-    // Merge order = precedence: local (deeper-first), then global, then the
-    // online belt. Dedup by key keeps the first (nearest) row seen, so a deeper
-    // local home shadows a shallower one, and local shadows global shadows online.
+    // Merge order = precedence: live local (deeper-first), then the cached belt.
+    // Keep-first dedup means a deeper local home shadows a shallower one, and any
+    // local row shadows the cached belt.
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
     for row in local {
         if seen.insert(row.key.clone()) {
             out.push(row);
         } else {
-            // A nearer (deeper) local home already defined this key — make the
-            // shadow observable rather than silent.
             let where_ = if row.origin.is_empty() {
                 "<root>".to_string()
             } else {
@@ -392,7 +376,7 @@ fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
             );
         }
     }
-    for row in global.into_iter().flatten().chain(online) {
+    for row in cached {
         if seen.insert(row.key.clone()) {
             out.push(row);
         }
@@ -888,20 +872,15 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
     }
 
     let body = if row.source.is_local() {
-        // Resolve the path against the home for the tier. Repo-local paths key
-        // relative to the `.jd` home, covering both authored (`library/…`) and
-        // vendored (`remotes/<slug>/…`) files; a nested home stamps its dir on
-        // `origin`, so its files resolve there rather than under the root home.
-        // Machine-global files live under ~/.jd.
-        let bases: Vec<std::path::PathBuf> = match row.source {
-            Source::Global => Config::home_cache_dir().into_iter().collect(),
-            _ if !row.origin.is_empty() => vec![std::path::PathBuf::from(&row.origin)],
-            _ => vec![cfg.root.clone()],
+        // Repo-local paths key relative to the `.jd` home (`library/…`); a nested
+        // home stamps its dir on `origin`, so its files resolve there rather than
+        // under the root home.
+        let base = if row.origin.is_empty() {
+            cfg.root.clone()
+        } else {
+            std::path::PathBuf::from(&row.origin)
         };
-        match bases
-            .iter()
-            .find_map(|b| std::fs::read_to_string(b.join(&row.path)).ok())
-        {
+        match std::fs::read_to_string(base.join(&row.path)).ok() {
             Some(b) => b,
             None => {
                 emit_err(

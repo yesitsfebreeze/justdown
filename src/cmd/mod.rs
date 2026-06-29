@@ -7,5 +7,5 @@ pub mod config;
 pub mod explore;
 pub mod lint;
 pub mod mcp;
-pub mod pull;
 pub mod query;
+pub mod refresh;

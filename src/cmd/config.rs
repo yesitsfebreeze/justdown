@@ -261,24 +261,32 @@ impl Config {
             .unwrap_or_else(|| self.root.clone())
     }
 
-    /// The machine-scoped cache root: `~/.jd`, shared across repos. None when
-    /// `$HOME` is unset/empty.
-    pub fn home_cache_dir() -> Option<PathBuf> {
-        std::env::var_os("HOME")
+    /// The machine-scoped download cache root for prebuilt belt graphs:
+    /// `$XDG_CACHE_HOME/justdown` (else `~/.cache/justdown`). This is a plain
+    /// cache, NOT a `.jd` home — `jd refresh` fills it; queries read it offline.
+    /// None when neither `$XDG_CACHE_HOME` nor `$HOME` is set.
+    pub fn cache_root() -> Option<PathBuf> {
+        std::env::var_os("XDG_CACHE_HOME")
             .filter(|h| !h.is_empty())
-            .map(|h| PathBuf::from(h).join(".jd"))
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME")
+                    .filter(|h| !h.is_empty())
+                    .map(|h| PathBuf::from(h).join(".cache"))
+            })
+            .map(|d| d.join("justdown"))
     }
 
-    /// Machine-scoped index path (`~/.jd/<index>`), if `$HOME` is set.
-    pub fn home_index_path(&self) -> Option<PathBuf> {
-        Self::home_cache_dir().map(|d| d.join(&self.index))
+    /// The cached graph path for one belt remote: `<cache-root>/belt/<slug>.db`.
+    /// None when no cache root resolves.
+    pub fn belt_cache_path(slug: &str) -> Option<PathBuf> {
+        Self::cache_root().map(|d| d.join("belt").join(format!("{slug}.db")))
     }
 
-    /// The tool belt: every online library to pull, in precedence order (later
-    /// entries win — both key collisions at build time and same-slug dedup).
-    /// Sourced from `.jd/.jdconfig` (global `~/.jd` then repo `<root>/.jd`, so
-    /// the repo belt wins). `JUSTDOWN_REPOS` env, when set, overrides the files.
-    /// Falls back to the single `JUSTDOWN_REPO`.
+    /// The tool belt: every online library to cache, in precedence order (later
+    /// entries win same-slug dedup). Sourced from the repo `<root>/.jd/.jdconfig`;
+    /// `JUSTDOWN_REPOS` env, when set, overrides the file. Falls back to the
+    /// single `JUSTDOWN_REPO`.
     pub fn remotes(&self) -> Vec<Remote> {
         let env = env_or("JUSTDOWN_REPOS", "");
         let entries: Vec<String> = if !env.is_empty() {
@@ -287,12 +295,7 @@ impl Config {
                 .map(String::from)
                 .collect()
         } else {
-            let mut v = Vec::new();
-            if let Some(h) = Self::home_cache_dir() {
-                v.extend(read_jdconfig(&h.join(".jdconfig")));
-            }
-            v.extend(read_jdconfig(&self.cache_dir().join(".jdconfig")));
-            v
+            read_jdconfig(&self.cache_dir().join(".jdconfig"))
         };
 
         let mut belt: Vec<Remote> = Vec::new();

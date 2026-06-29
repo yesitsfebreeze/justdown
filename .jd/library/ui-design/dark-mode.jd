@@ -1,0 +1,44 @@
+---
+name: ui_design_dark_mode
+description: OLED-first dark UI — true-black canvas, elevation by surface tint instead of shadow, off-white text, desaturated accents. Pull when designing a dark theme, night/low-light app, or any UI that must read calmly on OLED.
+kind: knowledge
+tags: [ui-design, dark-mode, oled, surface-tint, desaturated, hairline]
+use_when: [dark theme tokens, oled true black design, dark mode elevation, night mode app, off-white text on black, desaturated dark accents, dark dashboard or dev tool]
+---
+
+# Dark Mode
+
+OLED-first dark UI: true-black backgrounds, depth via lighter surface overlays, off-white text, and desaturated accents that stay calm against black.
+
+## Defining traits
+- True-black canvas (`#000`) — black pixels are off on OLED, near-infinite contrast
+- Elevation by lightening, not shadow — higher surfaces are lighter gray tints
+- Off-white text, never pure white — `#E0`–`#F0` avoids halation
+- Desaturated accents — saturated hues vibrate against black
+- Hairline 1px low-opacity separators; subtle focus glows over hard outlines
+
+## When to use
+- Low-light/night usage, media, reading apps, dashboards, dev tools
+- OLED devices where battery and contrast genuinely benefit
+- A respectful default when users set system dark mode
+
+## Pitfalls
+- Pure white on pure black — halation, ghosting, fatigue
+- Reusing light-mode shadows — invisible on black; depth collapses
+- Over-saturated accents — chromatic vibration at edges
+- Inverting rather than redesigning — breaks imagery and contrast
+- Too many elevation levels — muddy grays; keep 3–4 steps
+- Ignoring WCAG AA against each surface
+
+## Tokens
+### Palette
+- bg `#000000` · surface-1 `#0E0E10` · surface-2 `#16161A` · surface-3 `#1E1E24`
+- border `rgba(255,255,255,.08)` · text `#ECECEE` · muted `#9A9AA2` · accent `#7C9DF0`
+### Type
+- Inter / system-ui; 400 body, 500 labels, 600 headings; 14px body / 22px page title; line-height 1.5 body, 1.2 headings; `-0.01em` heading tracking.
+### Radius · shadow · spacing
+- Radius: 4px inputs, 8px buttons, 10px cards, 999px pills.
+- Shadow: prefer surface tint; if used, soft dark `0 8px 24px rgba(0,0,0,.6)` + 1px hairline ring. Focus glow `0 0 0 3px rgba(124,157,240,.30)`.
+- Spacing: `4·8·12·16·24·32·48` (4px base).
+
+Full reference: [README](./dark-mode/README.md)

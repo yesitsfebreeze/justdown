@@ -1,0 +1,47 @@
+---
+name: ui_design_skeuomorphism
+description: Digital interfaces that mimic the look, texture, and behavior of real-world materials via gradients, bevels, and dual shadows. Pull when designing tactile, material-mimicking UI or recreating the 2007-2012 iOS/Aqua "crafted" look.
+kind: knowledge
+tags: [ui-design, skeuomorphism, texture, bevel, gloss, gradient]
+use_when: [skeuomorphic interface, leather and felt textures, glossy beveled buttons, real-material UI, early iOS look, tactile physical metaphor UI, embossed shadow style]
+---
+
+# Skeuomorphism
+
+Digital surfaces dressed as their physical counterparts — leather, metal, felt, paper — rendered with lit gradients, bevels, and stacked shadows. Defined mainstream UI in the early iPhone/iOS era (~2007-2012) before flat design replaced it.
+
+## Defining traits
+- Real-material mimicry: brushed metal, leather, linen, felt, wood, glass, paper.
+- Rich multi-stop gradients simulating curved, lit surfaces — never flat fills.
+- Bevels and embossing via paired light/dark borders that read raised or carved.
+- Dual shadows: outer drop for elevation plus inner shadow for recesses.
+- Glossy specular highlight band across the top half of buttons and panels.
+- Tactile affordances — buttons look pressable, sliders look like real toggles.
+- Decorative material detail: stitching, seams, screws, torn edges.
+
+## When to use
+- Audiences new to computing/touch, where a literal metaphor lowers the curve.
+- Apps emulating a physical tool (calculator, mixer, notepad, e-reader, instrument).
+- Nostalgia, retro, or premium "crafted" branding where richness signals quality.
+- Kiosks, kids' apps, and games where playful tactility aids engagement.
+
+## Pitfalls
+- Heavy and busy: textures and shadows compete with content and tire the eye.
+- Poor scalability across densities and dark mode.
+- Inconsistent metaphors confuse more than they help.
+- Low text-on-texture contrast hurts accessibility.
+- Stacked gradients/shadows are expensive and verbose; reads dated outside retro use.
+
+## Tokens
+### Palette
+- Felt green base `#2e6b3e`, shade `#1f4d2b`
+- Leather brown `#5a3b22`, highlight `#7a5230`, shadow `#3a2614`
+- Brushed metal light `#f2f2f4`, mid `#c4c8cc`, dark `#8d9398`
+- Glossy blue button `#5aa9f5` → `#1f6fd6`; recessed paper `#fbf7ea`
+- Emboss highlight `rgba(255,255,255,.6)`, emboss shadow `rgba(0,0,0,.55)`
+### Type
+Helvetica Neue (web stand-in PT Sans / Open Sans). Headings/labels 600-700 to carry emboss, body 400; slightly tight tracking on bold labels, always paired with an emboss text-shadow.
+### Radius · shadow · spacing
+Radius: buttons 8-12px, panels 10-16px, pills 999px. Shadow: raised = tight outer drop + inset top gloss + inset bottom shade; insets carve fields; pressed swaps to inner shadow. Spacing: 8px base, 12-16px padding, touch targets >=44px.
+
+Full reference: [README](./skeuomorphism/README.md)

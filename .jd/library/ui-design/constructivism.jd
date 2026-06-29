@@ -1,0 +1,47 @@
+---
+name: ui_design_constructivism
+description: Soviet-era agitprop aesthetic — bold diagonals, heavy geometric type, and a red/black/cream palette weaponized for mass communication. Pull when a design needs raw, confrontational, propaganda-poster energy or austere industrial geometry.
+kind: knowledge
+tags: [ui-design, constructivism, diagonals, geometric, agitprop, red-black]
+use_when: [propaganda poster look, bold diagonal layout, soviet constructivist style, activist political branding, austere industrial aesthetic, red and black geometric design, manifesto landing page]
+---
+
+# Constructivism
+
+Russian/Soviet revolutionary design (~1915–1930s) — art in service of purpose, built on diagonals, photomontage, and stark geometric force.
+
+## Defining traits
+- Bold diagonals and dynamic angled compositions that drive the eye
+- Heavy geometric/stencil sans, often set on angles, uppercase
+- Red + black + cream/off-white palette
+- Photomontage and collage
+- Thick rules and bars as structural elements
+- Circle and wedge motifs as recurring shapes
+- Revolutionary, industrial, machine-age feel
+
+## When to use
+- Activist, political, or movement-driven messaging
+- Bold editorial covers, posters, event branding
+- Brands wanting an austere, anti-decorative voice
+- Manifestos and high-impact landing pages
+- Music, art, and culture sites wanting raw geometric energy
+
+## Pitfalls
+- Diagonals everywhere harm legibility and scannability
+- Full-strength red + black fatigues and reads as alarm
+- Heavy political/historical baggage — wrong for neutral corporate/finance
+- Hard to make accessible: cream-on-red, rotated text fail screen readers and reflow
+- Easy to slip into pastiche — a red wedge alone is not Constructivism
+- Data-dense interfaces fight the angular layout
+
+## Tokens
+### Palette
+- red `#C81910` · black `#0E0E0E` · cream/paper `#ECE6D6` · muted gold accent `#C9A227`
+### Type
+- Heavy condensed/geometric sans (Anton, Oswald, stencil), uppercase, tight tracking, big weight contrast; headlines on diagonals (`rotate(-6deg)`).
+### Radius · shadow · spacing
+- Radius: `0` everywhere; circles/wedges (`50%`, `clip-path`) as deliberate accents only.
+- Shadow: hard offset only `8px 8px 0 #0E0E0E` — no blur, no glow.
+- Spacing: 8px base; asymmetric diagonal axes; bars as structural devices.
+
+Full reference: [README](./constructivism/README.md)

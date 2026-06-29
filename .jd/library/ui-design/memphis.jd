@@ -1,0 +1,52 @@
+---
+name: ui_design_memphis
+description: The loud 1980s postmodern look — clashing saturated primaries, geometric confetti, thick black outlines, and hard-offset shadows. Pull when designing playful, anti-corporate, retro-80s/90s visuals or building a Memphis/Sottsass-style component theme.
+kind: knowledge
+tags: [ui-design, memphis, squiggle, terrazzo, confetti, postmodern]
+use_when:
+  - "playful retro 80s 90s aesthetic"
+  - "clashing bright colors and geometric shapes UI"
+  - "Memphis Milano Sottsass style"
+  - "squiggle terrazzo confetti decoration"
+  - "fun anti-corporate brand visual style"
+  - "hard offset shadow flat color blocking"
+---
+
+# Memphis
+
+The defining face of 1980s postmodern design (Sottsass / Memphis Milano, 1981–87): loud color, kitsch, and decoration for its own sake, rejecting modernist restraint.
+
+## Defining traits
+- Clashing high-saturation primaries (hot pink, cyan, lemon, red, blue) on pure black/white, unharmonized.
+- Geometric confetti: scattered triangles, circles, zigzags, squiggles ("Bacterio" motif), dotted fields.
+- Thick flat black outlines around shapes and elements — no gradients.
+- Terrazzo / speckled-chip surface patterns on a light ground.
+- Asymmetry and slight tilt; off-grid placement.
+- Chunky geometric/display type, set big.
+- Flat color blocking; depth via layering and hard offset shadows, not soft elevation.
+
+## When to use
+- Playful, youthful brands: events, music, kids' products, festivals, creative portfolios.
+- Marketing splash pages and microsites where personality beats restraint.
+- Anywhere you want energy, fun, and anti-corporate warmth.
+
+## Pitfalls
+- Clashing colors and busy patterns wreck contrast — keep body text on solid high-contrast ground, check WCAG.
+- Confetti everywhere becomes noise; use whitespace, don't tile every surface.
+- Reads as un-serious — avoid finance, healthcare, enterprise, trust-critical flows.
+- Random color is tacky; constrain to a fixed palette and small shape vocabulary.
+- Heavy patterns plus animation can be nauseating — honor prefers-reduced-motion.
+
+## Tokens
+### Palette
+- ink `#1a1a1a` (outlines/text), paper `#fdf6e3` (warm ground)
+- pink `#ff2e88`, cyan `#21d4fd`, yellow `#ffd23f`, red `#ff5252`, blue `#2962ff`, mint `#2bd9b1`, white `#ffffff`
+### Type
+- Display: bold geometric/rounded face (Fredoka, Poppins, Archivo Black), weight 700–900, slight tilt; uppercase labels.
+- Body: clean geometric sans 400–500. Scale h1 clamp(2.5rem,6vw,4rem), body 1rem.
+### Radius · shadow · spacing
+- Radius: mixed by intent — cards/buttons 12px, inputs 8px, decorative 50%/999px/0; avoid uniformity.
+- Shadow: hard offset no blur — `6px 6px 0 var(--ink)` (cards), `10px 10px 0` (hero); hover translate(-2px,-2px) + grow.
+- Spacing: 8px base (4/8/16/24/40/64); 3–4px solid ink borders; card padding 24–32px.
+
+Full reference: [README](./memphis/README.md)

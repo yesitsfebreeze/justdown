@@ -1,0 +1,43 @@
+---
+name: ui_design_material_design
+description: Google's Material 3 (Material You) system — tonal elevation, semantic dynamic color roles, large rounded geometry, Roboto scale, and ink-ripple feedback. Pull when building Android/cross-platform UIs that need a documented, accessible component spec.
+kind: knowledge
+tags: [ui-design, material-design, material-you, tonal-elevation, color-roles, ripple]
+use_when: [material design tokens, material 3 material you, tonal elevation surfaces, dynamic color roles, roboto type scale, android native ui, FAB ripple components]
+---
+
+# Material Design
+
+Google's open-source system, here targeting Material 3 (Material You, 2021+): surfaces behave like layered paper under light, with tonal color, soft shadows, and friendly geometry.
+
+## Defining traits
+- Tonal elevation — depth via primary-tinted surface overlay, backed by soft diffuse shadows
+- Dynamic/tonal color roles (primary, on-primary, container, surface, outline…) with guaranteed accessible pairings
+- Large rounded geometry — shape scale from extra-small to full; stadium/pill buttons
+- Roboto type scale — display → headline → title → body → label
+- Ripple emphasis — ink ripple + translucent state layer on touch/hover
+- Signature components: filled/tonal/outlined/text buttons, FAB, cards, top app bar, floating-label text fields
+
+## When to use
+- Android apps and cross-platform products native to Google's ecosystem
+- Teams wanting a complete, documented, accessible component spec
+- Products benefiting from wallpaper-driven dynamic color, or calm content-forward surfaces
+
+## Pitfalls
+- Generic "Google app" look from defaults — override seed/type to brand
+- Over-elevation — too many high surfaces muddy hierarchy
+- Mixing M2 and M3 — hard shadows beside tonal surfaces breaks the language
+- Ignoring color roles — hand-picked hexes break contrast and dark mode
+- Density — roomy 8dp grid and 48dp targets fight dense tables
+
+## Tokens
+### Palette
+- M3 roles (light): primary `#6750A4` · on-primary `#FFFFFF` · primary-container `#EADDFF` · surface `#FEF7FF` · surface-variant `#E7E0EC` · on-surface `#1D1B20` · outline `#79747E` · error `#B3261E`. Dark: surface `#141218`, primary `#D0BCFF`.
+### Type
+- Roboto (fallback system-ui); display-large 57/64/400 → body-medium 14/20/400 → label-large 14/20/500 (buttons), label-small 11/16/500.
+### Radius · shadow · spacing
+- Radius: shape scale 0 / 4 / 8 / 12 (cards) / 16 (FAB) / 28 (dialogs) / 9999 (buttons, chips).
+- Shadow: soft key+ambient pairs per dp (1dp `0 1px 2px rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15)`); tonal overlay is the dominant depth cue; scrim `rgba(0,0,0,.32)`; state layer 8%/12%.
+- Spacing: 8dp grid, 4dp half-step; `4·8·12·16·24·32·48·64`; min touch 48×48dp.
+
+Full reference: [README](./material-design/README.md)

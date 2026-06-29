@@ -1,0 +1,48 @@
+---
+name: ui_design_art_deco
+description: The gilded 1920s–30s Jazz Age aesthetic — symmetric geometric ornament, metallic gold against deep ink, and tall engraved display type. Pull when a brief calls for luxury, glamour, vintage opulence, or skyscraper-era elegance.
+kind: knowledge
+tags: [ui-design, art-deco, sunburst, chevron, gold, symmetry]
+use_when: [art deco style, gatsby jazz age look, gold metallic luxury theme, sunburst chevron ornament, vintage glamour branding, speakeasy gala identity, geometric serif elegance]
+---
+
+# Art Deco
+
+The gilded geometry of the Gatsby era: luxury craftsmanship married to machine-age precision — glamour with a straightedge.
+
+## Defining traits
+- Axial symmetry, mirrored left-to-right around a strong central focal point.
+- Geometric ornament vocabulary: chevrons, zigzags, sunbursts, fans, stepped ziggurats, concentric arcs.
+- Metallic luxury — muted gold/brass/bronze on deep black and midnight navy, with jade/emerald jewel accents.
+- High-contrast display type: tall geometric or refined serif, uppercase, generously letter-spaced.
+- Thin gilded frames — fine single/double hairline outlines, never heavy.
+- Stepped elevation via nested/tiered outlines instead of soft drop shadows.
+- Vertical, skyscraper-inspired upward thrust and fluting.
+
+## When to use
+- Luxury, hospitality, spirits, jewelry, and fashion brands wanting timeless glamour.
+- Event identities — galas, theaters, cinemas, speakeasy venues, weddings.
+- Editorial or portfolio sites where craftsmanship is the message.
+- Products that benefit from curated, hand-finished opulence.
+
+## Pitfalls
+- Ornament overload — pick one or two motifs and repeat; stacking all reads as kitsch.
+- Gold-on-black body text fails WCAG; reserve metallics for large headings, use near-white for copy.
+- Flat neon `#FFD700` looks cheap; use muted desaturated brass with gradients.
+- Ragged asymmetry undermines the language — center and mirror.
+- Blurry material drop shadows feel anachronistic; prefer crisp stepped outlines.
+
+## Tokens
+### Palette
+- bg ink `#0B0E14`, surface `#11151F`, surface alt `#161B28`
+- gold `#C8A24B`, gold light `#E8CE8A`, gold deep `#9A7B2E`
+- jade `#1E6F5C`, jade light `#3FA889`
+- text `#F2E9D8`, muted `#A9A48F`, hairline `rgba(200,162,75,0.45)`
+### Type
+Display Cinzel or Poiret One, uppercase, letter-spacing 0.18–0.35em; body Cormorant Garamond, high stroke contrast. Scale 12/14/16/24/36/54/80px; headings line-height 1.1, body 1.6.
+### Radius · shadow · spacing
+Radius: base `0` (rectilinear); chamfer via clip-path; circles only for medallions.
+Shadow: stacked thin gilded outlines + faint inner glow + grounding `0 18px 40px rgba(0,0,0,0.55)`; no soft blur.
+Spacing: 8px base, cards 32–48px, symmetric and generous.
+
+Full reference: [README](./art-deco/README.md)

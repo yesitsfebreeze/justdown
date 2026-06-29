@@ -1,0 +1,46 @@
+---
+name: ui_design_bauhaus
+description: The 1919–1933 German school's "form follows function" language — primary colors, pure geometric shapes, and rational asymmetric grids stripped of ornament. Pull when a brief wants bold geometric modernism, primary-color blocks, or a disciplined grid-driven editorial look.
+kind: knowledge
+tags: [ui-design, bauhaus, primary-colors, geometric, grid, flat]
+use_when: [bauhaus style, primary color geometric design, form follows function look, circle square triangle shapes, modernist poster grid, futura geometric sans, flat bold color blocks]
+---
+
+# Bauhaus
+
+Geometric abstraction in service of function: pure shapes, primary color, and rational grids with no ornament for its own sake.
+
+## Defining traits
+- Primary colors — red, yellow, blue — anchored by black and white.
+- Pure geometric shapes: circle, square, triangle.
+- Asymmetric but carefully balanced grid layouts.
+- Geometric sans-serif typography (Futura / Universal feel).
+- Bold flat blocks of solid color.
+- Functional and stripped down; diagonal, dynamic compositions for movement and tension.
+
+## When to use
+- Brands that want to read as modern, rational, and confident.
+- Editorial, posters, and covers where bold geometry carries the message.
+- Design systems favoring clarity and a strict, legible grid.
+- Cultural, architectural, or educational institutions.
+- Work that benefits from a strong, opinionated, timeless aesthetic.
+
+## Pitfalls
+- Full-saturation primaries feel harsh or childish if unbalanced.
+- "No ornament" misread as "no craft" — spacing and proportion still matter.
+- Geometric shapes used as stickers instead of structural elements.
+- Over-tight tracking that hurts body-text readability.
+- Asymmetry without balance reads accidental; never forget the grid — disciplined, not chaotic.
+
+## Tokens
+### Palette
+- red `#E1251B`, yellow `#FFD500`, blue `#005BBB`
+- black `#1A1A1A`, paper `#F4F1EA`
+### Type
+Geometric sans with large weight contrast (e.g. 400 vs 800); tight tracking on display headings, looser on body.
+### Radius · shadow · spacing
+Radius: mostly `0`; circles via `border-radius: 50%`.
+Shadow: flat — usually none, or a hard offset `6px 6px 0 #1A1A1A`; no blur, no soft drop shadows.
+Spacing: 8px base grid, generous gutters between blocks.
+
+Full reference: [README](./bauhaus/README.md)

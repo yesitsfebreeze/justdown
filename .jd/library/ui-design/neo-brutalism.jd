@@ -1,0 +1,52 @@
+---
+name: ui_design_neo_brutalism
+description: Loud, raw 2020s web style — thick black borders, hard zero-blur offset shadows, saturated flat colors, and chunky heavy type. Pull when designing bold, playful, anti-corporate landing pages, indie products, or dev-tool branding.
+kind: knowledge
+tags: [ui-design, neo-brutalism, hard-shadow, thick-border, flat-color, high-contrast]
+use_when:
+  - "bold loud anti-corporate landing page"
+  - "thick black borders and hard offset shadows"
+  - "neo-brutalism neubrutalism web style"
+  - "saturated flat colors sharp corners UI"
+  - "indie product dev-tool branding aesthetic"
+  - "chunky pressable buttons high contrast"
+---
+
+# Neo-Brutalism
+
+A 2020–2023 web style (a.k.a. neubrutalism) keeping brutalist rawness but adding deliberate, loud styling — a reaction against soft corporate Memphis and glassy neumorphism.
+
+## Defining traits
+- Thick solid pure-black borders (3–4px+) on nearly every element.
+- Hard offset drop shadows with zero blur — a solid color block down-right.
+- Raw high-saturation flat colors (electric yellow, hot pink, lime, cyan) on off-white/white; no gradients or transparency.
+- Chunky geometric/grotesque sans, heavy weights, often uppercase.
+- Sharp corners: zero or near-zero radius.
+- Tactile interaction — buttons translate toward their shadow on press, shadow shrinks.
+- Intentional rawness; exposed grids over hidden subtlety.
+
+## When to use
+- Indie products, portfolios, landing pages, bold anti-corporate brands.
+- Marketing/launch pages where standing out beats blending in.
+- Design-forward tools, creative communities, dev-tool branding.
+- Where personality and high contrast matter more than calm minimalism.
+
+## Pitfalls
+- Loud everywhere means nothing stands out — reserve accents.
+- Saturated pairs can still fail WCAG; decorative chaos hurts readability and focus order.
+- Poor fit for data-dense, enterprise, or trust-critical UIs.
+- Hard shadows and thick borders eat layout space; can break on small screens.
+- Strongly dated to its era; press/translate effects must not cause reflow jank.
+
+## Tokens
+### Palette
+- ink `#111111` (borders/shadows/text), paper `#fafafa`, surface `#ffffff`.
+- accent `#ffde00`, accent-2 `#ff5470`, accent-3 `#00e0c6`, accent-4 `#7c4dff`.
+### Type
+- Heavy geometric/grotesque sans (Space Grotesk, Archivo, Inter) weights 700–800; headings often uppercase, -0.01em to 0; base 16px, scale 1.25.
+### Radius · shadow · spacing
+- Radius: 0 (sharp), at most 2–4px.
+- Shadow: hard zero-blur `6px 6px 0 var(--ink)`, larger `8px 8px 0`; elevation = offset distance, never blur. No glass.
+- Spacing: 8px base (4/8/16/24/32/48); card padding 24–32px, buttons 12–16px; borders 3px controls / 4px cards.
+
+Full reference: [README](./neo-brutalism/README.md)

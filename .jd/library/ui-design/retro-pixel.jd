@@ -1,0 +1,52 @@
+---
+name: ui_design_retro_pixel
+description: The 8/16-bit videogame UI aesthetic — bitmap pixel fonts, hard edges, limited palettes, and zero-blur offset shadows snapped to a pixel grid. Pull when designing game tools, arcade/chiptune brands, or playful nostalgic UIs with a deliberate "this is a toy/game" signal.
+kind: knowledge
+tags: [ui-design, retro-pixel, bitmap-font, pixelated, hard-shadow, 8-bit]
+use_when:
+  - "8-bit 16-bit retro game UI"
+  - "pixel font bitmap typography no anti-aliasing"
+  - "arcade NES Game Boy nostalgic aesthetic"
+  - "chunky pressable pixel buttons hard shadow"
+  - "limited palette pixel-art accents UI"
+  - "game launcher chiptune demoscene styling"
+---
+
+# Retro Pixel
+
+The 8/16-bit videogame UI look of the mid-80s to early 90s (NES, Game Boy, SNES, arcade) — hardware constraints turned deliberate style: chunky pixel fonts, nearest-neighbor scaling, blocky chrome.
+
+## Defining traits
+- Pixel typography — bitmap fonts (Press Start 2P, Pixelify Sans) rendered crisp, never smoothed.
+- Hard edges everywhere — radius 0; corners are pixels, not curves.
+- Limited named palette (NES/Game Boy), flat with no gradients (or dithered fakes).
+- No anti-aliasing — image-rendering: pixelated keeps scaled art blocky.
+- Hard offset drop shadows, zero blur, offset by whole-pixel multiples.
+- Pixel-art accents from squares (box-shadow tricks or crispEdges SVG).
+- Chunky pressable buttons — hard shadow collapses on :active for a physical press.
+- Grid-snapped spacing on a 4px/8px base unit.
+
+## When to use
+- Game tools, launchers, retro/arcade brands, chiptune/demoscene projects.
+- Playful productivity apps, hackathon UIs, dashboards wanting personality.
+- Landing pages/portfolios where strong nostalgic identity beats neutral polish.
+- Anywhere a deliberate "this is a toy/game" signal is a feature.
+
+## Pitfalls
+- Pixel fonts are wide and tiring — never for long body copy; reserve for headings/labels, set generous line-height.
+- Limited palettes easily fail contrast; verify WCAG, don't rely on color alone.
+- Bitmap fonts/art only look right at integer scales — avoid fractional zoom, snap to grid.
+- Full-screen pixel everything reads as gimmick; anchor with whitespace.
+- Large box-shadow pixel sprites get heavy; prefer crisp SVG for detail.
+
+## Tokens
+### Palette
+- bg `#0f0f1b`, surface `#1d2b53`, ink `#fff1e8`, primary `#ff004d`, accent `#ffec27`, success `#00e436`, info `#29adff`, shadow `#000000`, muted `#5f574f`.
+### Type
+- "Press Start 2P" / "Pixelify Sans" / monospace; sizes 8/10/12(default)/16/24px; line-height 1.8; never smoothed.
+### Radius · shadow · spacing
+- Radius: 0 always; border 4px solid ink.
+- Shadow: hard no-blur `4px 4px 0` / `8px 8px 0`; pressed collapses to `0 0 0`. Depth from offset, never blur.
+- Spacing: 4px-grid multiples (4/8/12/16/24/32/48).
+
+Full reference: [README](./retro-pixel/README.md)

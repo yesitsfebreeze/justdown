@@ -1,0 +1,48 @@
+---
+name: ui_design_y2k_frutiger_aero
+description: Glossy turn-of-millennium techno-optimist aesthetic — aqua/sky gradients, frosted Aero glass, candy-gel buttons, water and nature motifs, and rounded humanist sans type. Pull when designing nostalgic 2000s-computing UIs, eco/clean-tech brands, or glossy Aqua/Vista-style surfaces.
+kind: knowledge
+tags: [ui-design, y2k-frutiger-aero, glossy, aqua-glass, gradient, skeuomorphic]
+use_when: [frutiger aero style, Y2K aesthetic, aqua glossy buttons, aero glass translucency, 2000s techno optimism UI, sky blue water motif design, glassy candy gel interface]
+---
+
+# Y2K / Frutiger Aero
+
+A glossy, hopeful eco-tech-utopian look from ~1999-2010: aqua and sky-blue gradients, frosted translucent glass, candy-gel buttons, and water/nature imagery. Codified by Windows XP/Vista Aero, Mac OS X Aqua, and the iPod era; named after the Frutiger typeface.
+
+## Defining traits
+- Aqua and sky-blue gradients; cyan-to-white atmospheric backgrounds.
+- Glossy glass buttons with a bright specular highlight across the top (Aqua pill).
+- Aero glass translucency: frosted, blurred, see-through panels.
+- Water imagery — droplets, bubbles, ripples, condensation.
+- Lush nature motifs: grass, blue sky, fish, leaves, clouds.
+- Everything rounded — generous corner radii on cards, buttons, inputs.
+- Specular sheen, lens flare, soft bloom; soft diffuse drop shadows, never hard.
+- Humanist sans type (Frutiger / Myriad / Segoe-like), clean and warm.
+
+## When to use
+- Nostalgic / retro-tech products evoking 2000s computing.
+- Eco, clean-energy, wellness, or "fresh & clean" brand stories.
+- Playful consumer apps wanting an optimistic, approachable feel.
+- Music/media/lifestyle UIs referencing the iPod/iTunes era.
+- Landing or event pages wanting an instantly recognizable vibe.
+
+## Pitfalls
+- Over-glossing everything kills hierarchy — reserve heaviest sheen for primary actions.
+- Heavy `backdrop-filter` blur is expensive; tanks long lists / low-end devices.
+- Glossy gradients + thin light text often fail WCAG; check text-on-glass.
+- Skeuomorphic clutter dates fast — keep layouts modern even if surfaces glossy.
+- Too many competing gradients muddy the page; stacked bevels/shadows look noisy.
+
+## Tokens
+### Palette
+- Sky `#aee4ff` → `#4ab8ef`, deep ocean `#0d6fb8`
+- Candy aqua `#19c2ff` (dark `#0a8fd6`); grass `#7ed957` / `#3fa516`
+- Glass fill `rgba(255,255,255,.35)`, edge `rgba(255,255,255,.65)`
+- Ink `#0a3c5c`, soft ink `#3a6b88`, white `#ffffff`
+### Type
+Inter / Segoe UI / Myriad Pro / Frutiger. Weights 400/500/700; scale 13/15/22/32px; title tracking -0.01em, body line-height 1.5.
+### Radius · shadow · spacing
+Radius: 6/12/18/28px + pill 999px (everything rounded). Shadow: soft card lift, glossy button = outer lift + inner top sheen + inner bottom core, frosted glass edge insets. Spacing: 8pt base 4-48px; glass blur 14px, bloom 40px, glass alpha .35.
+
+Full reference: [README](./y2k-frutiger-aero/README.md)

@@ -1,0 +1,50 @@
+---
+name: ui_design_neumorphism
+description: Soft UI where elements appear molded from a single continuous surface via dual light/dark shadows. Pull when designing calm single-surface dashboards, media players, or toggle/slider-heavy concept pieces with a raised/pressed metaphor.
+kind: knowledge
+tags: [ui-design, neumorphism, soft-ui, dual-shadow, monochrome, extruded]
+use_when:
+  - "soft UI molded extruded surface look"
+  - "dual light and dark shadow elements"
+  - "neumorphism raised pressed toggle metaphor"
+  - "monochromatic single surface dashboard"
+  - "calm minimal media player concept design"
+  - "low contrast embossed inset shadows"
+---
+
+# Neumorphism (Soft UI)
+
+A 2019–2020 hybrid of skeuomorphism and flat design: elements look molded from one continuous surface rather than layered on top of it.
+
+## Defining traits
+- Monochromatic — background and elements share the exact same base color.
+- Dual shadows: dark bottom-right, light top-left, simulating a single light source.
+- Shadow pair yields an extruded (raised) or embossed (pressed) look.
+- Deliberately low contrast between surface and elements.
+- Soft, generously rounded shapes.
+- Two core states: raised (drop shadows) vs pressed/inset (inner shadows).
+
+## When to use
+- Calm, minimal dashboards, music/media players, concept/portfolio pieces.
+- Single-surface layouts where every control sits on one flat color.
+- Toggle- and slider-heavy interfaces where raised/pressed reads naturally.
+- Light-mode product showcases prioritizing aesthetic over dense information.
+
+## Pitfalls
+- Severe contrast/accessibility problems — routinely fails WCAG; the main reason not to ship it.
+- Low affordance: raised buttons barely look clickable; pressed vs disabled easily confused.
+- Breaks on busy or multi-color schemes — needs a single flat surface.
+- Gradients, images, or layered backgrounds destroy the effect.
+
+## Tokens
+### Palette
+- base surface `#e0e5ec`, light shadow `#ffffff`, dark shadow `#a3b1c6`.
+- text `#4d5b6e`, muted `#8a98ab`, accent `#6d8bbf`.
+### Type
+- Poppins, weights 400/500/600. Sizes 13px label, 15px body/input, 22px card title, 28px header.
+### Radius · shadow · spacing
+- Radius: 12px small, 20px card/field, 50px pill.
+- Shadow: raised `-6px -6px 12px #fff, 6px 6px 12px #a3b1c6`; pressed `inset -4px -4px 8px #fff, inset 4px 4px 8px #a3b1c6`.
+- Spacing: 8/16/24/32px.
+
+Full reference: [README](./neumorphism/README.md)

@@ -1,0 +1,46 @@
+---
+name: ui_design_tui_terminal
+description: A real HTML page styled as a text terminal — monospace grid, box-drawing frames, phosphor green/amber on near-black, block cursors, and optional CRT scanlines. Pull when designing terminal/TUI-themed surfaces, hacker/retro-computing aesthetics, or text-dense dashboards that should look like a console.
+kind: knowledge
+tags: [ui-design, tui-terminal, monospace, phosphor, ascii, crt]
+use_when: [terminal UI style, TUI aesthetic, monospace box-drawing layout, phosphor green amber CRT, retro computing hacker look, ANSI color console UI, scanline terminal theme]
+---
+
+# TUI / Terminal
+
+A CSS rendering of a text-UI aesthetic: monospace everything, box-drawing frames (┌─┐│└┘), block cursors, ANSI color, phosphor green or amber on near-black, optional CRT scanlines and glow. It must stay a real, selectable HTML page — never an image. Rooted in 1970s-90s text terminals (VT100, ncurses, code page 437).
+
+## Defining traits
+- Monospace always; the whole layout aligns to a character grid.
+- Box-drawing frames (`┌ ─ ┐ │ └ ┘` or double-line `╔ ═ ╗ ║`), not rounded rects.
+- Phosphor palette: near-black bg, P1 green or P3 amber foreground, or 16-color ANSI.
+- Block cursor `█` that blinks; focus/selection is reverse-video, not shadows.
+- Optional CRT artifacts: scanlines, soft phosphor glow, faint vignette/curvature.
+- No rounded corners, no decorative gradients, no soft shadows.
+- Buttons read as labels `[ OK ]` `< Submit >`; inputs as prompt lines `> _`.
+
+## When to use
+- Developer tools, CLIs-with-a-face, status dashboards, log viewers, CI surfaces.
+- Hacker / retro-computing / cyberpunk brand moments and landing pages.
+- Game UIs (roguelikes, sci-fi consoles) and "fake OS" interactive fiction.
+- Text-dense, tabular content where density and legibility beat decoration.
+
+## Pitfalls
+- Heavy scanlines + glow + low contrast = unreadable; keep glow subtle, contrast high.
+- Box-drawing tears the instant the font isn't truly mono or line-height/letter-spacing drifts.
+- Pure green-on-black can fail contrast; respect `prefers-reduced-motion`.
+- Emoji / non-mono glyphs break the column math — stick to ASCII + box-drawing.
+- Loud aesthetic; reserve it for surfaces where the vibe earns its keep.
+
+## Tokens
+### Palette
+- Bg `#0b0f0a`, raised `#0f150e`
+- Green phosphor `#33ff33` (dim `#1f9d1f`, bright `#b6ffb6`)
+- Amber phosphor `#ffb000` (dim `#a86b00`, bright `#ffd277`)
+- Plus full 16-color ANSI set (red `#ff5f56`, green `#5af78e`, blue `#57c7ff`…)
+### Type
+True monospace stack (IBM Plex Mono, JetBrains Mono, VT323, Menlo). Locked line-height ~1.2 and letter-spacing 0 (nonzero tears frames); scale 12/14/16/20/28px, weights 400/700.
+### Radius · shadow · spacing
+Radius: 0. Shadow: none on panels; "elevation" is phosphor text-glow via `text-shadow: 0 0 4px currentColor`. Spacing: character-grid based — 1ch columns, rows = fs*lh, gutter ~2ch.
+
+Full reference: [README](./tui-terminal/README.md)

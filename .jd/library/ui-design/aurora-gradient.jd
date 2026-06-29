@@ -1,0 +1,46 @@
+---
+name: ui_design_aurora_gradient
+description: A modern mesh-gradient aesthetic of soft blurred multi-color glows paired with glassmorphism, as seen on Stripe, Linear, and Vercel. Pull when a brief wants luminous SaaS/dev-tool atmosphere, glowing gradient heroes, or frosted glass over colorful backgrounds.
+kind: knowledge
+tags: [ui-design, aurora-gradient, mesh, glassmorphism, glow, blur]
+use_when: [aurora mesh gradient background, glowing saas landing page, stripe linear vercel look, glassmorphism frosted card, colored gradient glow accent, modern dev tool hero, blurred blob backdrop]
+---
+
+# Aurora Gradient
+
+Soft, heavily-blurred multi-color radial glows that bleed into one luminous field, paired with frosted glass surfaces — the luminous "aurora" look of modern SaaS landing pages.
+
+## Defining traits
+- Mesh background: large blurred radial blobs in adjacent hues (violet → blue → teal → pink → peach), no hard edges.
+- Glassmorphism surfaces: backdrop-blur, semi-transparent fill, hairline translucent border, soft inner highlight.
+- Glowing gradient accents — buttons are gradient-filled with a colored (not flat) drop-shadow.
+- Large radii: 16–28px cards, pill or near-pill buttons.
+- Diffuse colored shadows tinted to the accent hue, not pure black.
+- Clean neo-grotesque sans (Inter/Sora/Space Grotesk), tight heading tracking.
+- Generous airy spacing so the glow can breathe; works on near-black or near-white base.
+
+## When to use
+- Marketing/landing pages for dev tools, AI products, fintech, SaaS.
+- Hero sections, pricing, auth screens — "wow" moments where atmosphere beats density.
+- Brands wanting modern, premium, technical without feeling cold.
+
+## Pitfalls
+- Performance — blur and backdrop-filter are GPU-heavy; never animate blur, limit stacked frosted layers.
+- Text over the multi-color glow fails WCAG; keep text on solid glass, verify on the lightest stop.
+- Provide an opaque fallback where backdrop-filter is unsupported.
+- Overuse dates fast — reserve glow for one or two focal accents.
+- Too many saturated hues turn muddy grey-brown; keep blobs analogous, use opacity for depth. Add noise to mask banding.
+
+## Tokens
+### Palette
+- blobs (40–70% opacity, heavy blur): violet `#7C3AED`, indigo `#4F46E5`, blue `#3B82F6`, teal `#2DD4BF`, cyan `#22D3EE`, pink `#EC4899`, peach `#FB923C`
+- dark base `#0B0B12`, light base `#F5F3FF`
+- glass fill `rgba(255,255,255,0.08)` dark, border `rgba(255,255,255,0.18)`; text `#F4F4FA` / muted `#A9A8C0`
+### Type
+Inter/Sora/Space Grotesk. Headings 600–700, letter-spacing -0.02em, line-height 1.1; body 400–450 at 15–16px, line-height 1.6; labels 500 at 13px.
+### Radius · shadow · spacing
+Radius: cards 24px, buttons/inputs 12px (or 999px pill), chips 8px.
+Shadow: card `0 8px 32px rgba(17,12,46,0.35)` + inner highlight; button glow `0 8px 24px rgba(124,58,237,0.45)`. Blobs blur 80–120px, glass backdrop-blur 20px saturate(150%).
+Spacing: 8px base, card padding 32–40px, section gaps 48px+.
+
+Full reference: [README](./aurora-gradient/README.md)

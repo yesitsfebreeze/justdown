@@ -1,0 +1,46 @@
+---
+name: ui_design_flat_design
+description: Post-skeuomorphic style (2010–2013) — solid flat fills, no gradients or shadows, bold color and strong type carrying hierarchy. Pull when a UI needs clean, fast-scanning clarity with color-coded blocks and no faux-3D chrome.
+kind: knowledge
+tags: [ui-design, flat-design, solid-color, no-shadow, geometric-sans, whitespace]
+use_when: [flat design tokens, no gradient no shadow ui, solid color block layout, metro ios7 style, color-coded dashboard, minimal flat interface, single z-plane design]
+---
+
+# Flat Design
+
+A reaction against skeuomorphism — honest to the flat screen: solid fills, no gradients, no shadows, depth implied only by color and space.
+
+## Defining traits
+- No gradients — solid flat fills only
+- No skeuomorphic textures (leather, paper, metal)
+- No drop shadows or bevels — one shared plane
+- Bold, saturated solid colors; large color blocks define regions
+- Strong, simple geometric/humanist sans carries hierarchy
+- Sharp or lightly-rounded edges
+- Generous whitespace replaces ornament
+
+## When to use
+- Content/data-heavy products needing clarity and fast scanning
+- Brands wanting a modern, confident, no-nonsense voice
+- Color-coded systems (categories, statuses, nav)
+- Performance-sensitive UIs — flat fills are cheap and scale crisply
+
+## Pitfalls
+- Weak affordances — buttons read as labels without depth cues
+- Low contrast — bright-on-bright or pastel-on-white fails AA
+- Lost hierarchy — type and spacing must do all the work
+- Color overload — too many saturated hues tire the eye
+- Ambiguous state — hover/active/disabled need distinct solids
+
+## Tokens
+### Palette
+- primary `#2980B9` · secondary `#16A085` · accent `#E74C3C` · bg `#ECF0F1` · surface `#FFFFFF` · text `#2C3E50` · muted `#7F8C8D`
+- Hover/active = darker solid of same hue (e.g. primary hover `#1F6391`).
+### Type
+- Montserrat / Open Sans (geometric sans); 400 body, 600 labels, 700 headings; 14px body, 28px heading, 40px display; line-height 1.5 / 1.2.
+### Radius · shadow · spacing
+- Radius: `0` or `2–4px`; no large pills unless intentional.
+- Shadow: none — use a 1px border or background-color step for separation. No blur, single z-plane.
+- Spacing: `4·8·12·16·24·32·48·64` (8px rhythm).
+
+Full reference: [README](./flat-design/README.md)

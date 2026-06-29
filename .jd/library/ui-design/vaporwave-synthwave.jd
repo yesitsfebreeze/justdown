@@ -1,0 +1,46 @@
+---
+name: ui_design_vaporwave_synthwave
+description: 1980s-retrofuturist nostalgia aesthetic — neon magenta/cyan on deep indigo, layered glow, sunset gradients, and outrun wireframe grids. Pull when designing bold neon-night hero sections, music/gaming/nightlife brands, or retro-futurist splash pages.
+kind: knowledge
+tags: [ui-design, vaporwave-synthwave, neon, glow, sunset-gradient, outrun-grid]
+use_when: [vaporwave style, synthwave aesthetic, neon glow UI, outrun grid floor, retro 80s futurism, sunset gradient hero, magenta cyan neon design]
+---
+
+# Vaporwave / Synthwave
+
+A hyper-saturated 1980s-retrofuturist look that crystallized online in the early 2010s: neon pink/cyan on deep indigo, glowing geometry, and the "future that never was." Synthwave is the neon-night-drive sibling; vaporwave the slower glitch-and-statue side — one shared UI toolkit.
+
+## Defining traits
+- Hot magenta/pink + electric cyan + neon purple on a deep indigo/near-black ground.
+- Neon glow on text, borders, and shapes via layered soft shadows, never flat color.
+- Sunset gradients (orange → pink → purple), often behind a slitted glowing sun.
+- Perspective wireframe grid floor receding to a horizon (the "outrun" grid).
+- Chrome/metallic type, retro digital segmented/wide display fonts.
+- Glitch, RGB-split, and VHS scanlines.
+- Motifs: palm trees, low sun, statues, Windows-95-era chrome; dreamy, electric mood.
+
+## When to use
+- Music, gaming, streaming, NFT/crypto, and nightlife brands wanting energy and nostalgia.
+- Hero sections, splash pages, event/launch landing pages, and "drop" moments.
+- Demo/portfolio pieces meant to feel bold and memorable.
+- Anywhere a strong retro-futurist identity beats neutral corporate calm.
+
+## Pitfalls
+- Neon-on-dark and glow halos wreck legibility; keep body near-white, glow for accents.
+- Glow overload: glow everything and nothing reads as special.
+- Full-bleed neon fatigues fast — let the dark ground breathe.
+- Many layered shadows + large blurs jank on low-end devices; don't animate blur.
+- Grid + sun + palm tree can feel template-y; lean on type and layout to stay distinct.
+
+## Tokens
+### Palette
+- Bg deep `#0d0221`, panel `#1a0938`, inset `#241046`
+- Magenta `#ff2e97`, cyan `#00f0ff`, purple `#b14aed`, violet `#7b2ff7`
+- Sunset stops `#ff8a3d` → `#ff3c8e` → `#9b2fe0`
+- Text near-white `#f5e9ff`, dim lavender `#b69ad6`
+### Type
+Display Orbitron (Arial Narrow fallback); body Rajdhani. Weights 400/600/700/900, wide tracking ~0.08em on display; scale 12-64px (64 hero).
+### Radius · shadow · spacing
+Radius: 4/10/18px + pill 999px. Shadow: neon = layered `text-shadow`/`box-shadow` halos (0 0 4/10/24/48px) plus inner glow; elevations 0 4px 16px / 0 12px 40px dark. Spacing: 4px base scale to 64px; blur sm/md/lg = 4/12/28px (bloom).
+
+Full reference: [README](./vaporwave-synthwave/README.md)

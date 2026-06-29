@@ -1,0 +1,51 @@
+---
+name: ui_design_minimalism
+description: Content-first reductive design — maximal whitespace, near-monochrome palette, strong typographic hierarchy, and no ornament. Pull when designing calm reading-heavy or premium editorial interfaces where the content should lead.
+kind: knowledge
+tags: [ui-design, minimalism, whitespace, monochrome, hairline, typography]
+use_when:
+  - "clean minimal content-first interface"
+  - "lots of whitespace near-monochrome palette"
+  - "calm low cognitive load reading app"
+  - "premium editorial restrained brand"
+  - "strong typographic hierarchy no ornament"
+  - "Dieter Rams less but better Swiss style"
+---
+
+# Minimalism
+
+A reductive, content-first style descending from Swiss/International typography and Dieter Rams: the interface recedes so the content leads.
+
+## Defining traits
+- Maximal whitespace as the primary design element, not leftover space.
+- Near-monochrome neutrals with at most one restrained accent.
+- Strong typographic hierarchy — meaning carried by size, weight, spacing.
+- Very few elements; every one earns its place, nothing decorative.
+- No ornament — no gradients, textures, heavy shadows; thin hairline borders instead.
+- Calm, even rhythm from a consistent spacing scale and alignment grid.
+
+## When to use
+- Reading- and content-heavy products: editorial, docs, blogs, knowledge bases.
+- Focus tools where low cognitive load matters (writing apps, dashboards, settings).
+- Premium/editorial brands signalling restraint and confidence.
+- Anywhere the content (photography, prose, data) should be the hero.
+
+## Pitfalls
+- Too little contrast/hierarchy reads as bland or unfinished, not calm.
+- Stripping borders/shadows can hide what is clickable (poor affordance).
+- Minimal chrome can bury navigation and actions.
+- Low-contrast grays fail WCAG; whitespace is no excuse to skip focus states.
+- Empty is not considered — reduction must be intentional.
+
+## Tokens
+### Palette
+- bg `#fafafa`, surface `#ffffff`, text `#111111`, muted `#6b7280`, hairline `#e5e5e5`, accent `#2563eb` (single, links/CTA).
+### Type
+- Inter / system-ui grotesque; weights 400 body, 500 labels, 600 headings (avoid 700+).
+- Sizes 13/15/20/32/48px; line-height 1.6 body, 1.2 display; -0.01em on large headings.
+### Radius · shadow · spacing
+- Radius: 6px, subtle — never pill or playful.
+- Shadow: default none, prefer 1px hairline border; if needed `0 1px 2px rgba(17,17,17,.05)`, max `0 1px 3px rgba(17,17,17,.06)`. No blur/glass.
+- Spacing: 4/8/16/24/40/64/96px, lean large; blocks 24px+, sections 64px+.
+
+Full reference: [README](./minimalism/README.md)

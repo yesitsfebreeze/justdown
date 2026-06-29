@@ -1,0 +1,44 @@
+---
+name: ui_design_claymorphism
+description: A puffy, inflated 3D look where elements appear molded from soft pastel clay, defined by a double inner shadow plus a large soft outer drop. Pull when a brief wants a playful, friendly, approachable feel for onboarding, kids/education, or casual consumer apps.
+kind: knowledge
+tags: [ui-design, claymorphism, puffy, pastel, inner-shadow, rounded]
+use_when: [claymorphism style, puffy inflated 3d ui, soft clay pastel look, playful friendly app design, double inner shadow cards, kids education onboarding ui, big rounded pastel buttons]
+---
+
+# Claymorphism
+
+A puffy, inflated clay aesthetic — elements look molded from soft modeling clay, evolved from neumorphism on the 3D-illustration wave.
+
+## Defining traits
+- Big, generous, friendly rounded corners.
+- Puffy, inflated look, as if pumped full of air.
+- Bright pastel colors.
+- Signature double inner shadow: light highlight inset at top, darker shadow inset at bottom — plus a large soft outer drop underneath.
+- Playful, friendly, approachable feel.
+
+## When to use
+- Onboarding flows, kids' or education apps, and playful products.
+- Landing/marketing sites wanting a soft, modern, friendly personality.
+- Illustration-heavy interfaces where 3D clay assets set the tone.
+- Casual consumer apps (wellness, lifestyle, hobby) where warmth beats austerity.
+
+## Pitfalls
+- Feels childish or unprofessional in serious/enterprise contexts.
+- Layered shadows are easy to overdo — too far looks muddy.
+- Color is critical; the wrong pastels read cheap or garish.
+- Spacing-hungry — puffy elements and big radii need lots of breathing room.
+
+## Tokens
+### Palette
+- bg lavender `#E3DFFD`, surface `#FFFFFF`
+- accent coral `#FF9DAA`, accent-2 mint `#A6E3D7`
+- ink plum `#5B5470`
+### Type
+Baloo 2 (rounded), system-ui fallback. Weights 500 body / 600 labels / 700–800 headings. Sizes 12 caption / 16 body / 20 label / 32 H1.
+### Radius · shadow · spacing
+Radius: 20 / 28 / 36 / 40px scale.
+Shadow (1 outer + 2 inset): `0 18px 40px -12px rgba(91,84,112,.35), inset 0 8px 14px rgba(255,255,255,.9), inset 0 -10px 16px rgba(91,84,112,.22)`.
+Spacing: 8 / 16 / 24 / 32 / 48px, generous.
+
+Full reference: [README](./claymorphism/README.md)

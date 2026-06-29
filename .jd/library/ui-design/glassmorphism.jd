@@ -1,0 +1,44 @@
+---
+name: ui_design_glassmorphism
+description: Frosted-glass aesthetic — translucent surfaces with backdrop blur, light borders, and stacked panels over a vivid background. Pull when designing overlays, modals, or hero surfaces that should feel premium and let underlying context show through.
+kind: knowledge
+tags: [ui-design, glassmorphism, backdrop-blur, translucency, frosted, gradient-bg]
+use_when: [frosted glass ui, backdrop-filter blur panel, translucent overlay modal, glassmorphism tokens, premium apple-ish surface, glass card over gradient, see-through floating nav]
+---
+
+# Glassmorphism
+
+Translucent frosted-glass surfaces: backdrop blur over a vivid background, light catching 1px white edges, stacked opacities implying z-order.
+
+## Defining traits
+- Translucency — surfaces let color through instead of being opaque
+- Background blur via `backdrop-filter` (frosted glass)
+- Light 1px semi-transparent white borders catch the "light"
+- Multi-layer depth — stacked panels at different opacities
+- Vivid gradient/photo background gives the blur something to work on
+- Subtle soft diffuse drop shadows lift panels
+
+## When to use
+- Hero sections, dashboards, overlays over rich/colorful backgrounds
+- Modals, toasts, floating nav where underlying context stays visible
+- Marketing/product pages wanting a premium, modern, Apple-ish feel
+- Light-on-dark or dark-on-light themes with a single strong accent
+
+## Pitfalls
+- Contrast/accessibility — translucent fills fall below WCAG AA; check worst-case background
+- Text legibility — copy over busy photos needs a denser tint or solid layer
+- Performance — `backdrop-filter` is GPU-expensive; many layers cause jank
+- Overuse — everything-glass kills the depth hierarchy
+- Fallbacks — provide opaque fill where `backdrop-filter` is unsupported
+
+## Tokens
+### Palette
+- Gradient bg `#7b2ff7 → #f107a3 → #2575fc`; glass fill `rgba(255,255,255,.12)` panel / `.18` card; border `rgba(255,255,255,.30)`; text `#fff` / muted `rgba(255,255,255,.72)`; button gradient `linear-gradient(135deg,#ff8a00,#e52e71)`.
+### Type
+- Inter / system-ui; 400 body, 500 labels, 600 headings, 700 button; 14px body, 20px card title, 28px heading.
+### Radius · shadow · spacing
+- Radius: 8px controls, 16px cards, 24px panels, 999px pills.
+- Shadow: panel `0 8px 32px rgba(31,38,135,.37)`, card `0 4px 24px rgba(0,0,0,.20)`, inset highlight `inset 0 1px 0 rgba(255,255,255,.4)`. Blur `blur(16px) saturate(180%)` panels.
+- Spacing: `4·8·12·16·24·32·48`.
+
+Full reference: [README](./glassmorphism/README.md)

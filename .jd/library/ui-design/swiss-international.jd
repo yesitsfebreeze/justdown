@@ -1,0 +1,45 @@
+---
+name: ui_design_swiss_international
+description: Grid-driven, objective typographic design built on neutral grotesque sans serifs, generous whitespace, and a black-plus-one-accent palette. Pull when designing clean, content-first, grid-based layouts or editorial/corporate systems that prize clarity over ornament.
+kind: knowledge
+tags: [ui-design, swiss-international, grid, typography, helvetica, minimal]
+use_when: [swiss style layout, international typographic style, grid based design, helvetica neutral typography, editorial clean layout, objective minimal interface, flush-left ragged-right type]
+---
+
+# Swiss / International Typographic Style
+
+Grid-based, objective design that treats layout as neutral communication: mathematical grids, neutral grotesque sans serifs, and active whitespace instead of decoration. Formalized in Switzerland in the 1940s-60s.
+
+## Defining traits
+- Rigorous mathematical grid as the structure for everything.
+- Flush-left, ragged-right asymmetric typography.
+- Neutral grotesque sans serif (Helvetica / Akzidenz-Grotesk).
+- Hierarchy via size and weight, not decoration.
+- Generous whitespace as an active design element.
+- Limited palette — often black plus one accent (frequently red).
+- Photography preferred over illustration; objective and ornament-free.
+
+## When to use
+- Information-dense interfaces where scanability matters (dashboards, docs, tables).
+- Editorial and publishing layouts needing a calm, authoritative voice.
+- Corporate/institutional branding seeking neutrality and timelessness.
+- Wayfinding and signage systems.
+- Products where content, not chrome, should be the focus.
+
+## Pitfalls
+- Can read cold, corporate, or impersonal without warmth.
+- Rigid grids turn sterile without rhythm and contrast.
+- Single-typeface reliance demands real hierarchy discipline or it flattens.
+- Generous whitespace can feel empty on small screens if not adapted.
+- "Minimal" easily mistaken for "unfinished"; misused red destroys the calm.
+
+## Tokens
+### Palette
+- Black `#111111`, white `#FFFFFF`
+- Swiss red `#D6001C`, neutral grey `#9B9B9B`
+### Type
+Helvetica / Inter / Arial (neutral grotesque). Tight heading leading ~1.0-1.1, body ~1.5; clear modular scale (14/16/20/32/64). Hierarchy via weights 400/700 (900 display), never color or ornament.
+### Radius · shadow · spacing
+Radius: 0 everywhere — hard corners only. Shadow/elevation: none; structure comes from grid and whitespace. Spacing: strict baseline grid on 8px base, multi-column grid (e.g. 12 columns, 24px gutter).
+
+Full reference: [README](./swiss-international/README.md)

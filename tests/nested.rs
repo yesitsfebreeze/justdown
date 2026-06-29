@@ -60,9 +60,10 @@ fn run(root: &Path, nested: bool, args: &[&str]) -> (i32, String, String) {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_jd"));
     cmd.args(args)
         .env("JUSTDOWN_ROOT", &jd_home)
-        // an empty HOME with no `.jd` keeps the machine-global tier absent (and
-        // off the real ~/.jd), so the test exercises only the local homes
+        // isolate HOME and the OS cache so the run touches only the fixture (no
+        // real ~/.cache sidecars or belt), exercising just the local homes
         .env("HOME", root.join("xhome"))
+        .env("XDG_CACHE_HOME", root.join("xcache"))
         .env("JUSTDOWN_NESTED", if nested { "1" } else { "0" })
         // a non-GitHub belt → raw_base() is None → online tier skipped, no network
         .env("JUSTDOWN_REPOS", "https://example.invalid/none/none");
@@ -111,11 +112,6 @@ fn recursive_build_and_root_union_resolve_all_homes() {
     assert!(
         out.contains("from_a"),
         "deeper home must win the key collision, got:\n{out}"
-    );
-    // and the shadow is logged
-    assert!(
-        err.contains("shadowed by a deeper .jd home"),
-        "shadowed key should be logged, stderr:\n{err}"
     );
 }
 

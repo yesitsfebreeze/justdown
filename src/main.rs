@@ -2,8 +2,8 @@
 // library graph. A Rust port of the original pure-POSIX justfile, backed by a
 // real graph in a SQLite store instead of a flat graph.tsv + awk.
 //
-//   jd build          index <lib>/**/*.jd into the graph store (publish)
-//   jd refresh        download the belt's prebuilt remote-graph.db into the cache
+//   jd build          smart sync: rebuild the local graph if sources changed,
+//                     refresh belt remotes if upstream changed (also publishes)
 //   jd search <q>     rank files by purpose (graph-aware)
 //   jd get <ref>      a file as ordered sections, or one output profile
 //                     (--human|--agent|--frontmatter|--justfile)
@@ -18,7 +18,7 @@
 
 mod cmd;
 
-use cmd::{build, config, explore, lint, mcp, query, refresh};
+use cmd::{build, config, explore, lint, mcp, query};
 use config::Format;
 use justdown::store::STORE_SCHEMA;
 use std::process::exit;
@@ -53,7 +53,6 @@ fn main() {
 
     let code = match cmd {
         "build" => build::run(&cfg, rest),
-        "refresh" => refresh::run(&cfg),
         "search" => query::search(&cfg, rest),
         "get" => query::get(&cfg, rest),
         "ls" => query::ls(&cfg),
@@ -96,15 +95,14 @@ fn help() {
 
 USAGE  jd <command> [args]
 
-  build                        scan <lib>/**/*.jd → write ONE merged store at
-                               <root>/.jd/remote-graph.db (every nested home
-                               unioned). This is how a repo PUBLISHES its library
-                               (consumers fetch it via `jd refresh`); queries here
-                               read the repo live, no build needed.
-  refresh                      download every belt remote's prebuilt graph
-                               (<raw_base>/.jd/remote-graph.db) into the local
-                               cache (<cache>/belt/<slug>.db). Queries read it
-                               offline; re-run to update. needs curl.
+  build                        smart sync, fastest way to the latest state. Does
+                               only what changed: rebuilds the merged local graph
+                               (<root>/.jd/remote-graph.db, every nested home
+                               unioned) iff the .jd sources changed, and refreshes
+                               each belt remote's cached graph iff upstream changed
+                               (ETag). The local graph is also the PUBLISH artifact
+                               — commit it so consumers can fetch it. Queries run
+                               the local step automatically, so edits always show.
   search <query> [kind] [num] [category]
                                rank library files by need (graph-aware:
                                name/use_when > tags > prose; not_when vetoes)
@@ -145,12 +143,12 @@ USAGE  jd <command> [args]
   help                         this
 
 REF    name · path · key(dir/name) · @dir/name
-MERGE  queries merge two graphs — the LIVE repo-local <root>/.jd files (parsed
-       fresh every call) shadow the CACHED belt (`jd refresh`) by key
-       (local > cached). NESTED: the live graph is itself every .jd home found
-       under the project tree (each owns its <lib>/, no sources copied); on a key
-       collision the deeper home wins (shadowed keys logged). Disable nesting
-       with JUSTDOWN_NESTED=0.
+MERGE  queries merge two graphs — the repo-local graph (auto-rebuilt from
+       <root>/.jd when its sources change, then read from the cached store)
+       shadows the CACHED belt by key (local > cached). NESTED: the local graph
+       unions every .jd home found under the project tree (each owns its <lib>/,
+       no sources copied); on a key collision the deeper home wins. Disable
+       nesting with JUSTDOWN_NESTED=0.
 OUTPUT text (default) or machine JSON via the global --json flag (versioned
        schema, e.g. justdown.search/1; errors as justdown.error/1 on stderr).
 EXIT   0 ok · 2 no match · 3 bad args · 4 source unreachable

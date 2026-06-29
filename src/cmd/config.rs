@@ -260,9 +260,17 @@ impl Config {
     }
 
     /// The cached graph path for one belt remote: `<cache-root>/belt/<slug>.db`.
-    /// None when no cache root resolves.
+    /// None when no cache root resolves. The matching ETag sidecar (for the
+    /// conditional refresh) is the same path with `.etag` appended.
     pub fn belt_cache_path(slug: &str) -> Option<PathBuf> {
         Self::cache_root().map(|d| d.join("belt").join(format!("{slug}.db")))
+    }
+
+    /// The local-graph staleness sidecar dir: `<cache-root>/local`. Holds one
+    /// `<project-hash>.fp` per repo — the source fingerprint of the last local
+    /// build, so a query can tell in one cheap stat-walk whether to rebuild.
+    pub fn local_cache_dir() -> Option<PathBuf> {
+        Self::cache_root().map(|d| d.join("local"))
     }
 
     /// The tool belt: every online library to cache, in precedence order (later

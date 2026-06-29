@@ -5,12 +5,14 @@
 // (they change often), shadow a CACHED belt of prebuilt remote graphs that
 // `jd refresh` downloads (slow-changing, queried offline).
 
+use super::build;
 use super::config::{Config, Format};
 use justdown::store::{rows_from_nodes, Row, Source, Store};
 use justdown::{graph, jd, links};
 use justdown::render::{self, Vars};
 use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
 use serde::Serialize;
+use std::path::{Path, PathBuf};
 
 // ---------------------------------------------------------------------------
 // shared helpers
@@ -165,27 +167,6 @@ fn emit_err(cfg: &Config, code: &str, msg: &str) {
 const NET_MAX_TIME: &str = "15";
 const NET_CONNECT_TIMEOUT: &str = "5";
 
-/// Fetch a URL to a file with curl. Best-effort: returns false on any failure
-/// (curl absent, unreachable, 404, or a network timeout). justdown already
-/// requires curl on PATH; the online merge degrades to local-only when it
-/// isn't there or can't answer in time.
-pub(crate) fn curl_to_file(url: &str, dest: &std::path::Path) -> bool {
-    std::process::Command::new("curl")
-        .args([
-            "-fsSL",
-            "--connect-timeout",
-            NET_CONNECT_TIMEOUT,
-            "--max-time",
-            NET_MAX_TIME,
-            url,
-            "-o",
-        ])
-        .arg(dest)
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
 /// Fetch a URL to a string with curl. None on any failure (incl. timeout).
 fn curl_to_string(url: &str) -> Option<String> {
     let out = std::process::Command::new("curl")
@@ -274,109 +255,275 @@ fn canon(p: &std::path::Path) -> std::path::PathBuf {
     std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
-/// Parse one `.jd` home's `<lib>/` tree into live query rows. Files key relative
-/// to the home (`library/foo/bar.jd`), matching `jd build`, so `get` reads each
-/// body back under the home dir. Edges resolve within the home — self-contained,
-/// like a nested home's own built store. `origin` is stamped by the caller.
-fn parse_home(home: &std::path::Path, lib: &str) -> Vec<Row> {
-    let libdir = home.join(lib);
-    if !libdir.is_dir() {
-        return Vec::new();
+/// The repo-local `.jd` homes that make up the local graph. With nesting on
+/// (default) it's every `.jd` home under the project (deeper-first); with
+/// `JUSTDOWN_NESTED=0` it's just the root home.
+pub(crate) fn local_homes(cfg: &Config) -> Vec<PathBuf> {
+    if Config::nested_enabled() {
+        graph::find_jd_homes(&cfg.project_dir())
+    } else {
+        vec![cfg.root.clone()]
     }
-    let mut files = Vec::new();
-    graph::collect_jd(&libdir, &mut files);
-    // LC_ALL=C byte-order sort, matching `jd build`'s reproducible walk order.
+}
+
+/// LC_ALL=C byte-order sort, matching `jd build`'s reproducible walk order.
+fn sort_files(files: &mut [PathBuf]) {
     files.sort_by(|a, b| {
         a.as_os_str()
             .as_encoded_bytes()
             .cmp(b.as_os_str().as_encoded_bytes())
     });
-    let nodes: Vec<jd::Node> = files
-        .iter()
-        .filter_map(|f| {
-            let rel = f.strip_prefix(home).unwrap_or(f);
-            let rel = rel.to_string_lossy().replace('\\', "/");
-            let content = std::fs::read_to_string(f).ok()?;
-            Some(jd::parse(&rel, &content))
-        })
-        .collect();
+}
+
+/// A cheap staleness fingerprint of the local `.jd` sources: every file's
+/// repo-relative path, mtime, and size, plus the CLI version (so a binary
+/// upgrade re-publishes). A stat-walk only — no file reads — so it's fast enough
+/// to run on every query. None when there's no local library.
+fn local_fingerprint(cfg: &Config) -> Option<String> {
+    use std::hash::{Hash, Hasher};
+    let project = cfg.project_dir();
+    let mut entries: Vec<(String, u128, u64)> = Vec::new();
+    for home in local_homes(cfg) {
+        let libdir = home.join(&cfg.lib);
+        if !libdir.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        graph::collect_jd(&libdir, &mut files);
+        for f in &files {
+            let rel = f
+                .strip_prefix(&project)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let (mtime, len) = std::fs::metadata(f)
+                .map(|m| {
+                    let t = m
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_nanos())
+                        .unwrap_or(0);
+                    (t, m.len())
+                })
+                .unwrap_or((0, 0));
+            entries.push((rel, mtime, len));
+        }
+    }
+    if entries.is_empty() {
+        return None;
+    }
+    entries.sort();
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    crate::CLI_VERSION.hash(&mut h);
+    for e in &entries {
+        e.hash(&mut h);
+    }
+    Some(format!("{:016x}", h.finish()))
+}
+
+/// The staleness sidecar for this repo: `<cache>/local/<project-hash>.fp`. Holds
+/// the [`local_fingerprint`] from the last build so a query can skip the rebuild
+/// when nothing changed. Gitignored by virtue of living in the OS cache.
+fn local_fp_path(cfg: &Config) -> Option<PathBuf> {
+    use std::hash::{Hash, Hasher};
+    let dir = Config::local_cache_dir()?;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    canon(&cfg.project_dir()).to_string_lossy().hash(&mut h);
+    Some(dir.join(format!("{:016x}.fp", h.finish())))
+}
+
+/// Outcome of bringing the local graph up to date.
+pub(crate) enum LocalState {
+    /// sources changed (or no cache yet) — the graph was rebuilt
+    Rebuilt,
+    /// cache already matched the sources — nothing to do
+    Current,
+    /// no local `.jd` library exists
+    None,
+    /// a rebuild was needed but failed (e.g. read-only fs)
+    Failed,
+}
+
+/// Bring the cached local graph (`cfg.index_path()`) up to date the cheap way:
+/// rebuild only when the source fingerprint differs from the sidecar (or the
+/// store is missing). Shared by `jd build` and every query, so local edits are
+/// always reflected without re-parsing on each call.
+pub(crate) fn ensure_local_graph(cfg: &Config) -> LocalState {
+    let Some(fp) = local_fingerprint(cfg) else {
+        return LocalState::None;
+    };
+    let sidecar = local_fp_path(cfg);
+    let stored = sidecar
+        .as_ref()
+        .and_then(|p| std::fs::read_to_string(p).ok());
+    if cfg.index_path().exists() && stored.as_deref() == Some(fp.as_str()) {
+        return LocalState::Current;
+    }
+    if build::build_local_graph(cfg) {
+        if let Some(p) = &sidecar {
+            if let Some(parent) = p.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(p, &fp);
+        }
+        LocalState::Rebuilt
+    } else {
+        LocalState::Failed
+    }
+}
+
+/// Parse the local homes into rows directly — the degrade path for when the cache
+/// can't be written/read (e.g. a read-only checkout). Paths key relative to the
+/// repo root (matching the built store), deeper homes win on key collision.
+fn live_local_rows(cfg: &Config) -> Vec<Row> {
+    let project = cfg.project_dir();
+    let mut seen = std::collections::HashSet::new();
+    let mut nodes: Vec<jd::Node> = Vec::new();
+    for home in local_homes(cfg) {
+        let libdir = home.join(&cfg.lib);
+        if !libdir.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        graph::collect_jd(&libdir, &mut files);
+        sort_files(&mut files);
+        for f in &files {
+            let rel = f
+                .strip_prefix(&project)
+                .unwrap_or(f)
+                .to_string_lossy()
+                .replace('\\', "/");
+            if let Ok(content) = std::fs::read_to_string(f) {
+                let node = jd::parse(&rel, &content);
+                if seen.insert(node.key.clone()) {
+                    nodes.push(node); // deeper-first walk → first seen wins
+                }
+            }
+        }
+    }
     rows_from_nodes(&nodes, Source::Local)
 }
 
-/// The LIVE repo graph: every repo-local `.jd` home parsed fresh on this query
-/// (never a cached store — these files change too often). Homes come back
-/// **deeper-first** so a deeper home's key wins (the keep-first dedup in
-/// [`gather`] applies it). With nesting off (`JUSTDOWN_NESTED=0`) it's just the
-/// root home. Each row carries the home dir as `origin` (empty for the root, so
-/// `get` reads it under `cfg.root`).
-fn live_cwd_rows(cfg: &Config) -> Vec<Row> {
-    let root_canon = canon(&cfg.root);
-    let homes = if Config::nested_enabled() {
-        graph::find_jd_homes(&cfg.project_dir())
-    } else {
-        Vec::new()
+/// Outcome of a conditional belt fetch.
+pub(crate) enum Fetch {
+    Updated,
+    Unchanged,
+    Failed,
+}
+
+/// Download `url` to `db` only if upstream changed, using an ETag conditional
+/// GET (`If-None-Match`, saved in `etag_path`). A `304` keeps the cached copy
+/// untouched; a `2xx` atomically replaces it and records the new ETag.
+fn fetch_if_newer(url: &str, db: &Path, etag_path: &Path) -> Fetch {
+    let pid = std::process::id();
+    let tmp = db.with_extension(format!("tmp{pid}"));
+    let hdr = db.with_extension(format!("hdr{pid}"));
+    let cleanup = || {
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&hdr);
     };
-    let mut out: Vec<Row> = Vec::new();
-    let mut saw_root = false;
-    for home in &homes {
-        let is_root = canon(home) == root_canon;
-        saw_root |= is_root;
-        let origin = if is_root {
-            String::new()
-        } else {
-            home.to_string_lossy().into_owned()
-        };
-        for mut row in parse_home(home, &cfg.lib) {
-            row.origin = origin.clone();
-            out.push(row);
-        }
+    let saved = std::fs::read_to_string(etag_path).ok();
+    let mut cmd = std::process::Command::new("curl");
+    cmd.args([
+        "-sSL",
+        "--connect-timeout",
+        NET_CONNECT_TIMEOUT,
+        "--max-time",
+        NET_MAX_TIME,
+        "-w",
+        "%{http_code}",
+        "--dump-header",
+    ]);
+    cmd.arg(&hdr).arg("-o").arg(&tmp);
+    if let Some(e) = saved.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        cmd.arg("-H").arg(format!("If-None-Match: {e}"));
     }
-    // The root home is the precedence floor: ensure it's parsed (and last, so it
-    // loses collisions to deeper homes) even if discovery missed it.
-    if !saw_root {
-        out.extend(parse_home(&cfg.root, &cfg.lib));
+    cmd.arg(url);
+
+    let Ok(out) = cmd.output() else {
+        cleanup();
+        return Fetch::Failed;
+    };
+    if !out.status.success() {
+        cleanup();
+        return Fetch::Failed;
+    }
+    let code = String::from_utf8_lossy(&out.stdout);
+    let code = code.trim();
+    if code == "304" {
+        cleanup();
+        return Fetch::Unchanged;
+    }
+    if code.starts_with('2') && tmp.exists() {
+        if std::fs::rename(&tmp, db).is_err() {
+            // cross-device fallback
+            if std::fs::copy(&tmp, db).is_err() {
+                cleanup();
+                return Fetch::Failed;
+            }
+            let _ = std::fs::remove_file(&tmp);
+        }
+        if let Ok(headers) = std::fs::read_to_string(&hdr) {
+            if let Some(tag) = headers.lines().find_map(|l| {
+                let l = l.trim();
+                l.to_ascii_lowercase()
+                    .starts_with("etag:")
+                    .then(|| l[5..].trim().to_string())
+            }) {
+                let _ = std::fs::write(etag_path, tag);
+            }
+        }
+        let _ = std::fs::remove_file(&hdr);
+        return Fetch::Updated;
+    }
+    cleanup();
+    Fetch::Failed
+}
+
+/// Refresh every belt remote's cached graph, downloading only the ones whose
+/// upstream changed. The network half of `jd build`; queries never call this.
+pub(crate) fn refresh_belt(cfg: &Config) -> Vec<(String, Fetch)> {
+    let mut out = Vec::new();
+    for r in cfg.remotes() {
+        let Some(raw) = r.raw_base() else { continue };
+        let Some(db) = Config::belt_cache_path(&r.slug) else {
+            continue;
+        };
+        if let Some(parent) = db.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let etag = PathBuf::from(format!("{}.etag", db.display()));
+        let url = format!("{raw}/.jd/{}", cfg.index);
+        out.push((r.slug.clone(), fetch_if_newer(&url, &db, &etag)));
     }
     out
 }
 
-/// Gather the merged, deduped row set from the two graphs: the LIVE repo-local
-/// `.jd` files (deeper homes first) shadowing the CACHED belt (`jd refresh`).
-/// Local always wins by key; among local homes the deeper one wins and each
-/// shadowed key is logged. Only a total absence of both is a hard error (exit 4).
+/// Gather the merged, deduped row set from the two graphs: the repo-local graph
+/// (auto-rebuilt if its sources changed, then read from the cached store) shadows
+/// the CACHED belt by key. Only a total absence of both is a hard error (exit 4).
 fn gather(cfg: &Config) -> Result<Vec<Row>, i32> {
-    let local = live_cwd_rows(cfg);
+    // Keep the local cache current the cheap way, then read it. If the cache is
+    // unwritable/unreadable, fall back to parsing the sources directly.
+    let _ = ensure_local_graph(cfg);
+    let local =
+        load_store(&cfg.index_path(), Source::Local).unwrap_or_else(|| live_local_rows(cfg));
     let cached = cached_belt_rows(cfg);
 
     if local.is_empty() && cached.is_empty() {
         emit_err(
             cfg,
             "source-unreachable",
-            "no repo-local .jd files and no cached belt (run `jd refresh`)",
+            "no repo-local .jd library and no cached belt (run `jd build`)",
         );
         return Err(4);
     }
 
-    // Merge order = precedence: live local (deeper-first), then the cached belt.
-    // Keep-first dedup means a deeper local home shadows a shallower one, and any
-    // local row shadows the cached belt.
+    // Precedence: local shadows the cached belt; keep-first dedup by key.
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for row in local {
-        if seen.insert(row.key.clone()) {
-            out.push(row);
-        } else {
-            let where_ = if row.origin.is_empty() {
-                "<root>".to_string()
-            } else {
-                row.origin.clone()
-            };
-            eprintln!(
-                "jd: note: '{}' in {where_} shadowed by a deeper .jd home",
-                row.key
-            );
-        }
-    }
-    for row in cached {
+    for row in local.into_iter().chain(cached) {
         if seen.insert(row.key.clone()) {
             out.push(row);
         }
@@ -872,14 +1019,9 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
     }
 
     let body = if row.source.is_local() {
-        // Repo-local paths key relative to the `.jd` home (`library/…`); a nested
-        // home stamps its dir on `origin`, so its files resolve there rather than
-        // under the root home.
-        let base = if row.origin.is_empty() {
-            cfg.root.clone()
-        } else {
-            std::path::PathBuf::from(&row.origin)
-        };
+        // Local paths are repo-root-relative (they carry each home's `.jd/…`
+        // prefix), so the file resolves under the project dir.
+        let base = cfg.project_dir();
         match std::fs::read_to_string(base.join(&row.path)).ok() {
             Some(b) => b,
             None => {

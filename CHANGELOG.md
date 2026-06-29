@@ -6,6 +6,35 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-29
+
+### Added
+- Two-graph query model. Queries now merge a **live** repo-local graph with a
+  **cached** belt:
+  - Repo-local `.jd` files are parsed fresh on every query — no `jd build` is
+    needed to query locally, so local edits are reflected instantly.
+  - `jd refresh` downloads each belt remote's prebuilt graph into a local cache
+    (`<cache>/belt/<slug>.db`, under `$XDG_CACHE_HOME` or `~/.cache`), which
+    queries then read offline. Local always shadows the cached belt by key.
+- `jd build` now publishes a single merged `remote-graph.db` under the `.jd`
+  home, unioning every nested home (deeper wins) and keyed repo-root-relative —
+  the one file a consumer downloads to get the whole library.
+
+### Changed
+- `jd build` is publish-only and always merges every nested home; the
+  `--recursive` / `-r` flag is gone (queries read the repo live, so a build only
+  exists to publish). The committed merged graph is how a repo publishes.
+- Cached-belt file bodies are fetched at `<raw_base>/<path>` — published paths
+  now carry each home's `.jd/…` prefix, so nested-home files resolve correctly.
+- `JUSTDOWN_INDEX` defaults to `remote-graph.db`.
+
+### Removed
+- The machine-global `~/.jd` tier and all of its build/query paths.
+- Per-query online belt fetching — superseded by the `jd refresh` cache.
+- `jd pull` (git-clone belt hydration) — replaced by `jd refresh`.
+- Per-home `graph.db` stores — local queries are live and never read a built
+  store.
+
 ## [0.7.0] - 2026-06-29
 
 ### Added
@@ -52,7 +81,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yesitsfebreeze/justdown/releases/tag/v0.5.0

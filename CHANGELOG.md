@@ -6,6 +6,26 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-29
+
+### Added
+- Nested local graph composition — any folder in a tree can own its own
+  `.jd/library` and `graph.db`, and the repo root resolves keys across all of
+  them as one graph, with no `.jd` sources copied between folders.
+  - `jd build --recursive` (`-r`) discovers every nested `.jd/<lib>` home under
+    the project tree and builds each its own self-contained store.
+  - Queries (`get`/`search`/`ls`/`links`/`path`, and the MCP read verbs) union
+    every discovered local home; on a key collision the deeper home wins and the
+    shadowed key is logged. Local still trumps machine-global trumps online.
+  - Discovery prunes heavy dirs (`node_modules`, `target`, …), is depth-capped,
+    and scans hidden dirs (so `.voit/.jd` is found). Opt out with
+    `JUSTDOWN_NESTED=0`.
+
+### Changed
+- `JUSTDOWN_INDEX` basename now names each nested home's store; its absolute
+  (publish-seam) form stays root-only so nested homes never clobber one another.
+  No on-disk graph-schema change.
+
 ## [0.6.0] - 2026-06-28
 
 ### Added
@@ -26,12 +46,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Release chain moved from npm to cargo; the gate now builds and tests with cargo.
 - Editor: text-hugging rounded selection, frontmatter key column, unified focus
   slider, theme light/dark/auto with uniform crossfade.
-- Standardized terminology on `.jd` / `.jds` (dropped "shard").
+- Standardized terminology on `.jd` / `.jds` (dropped "procedure").
 
 ## [0.5.0] - 2026-06-27
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yesitsfebreeze/justdown/releases/tag/v0.5.0

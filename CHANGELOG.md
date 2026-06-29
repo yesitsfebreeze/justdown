@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-29
+
+### Changed
+- `jd build` is now one smart incremental sync — the fastest path to the latest
+  state. It rebuilds the merged local graph only when the repo's `.jd` sources
+  changed (a cheap mtime/size fingerprint, cached in a sidecar) and refreshes
+  each belt remote only when upstream changed (ETag conditional GET).
+- The local layer moved from per-query live parsing to a cached store that
+  queries auto-rebuild on staleness — fast when unchanged, always current after
+  an edit, with no manual build step.
+
+### Removed
+- `jd refresh` — folded into `jd build` (which now does both local rebuild and
+  remote refresh, each incrementally).
+
 ## [0.8.0] - 2026-06-29
 
 ### Added
@@ -81,7 +96,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.5.0...v0.6.0

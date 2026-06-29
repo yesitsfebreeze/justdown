@@ -1,0 +1,105 @@
+---
+name: wt_config
+description: How worktrunk is configured — the three config layers, the worktree path template and its filters, per-command defaults, custom list columns, aliases, per-branch state, and env-var/inline overrides. Read to change where worktrees land or to tune any wt command's defaults.
+kind: knowledge
+tags: [worktrunk, wt, config, toml, path-template, aliases, state, vcs]
+use_when: [where do worktrees get created, change worktree path, set wt defaults, hash_port unique port, custom list columns, per-project wt config, wt aliases, per-branch state variables, override config inline]
+---
+
+# Config
+
+Three layers, most specific wins: **user** (`~/.config/worktrunk/config.toml`, or
+`%APPDATA%\worktrunk\config.toml`), **project** (`.config/wt.toml` at the repo
+root, team-shared), and a platform **system** file. `wt config show` prints the
+merged result and the system path. @wt/hook lives in the same files.
+
+## Worktree path template
+
+Where `wt switch` puts a new worktree:
+
+```toml
+worktree-path = "{{ repo_path }}/.worktrees/{{ branch | sanitize }}"
+```
+
+Variables: `repo_path` (absolute), `repo` (dir name), `owner` (remote owner),
+`branch` (raw). Filters: `sanitize` (`/`,`\` → `-`), `sanitize_db` (lowercase +
+underscores + hash), `codename(2)` (deterministic friendly name), `hash_port`
+(stable per-branch port — handy for dev servers).
+
+## Per-command defaults
+
+```toml
+[merge]
+squash = true; commit = true; rebase = true; remove = true; verify = true; ff = true
+
+[commit]
+stage = "all"            # "all" | "tracked" | "none"
+
+[remove]
+delete-branch = true
+
+[switch]
+cd = true
+[switch.picker]
+pager = "delta --paging=never"
+
+[step.copy-ignored]
+exclude = []             # extra excludes; built-ins always apply
+```
+
+## List columns
+
+```toml
+[list]
+full = false; branches = false; remotes = false
+columns = ["branch", "status", "ci", "path"]
+url = "http://localhost:{{ branch | hash_port }}"
+
+[list.custom-columns.Ticket]
+template = "{{ vars.ticket }}"
+width = 20
+priority = 9
+```
+
+Built-in columns: `branch status working-diff ahead-behind branch-diff summary
+upstream ci path url commit age message`.
+
+## LLM commit generation
+
+```toml
+[commit.generation]
+command = "claude -p --model=haiku ..."   # any tool that reads a prompt, writes a msg
+template = "<task>Write a commit message…</task>"
+squash-template = "<task>Combined effect…</task>"
+template-append = "- Explain the rationale in the body"
+```
+
+## Aliases, per-project, state
+
+```toml
+[aliases]
+url = "echo http://localhost:{{ branch | hash_port }}"
+
+[projects."github.com/user/repo"]
+worktree-path = ".worktrees/{{ branch | sanitize }}"
+list.full = true
+merge.squash = false
+```
+
+Per-branch state (markers show in @wt/list):
+
+```bash
+wt config state vars set env=staging
+wt config state marker set 🚧
+wt config state cache clear
+```
+
+## Overrides without editing files
+
+```bash
+# env: kebab key → SCREAMING_SNAKE, nesting = double underscore
+WORKTRUNK_WORKTREE_PATH=… WORKTRUNK_COMMIT__STAGE=all wt …
+
+# inline TOML, per invocation
+wt --config-set list.full=true list
+```

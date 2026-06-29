@@ -1,0 +1,60 @@
+---
+name: wt_step
+description: The individual phases behind worktrunk's high-level verbs, exposed for scripting — LLM commit, squash, rebase, fast-forward push, full diff since branching, and copying gitignored files between worktrees. Use when you want one stage of merge/commit, not the whole pipeline.
+kind: tool
+tags: [worktrunk, wt, step, commit, squash, rebase, diff, copy-ignored, vcs]
+use_when: [llm commit message, squash branch commits, rebase onto target, fast-forward target to branch, diff everything since branching, copy gitignored files to another worktree, share build cache between worktrees]
+danger: medium
+side_effects: [git-write, file-write]
+requires: [wt]
+run: commit
+provides: [commit, squash, rebase, push, diff, copy-ignored]
+---
+
+# step
+
+`wt step <action>` is @wt/merge and @wt/switch decomposed into reusable phases.
+Use a step when you want just one stage — commit now, rebase now — rather than the
+whole land-it pipeline. Several actions reuse the LLM commit generator configured
+in @wt/config (`[commit.generation]`).
+
+| Recipe | Action | Does |
+|--------|--------|------|
+| `commit` | `commit` | stage + commit with an LLM-generated message |
+| `squash` | `squash [target]` | fold the branch's commits into one (LLM message) |
+| `rebase` | `rebase` | rebase the current branch onto its target |
+| `push` | `push` | fast-forward the target branch to this branch |
+| `diff` | `diff [target]` | everything since branching: committed+staged+unstaged+untracked |
+| `copy-ignored` | `copy-ignored` | copy gitignored files into another worktree |
+
+`copy-ignored` is the build-cache sharer — it carries `.env`, `node_modules`,
+`target/` and friends into a fresh worktree so it builds without a cold start.
+`diff` is broader than `git diff`: it spans the whole divergence including
+untracked files. Experimental actions also exist (`eval`, `for-each`, `promote`,
+`prune`, `relocate`, `tether`) — check `wt step --help`.
+
+```just
+# stage + commit with an LLM-generated message
+commit:
+  wt step commit
+
+# fold the branch's commits into one (LLM message)
+squash target="":
+  wt step squash {{target}}
+
+# rebase the current branch onto its target
+rebase:
+  wt step rebase
+
+# fast-forward the target branch to this branch
+push:
+  wt step push
+
+# everything changed since branching (committed+staged+unstaged+untracked)
+diff target="":
+  wt step diff {{target}}
+
+# copy gitignored files (build cache, .env) into another worktree
+copy-ignored:
+  wt step copy-ignored
+```

@@ -1,0 +1,49 @@
+---
+name: wt_switch
+description: Create or jump to a worktrunk worktree by branch name — make a new branch, check out a PR, open the interactive picker, or run a command in the target tree. The everyday entry point; computes the path for you.
+kind: tool
+tags: [worktrunk, wt, switch, worktree, branch, checkout, pr, vcs]
+use_when: [switch worktree, create a branch and worktree, check out a PR locally, open worktree picker, run command in another worktree, jump back to previous worktree]
+danger: low
+side_effects: [git-write, file-write]
+requires: [wt]
+run: switch
+provides: [switch, create, pr, exec]
+---
+
+# switch
+
+`wt switch <branch>` jumps to that branch's worktree, creating the directory (from
+the @wt/config path template) if it does not exist. No branch ⇒ interactive picker.
+Branch shortcuts (`^` default, `@` current, `-` previous, `pr:N`, `mr:N`) come from
+@wt/overview. Switching can `cd` your shell only after `wt config shell install`.
+
+| Recipe | Flags | Does |
+|--------|-------|------|
+| `switch` | — | jump to (or create the dir for) an existing branch; picker if blank |
+| `create` | `-c [--base]` | new branch + worktree, optionally off another base |
+| `pr` | `pr:N` | check out a GitHub PR's branch into its own worktree |
+| `exec` | `-x` | switch, then hand the terminal to a command |
+
+`-c` is the one to internalise: `wt switch -c feature` is "branch + worktree +
+cd" in one. `--base` sets the start point (defaults to the default branch).
+`--branches`/`--remotes`/`--prs` widen the picker; `--no-cd` switches without
+moving your shell; `--clobber` clears a stale path at the target.
+
+```just
+# jump to an existing branch's worktree; no arg opens the picker
+switch branch="":
+  wt switch {{branch}}
+
+# create a new branch + worktree, optionally based off another branch
+create branch base="":
+  wt switch --create {{quote(branch)}} {{ if base == "" { "" } else { "--base " + quote(base) } }}
+
+# check out a GitHub PR by number into its own worktree
+pr number:
+  wt switch pr:{{number}}
+
+# switch, then run a command with the terminal handed to it
+exec branch cmd:
+  wt switch {{quote(branch)}} -x {{quote(cmd)}}
+```

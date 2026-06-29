@@ -1,0 +1,50 @@
+---
+name: wt_remove
+description: Delete a worktrunk worktree and, by default, its branch when the branch is already merged. Use to clean up a finished or abandoned branch; flags force out dirty trees, delete unmerged branches, or keep the branch.
+kind: tool
+tags: [worktrunk, wt, remove, delete, cleanup, branch, vcs]
+use_when: [remove a worktree, delete a worktree and branch, clean up a merged branch, force remove a dirty worktree, delete an unmerged branch, keep branch after removing worktree]
+danger: high
+side_effects: [git-write, file-write]
+requires: [wt]
+run: remove
+provides: [remove, force, purge, keepbranch]
+---
+
+# remove
+
+`wt remove [branches…]` deletes a worktree (default: the current one). It then
+deletes the branch **only if merging it would add nothing** to the default branch —
+it walks six equivalence checks, from same-commit to patch-id match. Unmerged
+branches survive unless you force it. **Destructive**: removing a dirty tree or
+forcing an unmerged branch drops work irrecoverably — confirm first.
+
+| Recipe | Flags | Does |
+|--------|-------|------|
+| `remove` | — | remove the worktree; auto-delete the branch if merged |
+| `force` | `-f` | remove even a dirty worktree (staged/modified/untracked) |
+| `purge` | `-D` | also delete the branch even when unmerged |
+| `keepbranch` | `--no-delete-branch` | remove the worktree, keep the branch |
+
+`-f` (`--force`) is about a *dirty working tree*; `-D` (`--force-delete`) is about
+an *unmerged branch* — different safety gates, both irreversible. `--foreground`
+blocks until done instead of detaching; `--no-hooks` skips `pre/post-remove`
+@wt/hook. Default branch-deletion behaviour is `[remove]` in @wt/config.
+
+```just
+# remove the worktree (current if none named); delete branch if merged
+remove branches="":
+  wt remove {{branches}}
+
+# force-remove a dirty worktree — drops uncommitted work
+force branches="":
+  wt remove -f {{branches}}
+
+# also delete the branch even if it is unmerged
+purge branch:
+  wt remove -D {{quote(branch)}}
+
+# remove the worktree but keep the branch
+keepbranch branches="":
+  wt remove --no-delete-branch {{branches}}
+```

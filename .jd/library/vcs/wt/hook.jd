@@ -1,0 +1,62 @@
+---
+name: wt_hook
+description: worktrunk's lifecycle hooks — run commands on switch, create, commit, merge, and remove, as blocking pre-* gates or background post-* jobs. Read to auto-install deps, boot a dev server per worktree, or gate a merge on checks.
+kind: knowledge
+tags: [worktrunk, wt, hook, lifecycle, automation, dev-server, vcs]
+use_when: [run command on worktree create, install deps automatically, start dev server per worktree, gate merge on checks, post-start hook, pre-merge hook, hook template variables]
+---
+
+# Hook
+
+Hooks fire on five lifecycle events, each with a blocking `pre-` and a background
+`post-` variant. **Pre-\* hooks block** — a non-zero exit aborts the operation
+(use to gate a @wt/merge on tests). **Post-\* hooks run detached**, output logged.
+Configured in the @wt/config files; `--no-hooks` skips them for one run.
+
+| Event | Pre (blocks) | Post (background) |
+|-------|--------------|-------------------|
+| switch (@wt/switch) | `pre-switch` | `post-switch` |
+| create | `pre-start` | `post-start` |
+| commit | `pre-commit` | `post-commit` |
+| merge (@wt/merge) | `pre-merge` | `post-merge` |
+| remove (@wt/remove) | `pre-remove` | `post-remove` |
+
+## Three TOML forms
+
+```toml
+# string — one command
+pre-start = "npm install"
+
+# table — named commands run concurrently
+[post-start]
+server = "npm run dev"
+watch  = "npm run watch"
+
+# array of tables — sequential stages, concurrent within each
+[[post-start]]
+install = "npm ci"
+[[post-start]]
+build  = "npm run build"
+server = "npm run dev"
+```
+
+## Template variables
+
+- **Active**: `branch`, `worktree_path`, `commit`
+- **Operation**: `base`, `target`, `pr_number`
+- **Repository** (constant): `repo`, `repo_path`, `default_branch`
+- **Execution**: `cwd`, `hook_type`, `hook_name`
+- **User state**: `vars.<key>` (set via @wt/config state)
+
+Plus the @wt/config filters (`hash_port`, `sanitize`…) and lookups like
+`worktree_path_of_branch('main')`.
+
+## Example — boot a per-branch dev server on create
+
+```toml
+[post-start]
+# unique port per branch so parallel worktrees don't collide
+dev = "npm run dev --port {{ branch | hash_port }}"
+# seed local config from the main worktree
+setup = "cp {{ worktree_path_of_branch('main') }}/config.local {{ worktree_path }}"
+```

@@ -1,0 +1,59 @@
+---
+name: wt_overview
+description: worktrunk (wt) — a CLI over git worktrees that addresses each branch by name with a computed path, built for running parallel agents. Read to understand the model, install it, and learn the branch shortcuts before reaching for a subcommand.
+kind: knowledge
+tags: [worktrunk, wt, worktree, git, vcs, parallel, agents]
+use_when: [what is worktrunk, install wt, set up worktrunk, worktrunk branch shortcuts, wt vs git worktree, run agents in parallel worktrees]
+---
+
+# Worktrunk
+
+`wt` wraps raw @git/worktree so you address a branch by *name*, not by path —
+`wt switch feature` creates or jumps to the worktree for `feature`, computing the
+directory from a path template (default `.worktrees/<branch>`). Built to run many
+agents/branches in parallel without the manual `git worktree add` + `cd` dance.
+
+Where @git/worktree is the plumbing (you pick the path, you prune), `wt` is the
+porcelain: path templates, an interactive picker, lifecycle @wt/hook automation,
+LLM commit messages, and a one-shot @wt/merge that squashes → rebases → lands →
+removes. Config lives in @wt/config.
+
+## Install
+
+```bash
+# macOS / Linux
+brew install worktrunk && wt config shell install
+
+# any platform with Rust
+cargo install worktrunk && wt config shell install
+```
+
+Also: winget (`git-wt` on Windows), pacman (Arch), conda/pixi. `wt config shell
+install` wires the shell function that lets `wt switch` actually change your
+directory — without it `wt` can't `cd` the parent shell.
+
+## Branch addressing
+
+Every command that takes a branch accepts these shortcuts:
+
+| Token | Means |
+|-------|-------|
+| `^` | the default branch (main/master) |
+| `@` | the current branch / worktree |
+| `-` | the previous worktree (toggle back) |
+| `pr:N` | GitHub PR #N's branch |
+| `mr:N` | GitLab MR !N's branch |
+| a full PR/MR URL | the same |
+
+## Subcommands
+
+| Command | jd | Does |
+|---------|-----|------|
+| `switch` | @wt/switch | create / jump to a worktree, picker, PR checkout |
+| `list` | @wt/list | table of all worktrees + status |
+| `merge` | @wt/merge | squash, rebase, land, remove — one shot |
+| `remove` | @wt/remove | delete a worktree (and usually its branch) |
+| `step` | @wt/step | granular building blocks (commit, rebase, diff…) |
+
+`switch`, `merge`, and `remove` are the high-level verbs; `step` exposes their
+individual phases for scripting.

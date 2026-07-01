@@ -1008,42 +1008,9 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    // refuse suspicious paths (absolute or traversal)
-    if row.path.starts_with('/') || row.path.contains("..") {
-        emit_err(
-            cfg,
-            "bad-args",
-            &format!("refusing suspicious path: {}", row.path),
-        );
-        return 3;
-    }
-
-    let body = if row.source.is_local() {
-        // Local paths are repo-root-relative (they carry each home's `.jd/…`
-        // prefix), so the file resolves under the project dir.
-        let base = cfg.project_dir();
-        match std::fs::read_to_string(base.join(&row.path)).ok() {
-            Some(b) => b,
-            None => {
-                emit_err(
-                    cfg,
-                    "source-unreachable",
-                    &format!("cannot read {} file: {}", row.source.label(), row.path),
-                );
-                return 4;
-            }
-        }
-    } else {
-        // Cached-belt paths are repo-root-relative (they carry their home's
-        // `.jd/…` prefix), so the file lives at `<raw_base>/<path>`.
-        let url = format!("{}/{}", online_base(cfg, row), row.path);
-        match curl_to_string(&url) {
-            Some(b) => b,
-            None => {
-                emit_err(cfg, "source-unreachable", &format!("cannot fetch: {url}"));
-                return 4;
-            }
-        }
+    let body = match read_row_body(cfg, row) {
+        Ok(b) => b,
+        Err(c) => return c,
     };
 
     // Resolve the requested profile to the sections it emits, gating --justfile
@@ -1120,6 +1087,70 @@ pub fn get(cfg: &Config, args: &[String]) -> i32 {
         }
     }
     0
+}
+
+/// Read a resolved row's `.jd` body — from the project dir for local sources,
+/// or over HTTP from the cached belt's raw base otherwise. Rejects suspicious
+/// paths (absolute or `..`) up front. Emits the error and returns the exit code
+/// on failure. Shared by `get` and [`render_justfile`].
+fn read_row_body(cfg: &Config, row: &Row) -> Result<String, i32> {
+    if row.path.starts_with('/') || row.path.contains("..") {
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!("refusing suspicious path: {}", row.path),
+        );
+        return Err(3);
+    }
+    if row.source.is_local() {
+        // Local paths are repo-root-relative (they carry each home's `.jd/…`
+        // prefix), so the file resolves under the project dir.
+        let base = cfg.project_dir();
+        std::fs::read_to_string(base.join(&row.path)).map_err(|_| {
+            emit_err(
+                cfg,
+                "source-unreachable",
+                &format!("cannot read {} file: {}", row.source.label(), row.path),
+            );
+            4
+        })
+    } else {
+        // Cached-belt paths are repo-root-relative (they carry their home's
+        // `.jd/…` prefix), so the file lives at `<raw_base>/<path>`.
+        let url = format!("{}/{}", online_base(cfg, row), row.path);
+        curl_to_string(&url).ok_or_else(|| {
+            emit_err(cfg, "source-unreachable", &format!("cannot fetch: {url}"));
+            4
+        })
+    }
+}
+
+/// Resolve `refr` to its host-rendered justfile text — the exact `--justfile`
+/// payload, `<<var>>` escapes injected — ready to feed `just --justfile -`.
+/// Gates on kind: only tool|workflow files are executable (exit 3 otherwise).
+/// Emits the error and returns the exit code on failure. Backs `jd just`.
+pub fn render_justfile(cfg: &Config, refr: &str, vars: &Vars) -> Result<String, i32> {
+    let rows = gather(cfg)?;
+    let row = resolved_or_err(cfg, &rows, refr)?;
+    let body = read_row_body(cfg, row)?;
+    if !justfile_kind(&row.kind) {
+        emit_err(
+            cfg,
+            "bad-args",
+            &format!(
+                "no executable payload: kind '{}' defines types/events, not a recipe — jd just needs kind tool|workflow",
+                row.kind
+            ),
+        );
+        return Err(3);
+    }
+    let joined = split_sections(&body, "tools")
+        .into_iter()
+        .map(|(_, c)| c)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let injected = inject_vars(vec![("justfile".to_string(), joined)], vars);
+    Ok(injected.into_iter().map(|(_, c)| c).collect())
 }
 
 /// Output profile for `get`: a kind-gated view of one `.jd` file, selected by a

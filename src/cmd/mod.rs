@@ -8,3 +8,4 @@ pub mod explore;
 pub mod lint;
 pub mod mcp;
 pub mod query;
+pub mod run;

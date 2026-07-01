@@ -7,6 +7,7 @@
 //   jd search <q>     rank files by purpose (graph-aware)
 //   jd get <ref>      a file as ordered sections, or one output profile
 //                     (--human|--agent|--frontmatter|--justfile)
+//   jd just <ref>     render <ref>'s justfile and run it through `just`
 //   jd ls             categories and their members
 //   jd links <ref>    inbound + outbound @links of a file (graph traversal)
 //   jd resolve <term> live @link completion (direct prefix / --fuzzy ranker)
@@ -18,7 +19,7 @@
 
 mod cmd;
 
-use cmd::{build, config, explore, lint, mcp, query};
+use cmd::{build, config, explore, lint, mcp, query, run};
 use config::Format;
 use justdown::store::STORE_SCHEMA;
 use std::process::exit;
@@ -55,6 +56,7 @@ fn main() {
         "build" => build::run(&cfg, rest),
         "search" => query::search(&cfg, rest),
         "get" => query::get(&cfg, rest),
+        "just" => run::run(&cfg, rest),
         "ls" => query::ls(&cfg),
         "links" => query::links(&cfg, rest),
         "path" => query::path(&cfg, rest),
@@ -119,6 +121,13 @@ USAGE  jd <command> [args]
                                Resolves <<var>> context injection before output:
                                values come from JUSTDOWN_VAR_<NAME> env and
                                --var flags (flags win). One pass, non-recursive.
+  just   <ref> [recipe] [args] [--var name=value ...]
+                               run a tool: render <ref>'s host-resolved justfile
+                               and dispatch it through `just` (the one-liner wrap
+                               of `jd get <ref> --justfile | just --justfile -
+                               <recipe> args`). ref is kind tool|workflow;
+                               recipe + args pass to just verbatim; exit code is
+                               just's own (127 if `just` is not installed).
   ls                           categories and their member files
   links  <ref>                 inbound + outbound @links of a file
   path   <a> <b>               shortest @link connection between two files

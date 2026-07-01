@@ -7,7 +7,7 @@ use_when: [search the justdown library, find a tool before doing it by hand, get
 danger: none
 requires: [jd]
 run: search
-provides: [search, get, ls, links, path, lint, build]
+provides: [search, get, just, ls, links, path, lint, build]
 ---
 
 # jd
@@ -22,6 +22,7 @@ like any other. The CLI is the **`jd`** binary; these recipes shell out to it.
 |--------|----------|------|
 | `search` | `search <q> [kind] [num] [cat]` | rank .jds by need (name/use_when > tags > prose), graph-aware |
 | `get` | `get <ref> [profile]` | a file as ordered sections, or one profile: `--frontmatter` / `--human` / `--agent` / `--justfile` |
+| `just` | `just <ref> [recipe] [args]` | render `<ref>`'s justfile and run it through `just` (the wrap of `get --justfile \| just --justfile -`) |
 | `ls` | `ls` | categories and their member files |
 | `links` | `links <ref>` | inbound + outbound `@links` of a file |
 | `path` | `path <a> <b>` | the shortest `@link` chain connecting two files |
@@ -56,6 +57,11 @@ search query kind="" num="5":
 # --frontmatter | --human | --agent | --justfile
 get ref profile="":
   jd get {{quote(ref)}} {{profile}}
+
+# render a tool|workflow ref's justfile and run it through `just` in one call;
+# recipe + args pass to just verbatim, and its exit code is jd's exit code
+just ref recipe="" *args="":
+  jd just {{quote(ref)}} {{recipe}} {{args}}
 
 # categories and their member files
 ls:

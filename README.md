@@ -22,8 +22,12 @@ serves four readers without copies**:
 The runner interface is one stable shape for every tool:
 
 ```text
-just --justfile - <recipe> <args...>
+jd just <ref> <recipe> <args...>            # one command, jd is the entry point
+jd get <ref> --justfile | just --justfile - <recipe> <args...>   # the pipe it wraps
 ```
+
+`jd just` renders the ref's host-resolved justfile and dispatches it through
+`just` in a single call — the recipe's exit code is `jd`'s exit code.
 
 Arguments are **positional** (mapped to the recipe's parameters in order; no `--`
 separator). Arguments in, **exit code out**. A non-zero exit is a failure. How the result is
@@ -157,10 +161,11 @@ checksum before installing (re-run either to update), falling back to the
 `cargo`/source path on any other platform.
 
 `jd` finds tools; [`just`](https://just.systems) runs them (a tool's recipe is
-just-syntax, executed as `just --justfile - <recipe>`). `jd` **does not define how
-it is used** — an agent can call the verbs directly, or wrap them (`search`,
-`get`, `ls`, `links`, `path`) as an MCP tool lookup. The library is the contract;
-the wiring is yours. See [`install.jd`](install.jd).
+just-syntax, executed as `just --justfile - <recipe>`). `jd just <ref> <recipe>`
+does that dispatch for you; beyond that `jd` **does not define how it is used** —
+an agent can call the read verbs directly, or wrap them (`search`, `get`, `ls`,
+`links`, `path`) as an MCP tool lookup. The library is the contract; the wiring
+is yours. See [`install.jd`](install.jd).
 
 ### MCP server & Claude Code plugin
 
@@ -232,15 +237,15 @@ run: release
 
 Gates, bumps every manifest, tags, and pushes — CI builds the binaries from the
 tag. It composes @tools/gate and @tools/version at runtime through `jd` (the
-pipeable entry point); `jd … --justfile` emits one file's recipes, so a recipe
-that needs another tool pipes it rather than declaring a cross-file `just` dep.
+entry point); each `.jd` owns one file's recipes, so a recipe that needs another
+tool dispatches it with `jd just` rather than declaring a cross-file `just` dep.
 
 ```just
 release version:
   #!/usr/bin/env sh
   set -eu
-  jd get tools_gate    --justfile | just --justfile - gate
-  jd get tools_version --justfile | just --justfile - bump {{version}}
+  jd just tools_gate    gate
+  jd just tools_version bump {{version}}
   git tag -a "v{{version}}" -m "v{{version}}" && git push --follow-tags
 ```
 ````

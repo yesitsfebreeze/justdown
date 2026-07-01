@@ -16,7 +16,7 @@ provides: [switch, create, pr, exec]
 `wt switch <branch>` jumps to that branch's worktree, creating the directory (from
 the @wt/config path template) if it does not exist. No branch ⇒ interactive picker.
 Branch shortcuts (`^` default, `@` current, `-` previous, `pr:N`, `mr:N`) come from
-@wt/overview. Switching can `cd` your shell only after `wt config shell install`.
+@wt/wt. Switching can `cd` your shell only after `wt config shell install`.
 
 | Recipe | Flags | Does |
 |--------|-------|------|

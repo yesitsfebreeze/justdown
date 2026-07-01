@@ -6,6 +6,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-01
+
+### Added
+- `jd just <ref> [recipe] [args] [--var name=value ...]` — run a tool instead of
+  only emitting it. It wraps `jd get <ref> --justfile | just --justfile - <recipe>
+  args` into one command, making `jd` the single entry point for *running* a
+  captured procedure. It renders the ref's host-resolved justfile (with `<<var>>`
+  injection and the tool|workflow kind gate) and dispatches it through `just` on
+  stdin; the recipe and its arguments pass through verbatim and `just`'s exit
+  code becomes `jd`'s (127 if `just` is not installed).
+
+### Fixed
+- Corrected a broken `@wt/overview` link to `@wt/wt` in the `wt/switch` library
+  file, so `jd lint` passes clean.
+
 ## [0.9.0] - 2026-06-29
 
 ### Changed
@@ -96,7 +111,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.6.0...v0.7.0

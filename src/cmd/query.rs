@@ -10,7 +10,9 @@ use super::config::{Config, Format};
 use justdown::store::{rows_from_nodes, Row, Source, Store};
 use justdown::{graph, jd, links};
 use justdown::render::{self, Vars};
-use justdown::search::{degree_map, rank, words, Scored, STOPWORDS};
+use justdown::search::{
+    degree_map, match_name_content, rank, search_terms, words, Scored, STOPWORDS,
+};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -775,11 +777,19 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
         Err(c) => return c,
     };
 
-    let scored = if mode == "semantic" {
+    let mut scored = if mode == "semantic" {
         rank_semantic(&rows, &query, &kind, &category)
     } else {
         rank(&rows, &query, &kind, &category)
     };
+    // Explorer parity: files the frontmatter rank missed still surface when
+    // their name (fuzzy) or content matches every term — terminal search sees
+    // what the editor's search box sees.
+    let base = cfg.project_dir();
+    let extra = content_hits(&rows, &scored, &query, &kind, &category, |r| {
+        std::fs::read_to_string(base.join(&r.path)).ok()
+    });
+    scored.extend(extra.into_iter().map(|row| Scored { score: 0, row }));
 
     let take = scored.len().min(num as usize);
     let shown = &scored[..take];
@@ -865,6 +875,44 @@ pub fn search(cfg: &Config, args: &[String]) -> i32 {
     }
 
     0
+}
+
+/// The explorer's name+content pass over the graph rank's leftovers: local
+/// rows not already scored whose path (fuzzy subsequence) or file content
+/// (substring) matches every query term — [`match_name_content`], the one
+/// implementation `jd explore` uses. Kind/category narrowing still applies.
+/// `read` supplies a row's raw body (fs in production, injected in tests);
+/// an unreadable file degrades to name-only matching, like the explorer.
+/// Returned name-asc; the caller appends them at score 0, after graph hits.
+fn content_hits<'a>(
+    rows: &'a [Row],
+    scored: &[Scored<'a>],
+    query: &str,
+    kind: &str,
+    category: &str,
+    read: impl Fn(&Row) -> Option<String>,
+) -> Vec<&'a Row> {
+    let terms = search_terms(query);
+    if terms.is_empty() {
+        return Vec::new();
+    }
+    let hit: std::collections::HashSet<&str> =
+        scored.iter().map(|s| s.row.key.as_str()).collect();
+    let mut extra: Vec<&Row> = rows
+        .iter()
+        .filter(|r| {
+            r.source.is_local()
+                && !hit.contains(r.key.as_str())
+                && (kind.is_empty() || r.kind == kind)
+                && (category.is_empty() || r.category == category)
+        })
+        .filter(|r| {
+            let raw = read(r).unwrap_or_default();
+            match_name_content(&r.path, &raw, &terms).0
+        })
+        .collect();
+    extra.sort_by(|a, b| a.name.cmp(&b.name));
+    extra
 }
 
 /// The graph node surfaced when a search matches nothing in the curated
@@ -1844,6 +1892,115 @@ pub fn resolve(cfg: &Config, args: &[String]) -> i32 {
         }
     }
     0
+}
+
+#[cfg(test)]
+mod content_tests {
+    use super::{content_hits, Scored};
+    use justdown::store::{Row, Source};
+
+    fn row(key: &str, name: &str, path: &str, kind: &str, source: Source) -> Row {
+        Row {
+            source,
+            origin: String::new(),
+            key: key.to_string(),
+            name: name.to_string(),
+            kind: kind.to_string(),
+            description: String::new(),
+            purpose: String::new(),
+            tags: String::new(),
+            path: path.to_string(),
+            use_when: String::new(),
+            not_when: String::new(),
+            danger: String::new(),
+            side_effects: String::new(),
+            requires: String::new(),
+            category: String::new(),
+            run: String::new(),
+            has_fm: true,
+            links: Vec::new(),
+            fuzzy: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn graph_hits_dedupe_and_content_only_rows_append() {
+        let rows = vec![
+            row(
+                "tools/release",
+                "release",
+                ".jd/library/tools/release.jd",
+                "tool",
+                Source::Local,
+            ),
+            row(
+                "tools/gate",
+                "gate",
+                ".jd/library/tools/gate.jd",
+                "tool",
+                Source::Local,
+            ),
+        ];
+        let scored = vec![Scored {
+            score: 3,
+            row: &rows[0],
+        }];
+        // "release" fuzzy-matches tools/release's path too, but that key is
+        // already a graph hit — only the content-matched leftover comes back.
+        let extra = content_hits(&rows, &scored, "release", "", "", |r| {
+            Some(match r.key.as_str() {
+                "tools/gate" => "run this gate before any release".to_string(),
+                _ => String::new(),
+            })
+        });
+        let keys: Vec<&str> = extra.iter().map(|r| r.key.as_str()).collect();
+        assert_eq!(keys, vec!["tools/gate"]);
+    }
+
+    #[test]
+    fn online_rows_and_filtered_kinds_are_skipped() {
+        let rows = vec![
+            row(
+                "tools/gate",
+                "gate",
+                ".jd/library/tools/gate.jd",
+                "tool",
+                Source::Online,
+            ),
+            row(
+                "notes/gate",
+                "gate_notes",
+                ".jd/library/notes/gate.jd",
+                "knowledge",
+                Source::Local,
+            ),
+        ];
+        let extra = content_hits(&rows, &[], "gate", "tool", "", |_| {
+            Some("gate".to_string())
+        });
+        assert!(
+            extra.is_empty(),
+            "online rows have no readable body; kind filter still narrows"
+        );
+        let unfiltered = content_hits(&rows, &[], "gate", "", "", |_| Some("gate".to_string()));
+        let keys: Vec<&str> = unfiltered.iter().map(|r| r.key.as_str()).collect();
+        assert_eq!(keys, vec!["notes/gate"]);
+    }
+
+    #[test]
+    fn unreadable_files_degrade_to_name_only() {
+        let rows = vec![row(
+            "tools/gate",
+            "gate",
+            ".jd/library/tools/gate.jd",
+            "tool",
+            Source::Local,
+        )];
+        let by_name = content_hits(&rows, &[], "gate", "", "", |_| None);
+        assert_eq!(by_name.len(), 1, "path subsequence still matches");
+        let by_content = content_hits(&rows, &[], "precondition", "", "", |_| None);
+        assert!(by_content.is_empty(), "no body, no content match");
+    }
 }
 
 #[cfg(test)]

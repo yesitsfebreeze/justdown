@@ -52,6 +52,64 @@ pub struct Scored<'a> {
     pub row: &'a Row,
 }
 
+/// The explorer's query split: lowercased whitespace terms, all of which must
+/// match (see [`match_name_content`]). No stopword filtering — a term the user
+/// typed is a term that must hit.
+pub fn search_terms(query: &str) -> Vec<String> {
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .map(String::from)
+        .collect()
+}
+
+/// Subsequence test: are `needle`'s chars present, in order, within `hay`?
+/// `needle` is already lowercase; `hay` is a lowercased char slice.
+pub fn subsequence(hay: &[char], needle: &str) -> bool {
+    let mut chars = needle.chars();
+    let mut want = chars.next();
+    for &c in hay {
+        if Some(c) == want {
+            want = chars.next();
+            if want.is_none() {
+                return true;
+            }
+        }
+    }
+    want.is_none()
+}
+
+/// The explorer's name+content match, shared by `jd explore` and `jd search`:
+/// every term must match either `label` (fuzzy subsequence, case-insensitive)
+/// or `raw` content (case-insensitive substring). Returns whether the file
+/// matched and, for a content hit, the first matching line (trimmed, capped at
+/// 120 chars) as a snippet.
+pub fn match_name_content(label: &str, raw: &str, terms: &[String]) -> (bool, Option<String>) {
+    let label: Vec<char> = label.to_lowercase().chars().collect();
+    let content = raw.to_lowercase();
+    let mut snippet: Option<String> = None;
+    let matched = terms.iter().all(|t| {
+        if subsequence(&label, t) {
+            return true;
+        }
+        if content.contains(t.as_str()) {
+            if snippet.is_none() {
+                snippet = raw
+                    .lines()
+                    .find(|l| l.to_lowercase().contains(t.as_str()))
+                    .map(|l| l.trim().chars().take(120).collect());
+            }
+            return true;
+        }
+        false
+    });
+    if matched {
+        (true, snippet)
+    } else {
+        (false, None)
+    }
+}
+
 /// Direct-link completion: rows whose key, name, or leaf matches `prefix`,
 /// ranked by match quality (exact > prefix > substring), then graph
 /// connectivity, then name. This is the `@name` autocomplete source — distinct
@@ -229,6 +287,39 @@ mod tests {
         assert_eq!(out.len(), 1, "not_when veto drops web_fetch");
         assert_eq!(out[0].row.name, "search_rg");
         assert!(out[0].score >= 3);
+    }
+
+    #[test]
+    fn fuzzy_name_subsequence_matches() {
+        let terms = search_terms("relse");
+        let (hit, snippet) = match_name_content("meta/tools/release.jd", "", &terms);
+        assert!(hit, "subsequence 'relse' must hit 'release'");
+        assert_eq!(snippet, None, "a name-only hit carries no snippet");
+        let (miss, _) = match_name_content("meta/tools/gate.jd", "", &terms);
+        assert!(!miss);
+    }
+
+    #[test]
+    fn content_substring_matches_and_snippets() {
+        let raw = "---\nname: rg\n---\n\nUse Vim keys to navigate results.\n";
+        let terms = search_terms("VIM");
+        let (hit, snippet) = match_name_content("search/rg.jd", raw, &terms);
+        assert!(hit, "content match is case-insensitive");
+        assert_eq!(snippet.as_deref(), Some("Use Vim keys to navigate results."));
+    }
+
+    #[test]
+    fn every_term_must_match_name_or_content() {
+        let raw = "body mentions vim here";
+        let terms = search_terms("vim rg");
+        // 'rg' hits the name, 'vim' hits the content → match
+        let (hit, _) = match_name_content("search/rg.jd", raw, &terms);
+        assert!(hit);
+        // 'zzz' hits nothing → the whole query misses
+        let terms = search_terms("vim zzz");
+        let (miss, snippet) = match_name_content("search/rg.jd", raw, &terms);
+        assert!(!miss);
+        assert_eq!(snippet, None);
     }
 
     #[test]

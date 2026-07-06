@@ -112,6 +112,12 @@ jd get release tools        # just the runnable steps
 jd explore                  # open the built-in .jd explorer in your browser
 ```
 
+`jd search` ranks by the frontmatter graph first (name/use_when > tags >
+purpose, `not_when` vetoes), then appends any local `.jd` the ranking missed
+whose file name (fuzzy) or content (substring) matches every term — the same
+name+content semantics as the explorer's search box, so terminal search and
+editor search agree.
+
 ### Nested libraries — one repo, many `.jd` homes
 
 Any folder in a tree can own its own `.jd/library` and build its own

@@ -21,6 +21,7 @@
 
 use justdown::jd;
 use justdown::links::{self, leaf};
+use justdown::search;
 use justdown::store::{Row, Source};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -336,29 +337,12 @@ fn api_search(request: tiny_http::Request, state: &State, query: &str) {
         // Each whitespace term must match somewhere — either the path tail
         // (fuzzy subsequence) or the file's content. So "vim rg" hits rg.jd
         // when `rg` matches the name and `vim` matches the body.
-        let terms: Vec<String> = q.to_lowercase().split_whitespace().map(String::from).collect();
+        let terms = search::search_terms(q);
         let mut files = Vec::new();
         let mut snippets = HashMap::new();
         for f in &all {
-            let label: Vec<char> = display_path(f).to_lowercase().chars().collect();
             let raw = std::fs::read_to_string(f).unwrap_or_default();
-            let content = raw.to_lowercase();
-            let mut snippet: Option<String> = None;
-            let matched = terms.iter().all(|t| {
-                if subsequence(&label, t) {
-                    return true;
-                }
-                if content.contains(t.as_str()) {
-                    if snippet.is_none() {
-                        snippet = raw
-                            .lines()
-                            .find(|l| l.to_lowercase().contains(t.as_str()))
-                            .map(|l| l.trim().chars().take(120).collect());
-                    }
-                    return true;
-                }
-                false
-            });
+            let (matched, snippet) = search::match_name_content(&display_path(f), &raw, &terms);
             if matched {
                 files.push(f.clone());
                 if let Some(s) = snippet {
@@ -395,22 +379,6 @@ fn api_search(request: tiny_http::Request, state: &State, query: &str) {
 
     let body = json!({ "results": results, "total": total, "root": "" });
     respond_json(request, 200, &body);
-}
-
-/// Subsequence test: are `needle`'s chars present, in order, within `hay`?
-/// `needle` is already lowercase; `hay` is a lowercased char slice.
-fn subsequence(hay: &[char], needle: &str) -> bool {
-    let mut chars = needle.chars();
-    let mut want = chars.next();
-    for &c in hay {
-        if Some(c) == want {
-            want = chars.next();
-            if want.is_none() {
-                return true;
-            }
-        }
-    }
-    want.is_none()
 }
 
 /* ------------------------------ @link resolve -------------------------- */

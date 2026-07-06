@@ -88,7 +88,7 @@ fn tools() -> Value {
     json!([
         {
             "name": "search",
-            "description": "Rank library .jd files by need (graph-aware: name/use_when > tags > prose; not_when vetoes). Returns the best matches with purpose, kind, source tier and safety.",
+            "description": "Rank library .jd files by need (graph-aware: name/use_when > tags > prose; not_when vetoes), then append files the rank missed whose file name (fuzzy) or content matches every term at score 0 — the explorer's search semantics. Returns the best matches with purpose, kind, source tier and safety.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

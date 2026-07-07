@@ -40,5 +40,5 @@ to the project root).
 | `:pclose` | close the preview window (@vim/windows) |
 
 Tags also feed insert-mode completion via `Ctrl-x Ctrl-]` (@vim/completion). In
-Neovim, the built-in LSP (`vim.lsp`, @vim/nvim) gives the same go-to-definition
+Neovim, the built-in LSP (`vim.lsp`, @nvim/lsp) gives the same go-to-definition
 without a tags file.

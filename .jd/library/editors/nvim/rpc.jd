@@ -1,0 +1,48 @@
+---
+name: nvim_rpc
+description: Neovim's msgpack-RPC control channel — --listen/--server, channels, jobstart, and how external clients call the nvim_* API. What replaces Vim's X11 clientserver.
+kind: knowledge
+tags: [nvim, neovim, rpc, msgpack, remote, headless, jobs]
+use_when: [nvim rpc, control nvim from python, pynvim, nvim --listen, msgpack channel, nvim jobstart, embed nvim in another program]
+---
+
+# msgpack-RPC
+
+Every nvim listens on a channel speaking msgpack-RPC; the whole `nvim_*` API
+(@nvim/api) is callable over it. This replaces stock Vim's `+clientserver`
+(X11 registry + keystroke strings) with a socket and structured calls — no
+display server, works headless, identical on every platform. The ready-made
+recipes live in @vim/remote.
+
+## Server side
+
+| Form | Does |
+|------|------|
+| `nvim --listen /tmp/nv.sock` | listen on a socket path (or `host:port`) |
+| `nvim --headless --listen …` | same, no UI — automation server |
+| `v:servername` / `serverstart()` | address of / add a listener at runtime |
+| `$NVIM` | set inside `:terminal` jobs — the parent's address |
+| `nvim --embed` | speak RPC over stdin/stdout — how GUIs embed nvim |
+
+Every nvim already listens on a default socket under `stdpath('run')` — any
+running instance is controllable without planning ahead.
+
+## Client side
+
+| Client | Call |
+|--------|------|
+| CLI | `nvim --server {addr} --remote-expr 'nvim_buf_line_count(0)'` |
+| another nvim | `vim.rpcrequest(chan, 'nvim_command', 'edit f')` (`rpcnotify` = fire-and-forget) |
+| Python | `pynvim.attach('socket', path=…)` then `nvim.command(…)` |
+| Node | the `neovim` package, same shape |
+
+`vim.fn.sockconnect('pipe', addr, {rpc=true})` opens a channel from Lua;
+GUIs (neovide, nvim-qt) and IDE embeddings are just RPC clients drawing the
+UI events nvim streams back.
+
+## Jobs & channels
+
+`vim.fn.jobstart({'cmd'}, {on_stdout=…, on_exit=…})` runs a process async on
+the same channel machinery; `rpc=true` makes the child an RPC peer. For plain
+"run and collect", prefer `vim.system` (@nvim/stdlib). `:terminal`
+(@vim/modes) is a job attached to a PTY buffer.

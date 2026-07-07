@@ -1,0 +1,58 @@
+---
+name: nvim_lsp
+description: Neovim's built-in LSP client — enable a server with vim.lsp.config/enable, the default gr* keymaps, vim.lsp.buf actions, and formatting. Go-to-definition, rename, hover without plugins.
+kind: knowledge
+tags: [nvim, neovim, lsp, language-server, completion, goto-definition]
+use_when: [neovim lsp setup, vim.lsp.enable, go to definition nvim, lsp rename, lsp format on save, nvim hover documentation, language server neovim]
+---
+
+# Built-in LSP
+
+`vim.lsp` is a full LSP client in core — no plugin needed to talk to `gopls`,
+`rust-analyzer`, `clangd`, `pyright`, …. It supersedes tag-based navigation
+(@vim/tags) where a server exists, and feeds @nvim/diagnostics automatically.
+
+## Enable a server (0.11+)
+
+```lua
+vim.lsp.config('gopls', {
+  cmd = { 'gopls' },
+  filetypes = { 'go' },
+  root_markers = { 'go.mod', '.git' },
+})
+vim.lsp.enable('gopls')
+```
+
+Configs merge from `lsp/{name}.lua` files on the runtimepath — the
+`nvim-lspconfig` plugin ships hundreds of ready configs so most setups are just
+`vim.lsp.enable({'gopls','rust_analyzer'})`. Pre-0.11:
+`vim.lsp.start({cmd=…, root_dir=…})` in a FileType autocmd (@nvim/lua).
+`:checkhealth vim.lsp` shows what's attached.
+
+## Default keymaps (0.11+)
+
+| Key | Does |
+|-----|------|
+| `K` | hover docs (floating window) |
+| `grn` | rename symbol |
+| `grr` / `gri` / `grt` | references / implementation / type definition |
+| `gra` | code action |
+| `gO` | document symbols |
+| `Ctrl-]` / `gd` | definition (via LSP `tagfunc`) |
+| `Ctrl-s` (insert) | signature help |
+
+`Ctrl-x Ctrl-o` completes via LSP `omnifunc` (@vim/completion);
+`vim.lsp.completion.enable(true, client_id, bufnr, {autotrigger=true})` gives
+as-you-type completion.
+
+## Programmatic surface
+
+| Call | Does |
+|------|------|
+| `vim.lsp.buf.definition()` / `.references()` / `.rename(new)` | jump / list / rename |
+| `vim.lsp.buf.format({async=false})` | format buffer — pair with a `BufWritePre` autocmd for format-on-save |
+| `vim.lsp.buf.code_action()` | pick a server fix |
+| `vim.lsp.get_clients({bufnr=0})` | inspect attached clients |
+
+Results land in the quickfix/location list (@vim/quickfix), so `:cdo` batch
+edits work over reference lists too.

@@ -1,0 +1,61 @@
+---
+name: nvim_stdlib
+description: Neovim's Lua standard library beyond the editor API — vim.system for processes, vim.fs for paths, vim.json, vim.uv event loop, vim.iter, string/table helpers, vim.ui prompts, and scheduling.
+kind: knowledge
+tags: [nvim, neovim, lua, stdlib, vim.system, vim.fs, libuv]
+use_when: [run external command from nvim lua, vim.system, vim.fs path helpers, parse json in nvim, vim.uv timer, lua string split neovim, vim.ui.select prompt]
+---
+
+# Lua stdlib
+
+What `nvim -l` scripts (@vim/script) and configs get beyond `vim.api` — a
+batteries-included layer over LuaJIT, so editor scripting rarely needs external
+Lua libraries.
+
+## Processes — vim.system
+
+```lua
+local out = vim.system({'git', 'status', '--short'}, { text = true }):wait()
+-- out.code, out.stdout, out.stderr
+vim.system({'make'}, {}, function(out) print(out.code) end)  -- async
+```
+
+The modern replacement for `vim.fn.system()` and most `jobstart` uses
+(@nvim/rpc): argv list (no shell quoting pitfalls), sync via `:wait()`, async
+via callback.
+
+## Paths & files — vim.fs
+
+| Call | Does |
+|------|------|
+| `vim.fs.root(0, {'go.mod', '.git'})` | nearest ancestor containing a marker — project root |
+| `vim.fs.find('*.toml', {upward=true})` | search up/down the tree |
+| `vim.fs.joinpath(a, b, …)` / `normalize(p)` | build / clean paths |
+| `vim.fs.dir(path)` | iterate directory entries |
+| `vim.fn.stdpath('config'|'data'|'state')` | the XDG dirs (@nvim/defaults) |
+
+## Data & text
+
+| Call | Does |
+|------|------|
+| `vim.json.encode(t)` / `decode(s)` | JSON |
+| `vim.split(s, sep)` / `vim.trim(s)` | string helpers |
+| `vim.tbl_extend('force', a, b)` / `vim.tbl_deep_extend` | merge tables |
+| `vim.deepcopy(t)` / `vim.inspect(t)` | copy / pretty-print |
+| `vim.iter(t):filter(f):map(g):totable()` | chainable iteration |
+| `vim.regex(pat)` / `string:match` | vim regex (@vim/search) / Lua patterns |
+
+## Event loop & UI
+
+`vim.uv` is libuv itself — timers, fs watchers, TCP:
+
+```lua
+local t = vim.uv.new_timer()
+t:start(1000, 0, vim.schedule_wrap(function() print('later') end))
+```
+
+libuv callbacks run off the main loop, so wrap anything touching the editor in
+`vim.schedule()` / `vim.schedule_wrap()` (`vim.defer_fn(fn, ms)` for one-shots).
+`vim.notify(msg, vim.log.levels.WARN)` messages the user; `vim.ui.select(items,
+{}, cb)` and `vim.ui.input({prompt=…}, cb)` prompt — plugins overrideable
+pickers by default.

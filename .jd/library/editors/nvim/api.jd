@@ -1,0 +1,56 @@
+---
+name: nvim_api
+description: The nvim_* editor API — typed functions over buffers, windows, tabs, options, extmarks, and floating windows. Callable from Lua as vim.api and from any RPC client, identically.
+kind: knowledge
+tags: [nvim, neovim, api, nvim_buf, extmarks, floating-windows]
+use_when: [nvim api, nvim_buf_get_lines, read buffer lines programmatically, floating window nvim, extmarks, virtual text, drive nvim from code]
+---
+
+# The nvim_* API
+
+A stable, versioned function set over the whole editor. Lua calls it as
+`vim.api.*`; external programs call the same names over msgpack-RPC (@nvim/rpc)
+— one surface, two transports. Stock Vim has no equivalent; its remote surface
+is keystrokes and expressions only (@vim/remote).
+
+Handles are integers: buffer, window, tabpage. `0` means "current" everywhere.
+
+## Buffers & windows
+
+| Function | Does |
+|----------|------|
+| `nvim_get_current_buf()` / `_win()` | focused buffer / window handle |
+| `nvim_list_bufs()` / `_wins()` / `_tabpages()` | enumerate handles |
+| `nvim_buf_get_lines(b, s, e, strict)` | read lines — 0-indexed, end-exclusive, `-1` = end |
+| `nvim_buf_set_lines(b, s, e, strict, lines)` | replace a line range |
+| `nvim_buf_set_text(b, sr, sc, er, ec, lines)` | replace a character range |
+| `nvim_win_get_cursor(w)` / `_set_cursor(w, {row, col})` | cursor (1-indexed row) |
+| `nvim_buf_get_name(b)` / `nvim_buf_line_count(b)` | path / length |
+
+## Execute & evaluate
+
+| Function | Does |
+|----------|------|
+| `nvim_command('write')` | run one ex command (@vim/ex) |
+| `nvim_exec2(src, {output=true})` | run a script block, capture output |
+| `nvim_eval('expr')` | evaluate a vimscript expression |
+| `nvim_exec_lua(src, args)` | run Lua (the RPC route into Lua) |
+| `nvim_input(keys)` / `nvim_feedkeys(...)` | type keystrokes (@vim/motions) |
+| `nvim_get_option_value(name, {})` / `_set_option_value` | options |
+
+## Extmarks & floats — nvim-only UI
+
+Extmarks are positions that track edits; namespaces group them. They carry
+highlights, **virtual text** (inline annotations that aren't in the file), and
+signs — the machinery under @nvim/diagnostics and every inline-hint plugin.
+
+```lua
+local ns = vim.api.nvim_create_namespace('mine')
+vim.api.nvim_buf_set_extmark(0, ns, row, col,
+  { virt_text = {{'note', 'Comment'}} })
+```
+
+`nvim_open_win(buf, enter, {relative='cursor', row=1, col=0, width=30,
+height=5, border='rounded'})` opens a **floating window** — a real window
+(@vim/windows) drawn over the grid; hovers, pickers, and `border`/`title` UIs
+are all this one call.

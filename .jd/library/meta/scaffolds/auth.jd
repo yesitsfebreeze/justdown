@@ -10,7 +10,7 @@ provides: [Credentials, Session, login, refresh]
 
 A scaffold for the login flow. Imports the user store via `!im @db/users as udb`
 and references it through the `udb` alias; password verification and tokens come
-from @auth/crypto.
+from `@auth/crypto`.
 
 ```psaido
 !im @db/users as udb

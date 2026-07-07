@@ -20,7 +20,7 @@ editing (the text is untouched). How folds form is set by `foldmethod`; the
 | `indent` | indentation level (`shiftwidth`) |
 | `marker` | `{{{` / `}}}` markers in the text |
 | `syntax` | syntax regions (language-aware) |
-| `expr` | `foldexpr` — e.g. nvim treesitter (@vim/nvim) |
+| `expr` | `foldexpr` — e.g. nvim treesitter (@nvim/treesitter) |
 | `diff` | unchanged regions in diff mode (@vim/diff) |
 
 ## Create (manual / marker)

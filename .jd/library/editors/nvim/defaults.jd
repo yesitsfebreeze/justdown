@@ -1,0 +1,56 @@
+---
+name: nvim_defaults
+description: Where Neovim diverges from stock Vim — changed option defaults, XDG paths, shada vs viminfo, removed features, vim9script absence, and clipboard providers. The compatibility map.
+kind: knowledge
+tags: [nvim, neovim, vim, differences, defaults, compatibility, migration]
+use_when: [nvim vs vim differences, neovim defaults, where is nvim config, viminfo neovim, vimscript compatible with nvim, nvim clipboard not working, migrate vimrc to neovim]
+---
+
+# Divergences from Vim
+
+Everything in the vim library applies to nvim unless listed here. Canonical
+in-editor reference: `:h vim-differences`.
+
+## Defaults you'd otherwise set
+
+Always `nocompatible`. On out of the box: `filetype plugin indent`, `syntax`,
+`autoindent`, `hlsearch` + `incsearch`, `hidden`, `wildmenu`, `smarttab`,
+`laststatus=2`, `mouse=nvi`, `backspace=indent,eol,start`, undo/swap in state
+dirs (no `.swp` litter next to files). `inccommand=nosplit`-style live
+`:s///` preview is nvim-only — set `inccommand=split` to also get the preview
+window (@vim/search).
+
+## Paths — XDG, not dotfiles
+
+| What | nvim | Vim |
+|------|------|-----|
+| config | `~/.config/nvim/init.lua` (or `init.vim`) | `~/.vimrc` |
+| plugins/data | `~/.local/share/nvim` | `~/.vim` |
+| swap, undo, shada | `~/.local/state/nvim` | alongside files / `~/.viminfo` |
+| session registry | `stdpath('run')` sockets (@nvim/rpc) | X11 clientserver |
+
+`viminfo` is replaced by **shada** (`:h shada`) — same job (registers, marks,
+history persistence), different file, `:wshada`/`:rshada` to sync.
+
+## Removed / never had
+
+| Gone | Instead |
+|------|---------|
+| `+clientserver`, `--servername` | msgpack-RPC `--listen`/`--server` (@nvim/rpc) |
+| built-in GUI (`gvim`) | GUI clients attach over RPC (neovide, nvim-qt) |
+| `vim9script` | not supported at all — nvim runs legacy vimscript + Lua (@nvim/lua); Vim9-only plugins won't load |
+| cscope (0.9+) | LSP references (@nvim/lsp) or an external plugin |
+| `:hardcopy`, `-y` easy mode | print externally |
+| interactive `:!cmd` (no TTY) | `:terminal` (@vim/modes) |
+| `+clipboard` build flag | a **provider**: `xclip`/`wl-clipboard`/`win32yank`/`pbcopy` on `$PATH`; `:checkhealth clipboard` diagnoses |
+
+Language interfaces (`:python3`, `:ruby`, node) run out-of-process via
+providers (`pynvim` etc.) instead of compiled-in interpreters —
+`:checkhealth provider` shows what's wired.
+
+## Writing portable config
+
+`has('nvim')` in vimscript / `vim.fn.has('nvim') == 1` guards nvim-only
+branches; a shared core in vimscript sources from both editors, with nvim
+extras in `init.lua`. Anything using @nvim/api, @nvim/treesitter, floating
+windows, or Lua is nvim-only by definition.

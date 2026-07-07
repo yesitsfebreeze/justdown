@@ -1,0 +1,50 @@
+---
+name: nvim_diagnostics
+description: The vim.diagnostic framework — errors and warnings from LSP or linters shown as signs, virtual text, or virtual lines; jump between them, list them, tune the display.
+kind: knowledge
+tags: [nvim, neovim, diagnostics, errors, virtual-text, lint]
+use_when: [nvim diagnostics, show lsp errors, jump to next error neovim, virtual text diagnostics, diagnostics in quickfix, hide inline errors]
+---
+
+# Diagnostics
+
+`vim.diagnostic` is the shared sink for "problems at positions" — @nvim/lsp
+feeds it automatically, linter plugins push into it via namespaces, and it
+renders through extmarks (@nvim/api). Stock Vim has no equivalent; the closest
+is a quickfix list from `:make` (@vim/quickfix).
+
+## Defaults & navigation
+
+| Key / call | Does |
+|-----------|------|
+| `]d` / `[d` | next / previous diagnostic |
+| `]D` / `[D` | last / first in buffer |
+| `Ctrl-w d` | show the diagnostic under the cursor in a float |
+| `vim.diagnostic.jump({count=1, float=true})` | programmatic jump |
+| `vim.diagnostic.open_float()` | float at cursor |
+| `vim.diagnostic.get(0)` | the raw list for a buffer |
+
+## Display — vim.diagnostic.config
+
+Since 0.11 inline **virtual text is off by default** — enable what you want:
+
+```lua
+vim.diagnostic.config({
+  virtual_text = true,          -- inline, end of line
+  -- virtual_lines = true,      -- full-width lines below (multiline messages)
+  signs = true,
+  underline = true,
+  severity_sort = true,
+  update_in_insert = false,
+})
+```
+
+Filter by severity anywhere it's accepted:
+`{severity = vim.diagnostic.severity.ERROR}`. `vim.diagnostic.enable(false,
+{bufnr=0})` silences a buffer.
+
+## Into a worklist
+
+`vim.diagnostic.setqflist()` / `.setloclist()` dump diagnostics into the
+quickfix / location list — from there `:cnext`, `:cdo`, and everything in
+@vim/quickfix applies. That's the bridge from "squiggles" to batch fixing.

@@ -1,0 +1,56 @@
+---
+name: nvim_plugins
+description: Managing Neovim plugins — the runtimepath model, native packages, the built-in vim.pack manager (0.12+), lazy.nvim, and how Lua plugins load and configure.
+kind: knowledge
+tags: [nvim, neovim, plugins, package-manager, lazy.nvim, runtimepath]
+use_when: [install neovim plugin, nvim plugin manager, lazy.nvim, vim.pack, runtimepath, plugin not loading nvim, setup function lua plugin]
+---
+
+# Plugins
+
+The loading model is Vim's: everything on the **runtimepath** with the standard
+layout (`plugin/`, `autoload/`, `ftplugin/`, plus nvim's `lua/` for
+`require()`). What differs is how plugins get onto it and that most modern ones
+are Lua modules configured with a `setup()` call.
+
+## Native packages (shared with Vim 8+)
+
+Clone into `stdpath('data') .. '/site/pack/{group}/start/{name}'` and it loads
+at startup; `…/opt/{name}` loads on demand with `:packadd {name}`. Zero
+tooling — fine for a handful of plugins.
+
+## vim.pack — built-in manager (0.12+)
+
+```lua
+vim.pack.add({
+  'https://github.com/neovim/nvim-lspconfig',
+  { src = 'https://github.com/nvim-treesitter/nvim-treesitter', version = 'main' },
+})
+```
+
+Git-based: clones into the pack dir, `vim.pack.update()` pulls with a review
+buffer, `version` pins a branch/tag. First core answer to "do I need a plugin
+manager" — before 0.12, no.
+
+## lazy.nvim — the ecosystem default
+
+Third-party standard for larger configs: declarative specs in
+`~/.config/nvim/lua/plugins/`, lockfile, and lazy loading by event, filetype,
+key, or command so startup stays fast.
+
+```lua
+{ 'nvim-treesitter/nvim-treesitter', build = ':TSUpdate', event = 'BufReadPre' }
+```
+
+## Lua plugin conventions
+
+| Convention | Meaning |
+|-----------|---------|
+| `require('name').setup({...})` | configure + activate (options table) |
+| `lua/{name}/` | the module the plugin exposes |
+| `opts = {...}` (lazy.nvim spec) | shorthand that calls `setup(opts)` |
+| `:checkhealth {name}` | plugin self-diagnostics |
+
+Vimscript plugins still work unchanged; Vim9script ones do not
+(@nvim/defaults). Debug loading order with `:scriptnames`, inspect the path
+with `:set runtimepath?`.

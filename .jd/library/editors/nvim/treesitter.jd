@@ -1,0 +1,58 @@
+---
+name: nvim_treesitter
+description: Neovim's built-in tree-sitter integration — real syntax trees for highlighting, folds, and queries. Installing parsers, enabling highlight, foldexpr, and inspecting the tree.
+kind: knowledge
+tags: [nvim, neovim, treesitter, syntax, highlighting, folds]
+use_when: [nvim treesitter, syntax tree neovim, treesitter highlight, treesitter folds, inspect syntax node, install treesitter parser]
+---
+
+# Tree-sitter
+
+`vim.treesitter` parses buffers into real syntax trees — incremental, per-edit —
+instead of Vim's regex-based `:syntax`. Core ships parsers for Lua, Vimscript, C,
+Markdown, and its query language; everything else comes from the
+`nvim-treesitter` plugin (`:TSInstall {lang}`).
+
+## Enable per buffer
+
+| Call | Does |
+|------|------|
+| `vim.treesitter.start()` | tree-based highlighting for this buffer |
+| `vim.treesitter.stop()` | back to regex `:syntax` |
+| `:Inspect` | highlight groups + captures under the cursor |
+| `:InspectTree` | live syntax-tree split — the structure explorer |
+| `vim.treesitter.get_parser(0)` | the parser object (`:parse()` → trees) |
+
+Typical config turns it on by filetype (@nvim/lua):
+
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'go', 'rust', 'python' },
+  callback = function() vim.treesitter.start() end,
+})
+```
+
+## Folds & indent from the tree
+
+```lua
+vim.wo.foldmethod = 'expr'
+vim.wo.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
+```
+
+Gives structure-accurate folds (@vim/folds) — functions, blocks, sections —
+with no fold markers in the file.
+
+## Queries
+
+Tree-sitter queries are s-expressions matching node patterns; highlight groups,
+folds, and plugin text objects are all queries under the hood.
+
+```lua
+local q = vim.treesitter.query.parse('go', '(function_declaration name: (identifier) @fn)')
+for _, node in q:iter_captures(tree:root(), 0) do
+  print(vim.treesitter.get_node_text(node, 0))
+end
+```
+
+`vim.treesitter.get_node()` returns the node at the cursor — the primitive
+behind syntax-aware selection and navigation plugins.

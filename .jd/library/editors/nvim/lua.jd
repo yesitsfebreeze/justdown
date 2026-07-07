@@ -1,0 +1,66 @@
+---
+name: nvim_lua
+description: Configuring Neovim in Lua — init.lua, the vim.opt/vim.g/vim.keymap surfaces, autocommands, and how each maps to its vimscript twin. The nvim answer to a vimrc.
+kind: knowledge
+tags: [nvim, neovim, lua, config, init.lua, keymap]
+use_when: [init.lua, nvim lua config, vim.opt, vim.keymap.set, neovim autocmd in lua, convert vimrc to lua, nvim set option lua]
+---
+
+# Lua config
+
+Config lives in `~/.config/nvim/init.lua` (or `init.vim` — pick one, not both).
+Everything a vimrc does (@vim/config) has a Lua twin through the `vim` global;
+`:lua {chunk}` runs Lua inline, `:luafile {f}` sources a file, and `nvim -l {f}`
+runs one headlessly (@vim/script). Legacy vimscript still works everywhere —
+Lua is additive, not a replacement.
+
+## Options
+
+| Lua | Vimscript twin |
+|-----|----------------|
+| `vim.opt.number = true` | `:set number` |
+| `vim.opt.shiftwidth = 2` | `:set shiftwidth=2` |
+| `vim.opt.path:append('**')` | `:set path+=**` (also `:prepend`, `:remove`) |
+| `vim.opt_local.spell = true` | `:setlocal spell` |
+| `vim.o.name` / `vim.bo` / `vim.wo` | raw option values — global / buffer / window |
+| `vim.g.mapleader = ' '` | `:let g:mapleader` (`vim.b`, `vim.w`, `vim.env` likewise) |
+
+`vim.opt` wraps list/map options as Lua tables (`vim.opt.listchars = {tab='» '}`);
+`vim.o` is the plain value. Either works for booleans and numbers.
+
+## Mappings
+
+```lua
+vim.keymap.set('n', '<leader>w', ':write<CR>')            -- :nnoremap
+vim.keymap.set('i', 'jk', '<Esc>')                        -- :inoremap
+vim.keymap.set('n', '<leader>f', function() print('hi') end,
+  { desc = 'described', silent = true, buffer = 0 })
+```
+
+Non-recursive by default (add `remap = true` to opt out) — the opposite spelling
+of `:map` vs `:noremap`. An `{rhs}` can be a Lua function directly; `desc` shows
+in `:map` listings. `vim.keymap.del('n', lhs)` removes.
+
+## Autocommands
+
+```lua
+local grp = vim.api.nvim_create_augroup('fmt', { clear = true })
+vim.api.nvim_create_autocmd('BufWritePre', {
+  group = grp, pattern = '*.go',
+  callback = function() vim.lsp.buf.format() end,
+})
+```
+
+`callback` takes a Lua function; use `command = '…'` for an ex string instead.
+Events and patterns are the same as `:autocmd` (@vim/config).
+
+## Escape hatches
+
+| Call | Reaches |
+|------|---------|
+| `vim.cmd('wincmd p')` / `vim.cmd.wincmd('p')` | any ex command (@vim/ex) |
+| `vim.fn.expand('%:p')` | any vimscript function |
+| `vim.api.nvim_*` | the structured editor API (@nvim/api) |
+
+Modules under `~/.config/nvim/lua/` load with `require('name')` — the standard
+way to split a config into files.

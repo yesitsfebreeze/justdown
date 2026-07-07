@@ -19,7 +19,7 @@ picks the *source*, then `Ctrl-n`/`Ctrl-p` walk the matches in the popup.
 | `Ctrl-x Ctrl-l` | whole lines |
 | `Ctrl-x Ctrl-f` | file names / paths |
 | `Ctrl-x Ctrl-]` | tags (@vim/tags) |
-| `Ctrl-x Ctrl-o` | omni — language-aware via `omnifunc` (LSP in nvim, @vim/nvim) |
+| `Ctrl-x Ctrl-o` | omni — language-aware via `omnifunc` (LSP in nvim, @nvim/lsp) |
 | `Ctrl-x Ctrl-k` | dictionary (`dictionary` option) |
 | `Ctrl-x Ctrl-i` | keywords from included files |
 | `Ctrl-x Ctrl-v` | vim command-line (@vim/ex) |

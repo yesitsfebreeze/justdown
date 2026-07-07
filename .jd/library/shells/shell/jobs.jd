@@ -11,7 +11,7 @@ use_when: [run command in background, bring background job to foreground, disown
 Backgrounding and reclaiming work, mostly shared across @shell/bash and
 @shell/zsh (fish and nu differ — noted below). For sessions that must outlive a
 disconnect, prefer a @tmux/session over `nohup`. Signals here pair with
-@tools/* that send them.
+@proc/kill, which sends them.
 
 ## Job control — bash / zsh
 

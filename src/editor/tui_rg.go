@@ -2,7 +2,7 @@ package editor
 
 import "os"
 
-// ripgrep is the global content-search palette (ctrl+p). Arrowing through the
+// ripgrep is the global content-search palette (ctrl+g). Arrowing through the
 // results previews each hit live in the editor; Enter keeps it, Esc restores
 // the file and cursor you started from.
 type ripgrep struct {

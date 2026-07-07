@@ -261,7 +261,7 @@ func (a *app) drawStatus(b uv.ScreenBuffer) {
 }
 
 func (a *app) defaultHint() string {
-	return "ctrl+k files · ctrl+f find · ctrl+g grab · ctrl+l link · ctrl+s save · ctrl+q quit"
+	return "ctrl+k files · ctrl+f find · ctrl+g grep · ctrl+l link · ctrl+s save · ctrl+q quit"
 }
 
 func (a *app) drawFinder(b uv.ScreenBuffer) {
@@ -449,7 +449,7 @@ func (a *app) drawRg(b uv.ScreenBuffer) {
 	frame(b, x, y, w, h, boxRound, tst(colAccent, colBarBG, 0))
 
 	// query line
-	text(b, x+2, y, " grab: search all .jd ", tst(colMuted, colBarBG, 0))
+	text(b, x+2, y, " grep: search all .jd ", tst(colMuted, colBarBG, 0))
 	text(b, x+2, y+1, "> "+string(r.query), tst(nil, colBarBG, uv.AttrBold))
 	cnt := fmt.Sprintf("%d hits", len(r.hits))
 	text(b, x+w-len(cnt)-2, y+1, cnt, tst(colMuted, colBarBG, 0))

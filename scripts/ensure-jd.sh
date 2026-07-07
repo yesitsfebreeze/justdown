@@ -49,7 +49,7 @@ base="https://github.com/$REPO/releases/download/$tag"
 tmp=$(mktemp -d) || { warn "mktemp failed"; exit 0; }
 trap 'rm -rf "$tmp"' EXIT
 
-warn "updating jd → $want_ver ($target)…"
+warn "updating jd -> $want_ver ($target)…"
 if ! curl -fSL --connect-timeout 10 --max-time 120 "$base/$archive" -o "$tmp/$archive"; then
   warn "download failed: $base/$archive (keeping existing binary)"; exit 0
 fi

@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	justdown "github.com/yesitsfebreeze/justdown/src"
+	"golang.org/x/term"
 )
 
 const cliVersion = "0.12.0"
@@ -21,17 +23,31 @@ func main() {
 			argv = append(argv, a)
 		}
 	}
+	// Bare `jd` launches the terminal editor when attached to a tty; in a
+	// pipe or script it prints help instead.
 	cmd := "help"
-	if len(argv) > 0 {
-		cmd = argv[0]
-	}
+	launchUI := false
 	var rest []string
-	if len(argv) > 1 {
+	switch {
+	case len(argv) == 0:
+		if term.IsTerminal(int(os.Stdin.Fd())) {
+			launchUI = true
+		}
+	case strings.HasPrefix(argv[0], "-"):
+		// bare flags (e.g. `jd --root=…`) launch the editor.
+		launchUI = true
+		rest = argv
+	default:
+		cmd = argv[0]
 		rest = argv[1:]
 	}
 	cfg := configFromEnv()
 	if json {
 		cfg.format = formatJSON
+	}
+
+	if launchUI {
+		os.Exit(cmdTUI(&cfg, rest))
 	}
 
 	var code int
@@ -52,8 +68,6 @@ func main() {
 		code = cmdPath(&cfg, rest)
 	case "resolve":
 		code = cmdResolve(&cfg, rest)
-	case "explore":
-		code = cmdExplore(rest)
 	case "mcp":
 		code = cmdMCP(rest)
 	case "lint":
@@ -88,8 +102,16 @@ func cmdVersion(cfg *config) int {
 func help() {
 	fmt.Print(`jd — justdown CLI · build, query, and merge the .jd graph
 
-USAGE  jd <command> [args]
+USAGE  jd [command] [args]
 
+  jd  [--root=DIR]             full-screen .jd editor in the terminal: fuzzy file
+                               finder (ctrl+k), find (ctrl+f), find + replace
+                               (ctrl+shift+f), grab — search across all .jd
+                               (ctrl+g), live @link completion + follow (ctrl+l),
+                               shift-selection, ctrl+s save. Searches the working
+                               dir (cwd or --root) for editable files and resolves
+                               @links against local + cached remote/plugin
+                               capabilities — the same graph the queries use.
   build                        smart sync, fastest way to the latest state. Does
                                only what changed: rebuilds the merged local graph
                                (<root>/.jd/remote-graph.db, every nested home
@@ -129,14 +151,6 @@ USAGE  jd <command> [args]
                                live @link completion: ranked key/name/leaf prefix
                                matches (direct), or the field-weighted ranker
                                (--fuzzy, for @?term). Feeds the editor popup.
-  explore [--port=N] [--dev]   serve the built-in .jd explorer and open it in the
-                               browser. One shared website per port (default
-                               3001): the first process hosts, every later one
-                               feeds its JD_ROOT (default $HOME) into the search
-                               and reuses the running site. Search spans the
-                               union of all live jd processes; if the host dies a
-                               feeder takes over. --dev serves the editor assets
-                               from disk with live reload (edit, save, refresh).
   mcp                          serve jd's read verbs (search/get/ls/links/path)
                                as a stdio MCP server — one library-lookup server,
                                not one per capability. Newline-delimited

@@ -75,7 +75,7 @@ tar -xzf "$tmp/$archive" -C "$tmp"
 [ -f "$tmp/jd" ] || err "archive did not contain the jd binary"
 mkdir -p "$DEST"
 install -m 0755 "$tmp/jd" "$DEST/jd"
-echo "install: jd $tag → $DEST/jd"
+echo "install: jd $tag -> $DEST/jd"
 
 case ":$PATH:" in
   *":$DEST:"*) ;;

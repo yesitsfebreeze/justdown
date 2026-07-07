@@ -60,3 +60,4 @@ vicky/
 # voit message bus runtime — local-only
 .voitbus.json
 .voitbus.pid
+bin/

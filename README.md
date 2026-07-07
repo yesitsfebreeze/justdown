@@ -112,13 +112,13 @@ go install github.com/yesitsfebreeze/justdown/src/cmd/jd@latest
 jd search "cut a release"   # find a tool
 jd get release              # read it as sections
 jd get release tools        # just the runnable steps
-jd explore                  # open the built-in .jd explorer in your browser
+jd                          # open the full-screen terminal editor
 ```
 
 `jd search` ranks by the frontmatter graph first (name/use_when > tags >
 purpose, `not_when` vetoes), then appends any local `.jd` the ranking missed
 whose file name (fuzzy) or content (substring) matches every term — the same
-name+content semantics as the explorer's search box, so terminal search and
+name+content semantics as the editor's file finder, so terminal search and
 editor search agree.
 
 ### Nested libraries — one repo, many `.jd` homes
@@ -141,28 +141,18 @@ unchanged. Each folder's library stays the single source of truth for its own
 procedures. Turn it off with `JUSTDOWN_NESTED=0`. See
 [`docs/nested-composition.md`](docs/nested-composition.md).
 
-### `jd explore` — the built-in explorer
+### `jd` — the built-in terminal editor
 
-`jd explore` serves a full-bleed, iA-Writer-style `.jd` explorer (CodeMirror 6 with
-live `.jd` rendering) straight from the binary and opens it in your browser. It
-searches **every `.jd` under `JD_ROOT`** (default `$HOME`) by name *and*
-content — no `node`, no `npm`, no `rg`/`fzf` needed; it's all in `jd`.
+Bare `jd` opens a full-screen `.jd` editor right in the terminal — no `node`,
+no `npm`, no browser; it's all in the binary. It searches every `.jd` under
+the working dir (or `--root=DIR` / `JD_ROOT`) and resolves `@links` against
+the same graph the queries use.
 
-**One website, fed by every running `jd`.** Each Claude instance runs its own
-`jd` process scoped to its own files; the explorer is a single shared site they
-all feed:
-
-- The listen port is the lock. The first process to bind it **hosts** the
-  website; every later process (any number of shells/instances) becomes a
-  **feeder** and opens the same running explorer — never a second server.
-- Each process registers its `JD_ROOT`(s) with the host on a heartbeat, so
-  search spans the **union of every live `jd` at once**. When a process exits,
-  its files drop out of search.
-- If the host itself dies, the port frees and the next feeder takes over
-  hosting automatically — the website lives as long as one `jd` is running.
-
-Override the port with `--port=N` or `JD_PORT`, and a process's searched root
-with `JD_ROOT` (default `$HOME`).
+- `ctrl+k` — fuzzy file finder (type a new name to create)
+- `ctrl+f` — find in the open file · `ctrl+shift+f` — find + replace
+- `ctrl+g` — grab: search across all `.jd` files, previewing hits live
+- `ctrl+l` — follow the `@link` under the cursor (`@` while typing completes)
+- `ctrl+s` — save · `ctrl+q` — quit
 
 Prebuilt binaries cover Linux and macOS (x86_64 + arm64) and Windows (x86_64),
 each checksummed in the release's `SHA256SUMS`. Both installers verify the

@@ -1001,7 +1001,7 @@ func cmdSearch(cfg *config, args []string) int {
 				if danger == "" {
 					danger = "none"
 				}
-				line := fmt.Sprintf("   ⚠ danger=%s", danger)
+				line := fmt.Sprintf("   danger=%s", danger)
 				if r.SideEffects != "" {
 					line += fmt.Sprintf("  effects=%s", r.SideEffects)
 				}
@@ -1068,7 +1068,7 @@ func emitFallback(cfg *config, query string, rows []justdown.Row) int {
 	case row != nil:
 		fmt.Fprintf(os.Stderr,
 			"jd: no library file matched '%s'; cht.sh covers any command or language\n", query)
-		fmt.Printf("↳ fallback: %s  [%s]\n   %s\n   get @%s — then run its lang/sheet recipe via just\n",
+		fmt.Printf("fallback: %s  [%s]\n   %s\n   get @%s — then run its lang/sheet recipe via just\n",
 			row.Name, row.Kind, row.Purpose, row.Key)
 	case cfg.format == formatJSON:
 		fmt.Println(toJSON(searchOut{Schema: "justdown.search/1", Query: query, Results: []searchResult{}}))
@@ -1709,7 +1709,7 @@ func cmdPath(cfg *config, args []string) int {
 		}
 		fmt.Println(toJSON(pathOut{Schema: "justdown.path/1", From: src, To: dst, Path: p, Length: length}))
 	} else if chain != nil {
-		fmt.Println(strings.Join(chain, " → "))
+		fmt.Println(strings.Join(chain, " -> "))
 	}
 
 	if chain != nil {

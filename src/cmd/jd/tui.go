@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	justdown "github.com/yesitsfebreeze/justdown/src"
 	"github.com/yesitsfebreeze/justdown/src/editor"
@@ -31,17 +29,7 @@ func cmdTUI(cfg *config, args []string) int {
 
 	cols, rows := tuiSize()
 	resize := make(chan editor.Size, 1)
-	winch := make(chan os.Signal, 1)
-	signal.Notify(winch, syscall.SIGWINCH)
-	go func() {
-		for range winch {
-			c, r := tuiSize()
-			select {
-			case resize <- editor.Size{W: c, H: r}:
-			default:
-			}
-		}
-	}()
+	watchResize(resize)
 
 	err = editor.Run(editor.Options{
 		Roots:      roots,

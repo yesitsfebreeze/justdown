@@ -19,16 +19,13 @@ var (
 	colSelBG   = lipgloss.Color("6")
 	colBarBG   = lipgloss.Color("0")
 	colHeading = lipgloss.Color("14")
+	colCode    = lipgloss.Color("3") // inline code
 	colDirty   = lipgloss.Color("11")
 	colRemote  = lipgloss.Color("5")
 )
 
 func tst(fg, bg color.Color, attrs uint8) uv.Style {
 	return uv.Style{Fg: fg, Bg: bg, Attrs: attrs}
-}
-
-func tstUnder(fg color.Color) uv.Style {
-	return uv.Style{Fg: fg, Underline: uv.UnderlineSingle}
 }
 
 const tuiASCII = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"

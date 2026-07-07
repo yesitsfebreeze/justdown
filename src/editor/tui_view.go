@@ -155,6 +155,14 @@ func (a *app) drawEditor(b uv.ScreenBuffer) {
 	selA, selB, hasSel := a.ed.selRange()
 	isTarget := a.lib.isTarget
 
+	// live preview: the cursor's block renders raw and bright, the rest
+	// rendered and faded. With the find bar open everything stays raw so
+	// match columns map 1:1 to the screen.
+	infos := classifyLines(a.ed.lines)
+	rawAll := a.fbar.active
+	blkStart, blkEnd := blockAt(a.ed.lines, infos, a.ed.cur.row)
+	rendered := map[int][]rcell{}
+
 	for sy := 0; sy < h; sy++ {
 		vi := scroll + sy
 		if vi >= len(vls) {
@@ -162,27 +170,36 @@ func (a *app) drawEditor(b uv.ScreenBuffer) {
 		}
 		vl := vls[vi]
 		line := a.ed.lines[vl.row]
-		seg := line[vl.start:vl.end]
-		base := lineBaseStyle(string(line))
+		active := rawAll || (vl.row >= blkStart && vl.row <= blkEnd)
 
-		// draw glyphs
-		for i, rn := range seg {
-			col := vl.start + i
-			stl := base
-			if hasSel && inSel(vl.row, col, selA, selB) {
+		rcs, ok := rendered[vl.row]
+		if !ok {
+			rcs = renderLine(line, infos[vl.row], active, isTarget)
+			rendered[vl.row] = rcs
+		}
+		x := x0
+		for _, rc := range rcs {
+			if rc.src < vl.start {
+				continue
+			}
+			if rc.src >= vl.end {
+				break
+			}
+			stl := rc.st
+			if !active {
+				stl.Attrs |= uv.AttrFaint
+			}
+			if hasSel && inSel(vl.row, rc.src, selA, selB) {
 				stl = tst(colSelFG, colSelBG, 0)
 			}
-			cell(b, x0+i, y0+sy, glyph(rn), stl)
+			cell(b, x, y0+sy, rc.g, stl)
+			x++
 		}
 		// selection extension past end-of-line (show a thin marker)
 		if hasSel && vl.end == len(line) && selSpansLineEnd(vl.row, selA, selB) {
-			if len(seg) < w {
-				cell(b, x0+len(seg), y0+sy, " ", tst(colSelFG, colSelBG, 0))
+			if x < x0+w {
+				cell(b, x, y0+sy, " ", tst(colSelFG, colSelBG, 0))
 			}
-		}
-		// overlay link styling (skip frontmatter/fence lines)
-		if !inFrontmatterOrFence(a.ed, vl.row) {
-			a.styleLinks(b, x0, y0+sy, vl, line, isTarget, hasSel, selA, selB)
 		}
 	}
 
@@ -199,43 +216,6 @@ func (a *app) drawEditor(b uv.ScreenBuffer) {
 			}
 		}
 	}
-}
-
-func (a *app) styleLinks(b uv.ScreenBuffer, x0, y int, vl visualLine, line []rune, isTarget func(string) bool, hasSel bool, selA, selB pos) {
-	for _, sp := range scanLine(line, isTarget) {
-		var stl uv.Style
-		switch sp.kind {
-		case linkOK:
-			stl = tstUnder(colOK)
-		case linkBad:
-			stl = tst(colBad, nil, 0)
-		case linkFuzzyKind:
-			stl = tstUnder(colFuzzy)
-		case linkMarkdown:
-			stl = tstUnder(colAccent)
-		}
-		for col := sp.start; col < sp.end && col < vl.end; col++ {
-			if col < vl.start {
-				continue
-			}
-			if hasSel && inSel(vl.row, col, selA, selB) {
-				continue
-			}
-			cell(b, x0+(col-vl.start), y, glyph(line[col]), stl)
-		}
-	}
-}
-
-func lineBaseStyle(s string) uv.Style {
-	switch {
-	case strings.HasPrefix(s, "#"):
-		return tst(colHeading, nil, uv.AttrBold)
-	case strings.HasPrefix(s, ">"):
-		return tst(colMuted, nil, uv.AttrItalic)
-	case strings.HasPrefix(s, "```") || strings.HasPrefix(s, "~~~"):
-		return tst(colMuted, nil, 0)
-	}
-	return tst(nil, nil, 0)
 }
 
 func inSel(row, col int, a, b pos) bool {

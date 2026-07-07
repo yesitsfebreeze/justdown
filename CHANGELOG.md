@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-07
+
+### Added
+- Live markdown preview in the terminal editor: text renders styled in place —
+  bold, italic, strikethrough, inline code, headings, quote bars, real bullets
+  (`•`) and checkboxes (`☐`/`☑` with struck-through done items), horizontal
+  rules, concealed `[text](url)` link syntax, and tables drawn with `│`/`─`
+  rules and a bold header row. The block under the cursor shows its raw
+  markdown (syntax markers revealed, dimmed) for editing while every other
+  block renders concealed and gently faded — moving the cursor into a table or
+  any other block reveals its actual markdown source, recreating the old web
+  explorer's focus feel. Rendering is cell-based and source-anchored, so
+  cursor movement, selection, wrapping, and `@link` completion are unaffected.
+
 ## [0.14.0] - 2026-07-07
 
 ### Changed
@@ -184,7 +198,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/yesitsfebreeze/justdown/compare/v0.11.0...v0.11.1

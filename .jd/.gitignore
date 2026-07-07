@@ -1,6 +1,7 @@
 __pycache__/
 candidates.tsv
 
-# jd build/pull cache — derived, rebuildable, never committed
+# jd build cache — derived, rebuildable, never committed
 graph.db
+remote-graph.db
 remotes/

@@ -27,7 +27,7 @@ Do these steps in order:
    `[$ARGUMENTS]: …/compare/<lasttag>...v$ARGUMENTS` and re-point `[Unreleased]`
    to `…/compare/v$ARGUMENTS...HEAD`.
 
-3. **Release.** Run the release recipe — it gates (cargo build + test), syncs every
+3. **Release.** Run the release recipe — it gates (go build + test), syncs every
    manifest to the version via `@tools/version`, commits (CHANGELOG + manifests),
    tags `v$ARGUMENTS`, and pushes with `--follow-tags`:
 

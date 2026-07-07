@@ -2,11 +2,11 @@
 name: tools_release
 description: Cut and publish a release — gate, bump every manifest, commit, tag, and push so CI builds the binaries. Use when the user asks to ship a specific MAJOR.MINOR.PATCH version.
 kind: tool
-tags: [release, publish, ci, cargo, tag]
+tags: [release, publish, ci, go, tag]
 use_when: [publish a version, cut a release, tag and publish, ship it]
 danger: high
 side_effects: [network, git-push, publish]
-requires: [cargo, git]
+requires: [go, git]
 run: release
 ---
 
@@ -15,7 +15,8 @@ run: release
 Gates the tree, syncs every manifest to `version` via `@tools/version`, then
 commits, tags `vX.Y.Z`, and pushes. The pushed tag is what the release CI
 (`.github/workflows/release.yml`) builds the prebuilt binaries from — there is no
-`cargo publish` step; the binaries *are* the release.
+separate publish step; the binaries *are* the release, and the tag is the Go
+module version.
 
 It composes `@tools/gate` and `@tools/version` at runtime through `jd` (the
 pipeable entry point) rather than cross-file `just` deps, which `jd … --justfile`
@@ -34,7 +35,7 @@ release version:
   esac
   jd get tools_gate    --justfile | just --justfile - gate
   jd get tools_version --justfile | just --justfile - bump {{version}}
-  git add CHANGELOG.md Cargo.toml Cargo.lock
+  git add CHANGELOG.md cmd/jd/main.go
   git commit -m "chore: release v{{version}}"
   git tag -a "v{{version}}" -m "v{{version}}"
   git push --follow-tags

@@ -1,29 +1,22 @@
 ---
 name: tools_version
-description: Set the justdown version everywhere at once — sync Cargo.toml and Cargo.lock to one MAJOR.MINOR.PATCH value. Use when the user asks to bump the version before a release.
+description: Set the justdown version everywhere at once — sync the cliVersion constant to one MAJOR.MINOR.PATCH value. Use when the user asks to bump the version before a release.
 kind: tool
-tags: [version, bump, release, manifest, cargo]
+tags: [version, bump, release, manifest, go]
 use_when: [bump the version, set the version, sync all versions, update version everywhere, make versions match]
 danger: low
 side_effects: [file-write]
-requires: [git, cargo]
+requires: [git]
 run: bump
 ---
 
 # Version bump
 
-One source of truth for the project version. justdown is a single crate
-(`Cargo.toml` → `[lib] justdown` + `[[bin]] jd`), so the version lives in two
-places that must never drift apart:
-
-- `Cargo.toml` — the package version (`[package] version`)
-- `Cargo.lock` — regenerated from the manifest so the lock matches
-
-`bump` rewrites the manifest and runs `cargo update --workspace` to bring the
-lock in line. It edits only the `[package]` version (the first `version =` line
-of `Cargo.toml`), never a dependency's. The spec badge in the README
-(`spec-vX.Y`) is a *separate* number — it tracks the `.jd` format, not the
-release, and is intentionally left untouched.
+One source of truth for the project version: the `cliVersion` constant in
+`cmd/jd/main.go` (Go modules carry no version of their own — the git tag is the
+module version). The spec badge in the README (`spec-vX.Y`) is a *separate*
+number — it tracks the `.jd` format, not the release, and is intentionally left
+untouched.
 
 `version` is required and must be `MAJOR.MINOR.PATCH`. Re-run any time; it is
 idempotent.
@@ -37,7 +30,6 @@ bump version:
     *) echo "version must be MAJOR.MINOR.PATCH, got '{{version}}'" >&2; exit 1 ;;
   esac
   root="$(git rev-parse --show-toplevel)"
-  sed -i '0,/^version = .*/s//version = "{{version}}"/' "$root/Cargo.toml"
-  ( cd "$root" && cargo update --workspace >/dev/null 2>&1 || true )
-  echo "version → {{version}} (Cargo.toml, Cargo.lock)"
+  sed -i 's/^const cliVersion = .*/const cliVersion = "{{version}}"/' "$root/cmd/jd/main.go"
+  echo "version → {{version}} (cmd/jd/main.go)"
 ```

@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-07
+
+### Changed
+- **Rewritten in Go.** The whole project — the `justdown` library (parser,
+  `<<var>>` render, `@link` graph, search ranking, SQLite store) and the `jd`
+  CLI (`build`, all query verbs, `just`, `lint`, `mcp`, `explore`) — is now one
+  Go module, `github.com/yesitsfebreeze/justdown`. Other programs import the
+  package and use the library in-process instead of shelling out to a binary.
+  Output, JSON schemas, exit codes, store format (`justdown.store/4`), and the
+  MCP/explore servers are byte-compatible with the Rust CLI; the Rust crate is
+  removed. Build from source is `go install
+  github.com/yesitsfebreeze/justdown/cmd/jd@latest`; `curl`/`tar` shell-outs
+  were replaced by the Go standard library.
+
 ## [0.10.0] - 2026-07-01
 
 ### Added

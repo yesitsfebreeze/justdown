@@ -1,7 +1,0 @@
-# Pin the build output to the top-level ./target dir.
-#
-# justdown is a single crate (root Cargo.toml → [lib] justdown + [[bin]] jd).
-# `cargo build` already writes to ./target/; making it explicit keeps CI and
-# local devs pointed at exactly one path: ./target/release/jd.
-[build]
-target-dir = "target"

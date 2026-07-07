@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".jd")
-JD = shutil.which("jd") or os.path.expanduser("~/.cargo/bin/jd")
+JD = shutil.which("jd") or os.path.expanduser("~/go/bin/jd")
 
 
 def _project_root():

@@ -1,11 +1,8 @@
 name: release
 
-# Cut prebuilt `jd` binaries on a version tag. Each target is built with an
-# explicit --target so we never depend on a retired runner image: the Intel
-# macOS binary (x86_64-apple-darwin) cross-compiles on the Apple-Silicon
-# macos-14 runner, since GitHub no longer offers Intel (macos-13) runners.
-# rusqlite's bundled SQLite compiles fine cross-arch via the universal macOS SDK.
-# Artifacts are packaged, checksummed, and attached to a GitHub Release.
+# Cut prebuilt `jd` binaries on a version tag. Pure Go (no cgo), so one runner
+# cross-compiles every target. Artifact names keep the historic target-triple
+# form so the install scripts stay unchanged.
 
 on:
   push:
@@ -20,67 +17,40 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-latest,    target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-          - { os: macos-14,         target: x86_64-apple-darwin }
-          - { os: macos-14,         target: aarch64-apple-darwin }
-          - { os: windows-latest,   target: x86_64-pc-windows-msvc }
+  release:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v5
         with:
-          targets: ${{ matrix.target }}
+          go-version: "1.26"
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
+      - name: Test
+        run: go test ./...
 
-      - name: Build
-        run: cargo build --release --locked --target ${{ matrix.target }} --bin jd
-
-      - name: Package (unix)
-        if: runner.os != 'Windows'
-        shell: bash
+      - name: Build all targets
+        env:
+          CGO_ENABLED: "0"
         run: |
           tag="${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
-          name="jd-${tag}-${{ matrix.target }}"
           mkdir -p dist
-          # --target output lands in the top-level ./target dir (pinned by
-          # .cargo/config.toml).
-          tar -czf "dist/${name}.tar.gz" -C "target/${{ matrix.target }}/release" jd
-
-      - name: Package (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name == 'main' && inputs.tag || github.ref_name }}"
-          $name = "jd-$tag-${{ matrix.target }}"
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Compress-Archive -Path "target/${{ matrix.target }}/release/jd.exe" -DestinationPath "dist/$name.zip"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.target }}
-          path: dist/*
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
+          build() {
+            goos="$1"; goarch="$2"; triple="$3"
+            out="jd"; [ "$goos" = "windows" ] && out="jd.exe"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "build/$triple/$out" ./cmd/jd
+            name="jd-${tag}-${triple}"
+            if [ "$goos" = "windows" ]; then
+              (cd "build/$triple" && zip -q "../../dist/${name}.zip" "$out")
+            else
+              tar -czf "dist/${name}.tar.gz" -C "build/$triple" "$out"
+            fi
+          }
+          build linux   amd64 x86_64-unknown-linux-gnu
+          build linux   arm64 aarch64-unknown-linux-gnu
+          build darwin  amd64 x86_64-apple-darwin
+          build darwin  arm64 aarch64-apple-darwin
+          build windows amd64 x86_64-pc-windows-msvc
 
       - name: Checksums
         working-directory: dist

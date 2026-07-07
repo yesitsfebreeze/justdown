@@ -15,9 +15,6 @@ dist/
 node_modules/
 .vite.pid
 
-# rust cli build output
-cli/target/
-
 # .jd is the per-repo derived layer (vendored clones, built index,
 # vectors/ratings cache) — fully local, rebuilt by `jd build`, never committed.
 # Its cache outputs are ignored in .jd/.gitignore; tracked hooks live alongside.
@@ -57,5 +54,9 @@ vicky/
 # mesh plugin runtime roster/state — local-only, rebuilt per session.
 .mesh/
 
-# cargo workspace build output
-/target/
+# go build output
+/jd
+
+# voit message bus runtime — local-only
+.voitbus.json
+.voitbus.pid

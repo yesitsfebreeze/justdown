@@ -74,9 +74,12 @@ stay thin; the entire execution glue is one parser extension that lifts
 - [`justdown.md`](justdown.md) — the full language specification (v0.1).
 - [`install.jd`](install.jd) — install and use justdown: install the `jd`
   binary, what tools it gives, and how to wire it into an agent.
-- [`src/`](src/) — one Rust crate: the `justdown` library (the `.jd` spec —
-  parser, render, graph) plus **`jd`**, a small self-contained binary
+- Go module `github.com/yesitsfebreeze/justdown` — the `justdown` package (the
+  `.jd` spec — parser, render, graph, search, store) plus **`jd`**
+  ([`cmd/jd`](cmd/jd)), a small self-contained binary
   (`search`, `get`, `ls`, `links`, `path`, `build`, `lint`) over the library graph.
+  Other programs import the package and use the library in-process — no binary,
+  no subprocess.
 - [`.jd/library/`](.jd/library/) — `.jd` files exercising every `kind`
   (`tool`, `agent`, `knowledge`, `workflow`) and every invocation mode
   (`run`, `sidecar`, `artifact`). Each is minimal and self-documenting.
@@ -102,8 +105,8 @@ curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/claude-plug
 irm https://raw.githubusercontent.com/yesitsfebreeze/justdown/claude-plugin/scripts/install.ps1 | iex
 ```
 ```sh
-# …or from source, any platform (Rust toolchain)
-cargo install --git https://github.com/yesitsfebreeze/justdown jd
+# …or from source, any platform (Go toolchain)
+go install github.com/yesitsfebreeze/justdown/cmd/jd@latest
 
 # use it
 jd search "cut a release"   # find a tool
@@ -164,7 +167,7 @@ with `JD_ROOT` (default `$HOME`).
 Prebuilt binaries cover Linux and macOS (x86_64 + arm64) and Windows (x86_64),
 each checksummed in the release's `SHA256SUMS`. Both installers verify the
 checksum before installing (re-run either to update), falling back to the
-`cargo`/source path on any other platform.
+`go install` source path on any other platform.
 
 `jd` finds tools; [`just`](https://just.systems) runs them (a tool's recipe is
 just-syntax, executed as `just --justfile - <recipe>`). `jd just <ref> <recipe>`
@@ -234,8 +237,8 @@ times.
 name: tools_release
 description: Cut and publish a release. Use when the user asks to ship a version.
 kind: tool
-tags: [release, publish, ci, cargo]
-requires: [cargo, git]
+tags: [release, publish, ci]
+requires: [git]
 run: release
 ---
 

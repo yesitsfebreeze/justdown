@@ -6,6 +6,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-07
+
+### Added
+- `editors/nvim` library — eight knowledge files covering where Neovim diverges
+  from stock Vim: Lua config (`init.lua`, `vim.opt`/`vim.keymap`), the `nvim_*`
+  API with extmarks and floating windows, msgpack-RPC control, built-in LSP,
+  tree-sitter, diagnostics, the Lua stdlib (`vim.system`, `vim.fs`, `vim.uv`, …),
+  a defaults/compatibility map, and plugin management (`vim.pack`, lazy.nvim).
+  Shared ground stays in `editors/vim` and is linked, not duplicated.
+
+### Removed
+- `editors/vim/nvim.jd` — superseded by the `editors/nvim` library; inbound
+  links repointed.
+
+### Fixed
+- Last two lint warnings: `meta/scaffolds/auth.jd` prose now backticks its
+  scaffold-internal `@auth/crypto` reference, and `shells/shell/jobs.jd` links
+  the real `@proc/kill` tool instead of a wildcard. `jd lint` is now clean.
+
 ## [0.11.1] - 2026-07-07
 
 ### Changed
@@ -133,7 +152,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/yesitsfebreeze/justdown/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.7.0...v0.8.0

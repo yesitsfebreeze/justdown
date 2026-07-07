@@ -7,7 +7,7 @@ import (
 	justdown "github.com/yesitsfebreeze/justdown/src"
 )
 
-const cliVersion = "0.11.1"
+const cliVersion = "0.12.0"
 
 func main() {
 

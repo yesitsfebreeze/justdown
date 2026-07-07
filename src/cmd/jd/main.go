@@ -9,7 +9,7 @@ import (
 	"golang.org/x/term"
 )
 
-const cliVersion = "0.12.0"
+const cliVersion = "0.13.0"
 
 func main() {
 

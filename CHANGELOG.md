@@ -6,6 +6,28 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-07
+
+### Added
+- Built-in terminal editor: bare `jd` (or any bare-flag invocation) now opens a
+  full-screen `.jd` editor right in the terminal, built on
+  charmbracelet/ultraviolet + lipgloss v2. Fuzzy file finder (`ctrl+k`, type a
+  new name to create), find (`ctrl+f`) and find + replace (`ctrl+shift+f`),
+  grab — search across all `.jd` files with a live preview (`ctrl+g`), `@link`
+  completion while typing and follow-under-cursor (`ctrl+l`), and save/quit
+  (`ctrl+s`/`ctrl+q`). Searches the working dir (or `--root=DIR` / `JD_ROOT`)
+  and resolves `@links` against the same local + cached remote/plugin graph
+  the queries use.
+- `justfile` with `build`/`run` recipes for local development.
+
+### Removed
+- `jd explore` — the browser-based CodeMirror 6 editor and its shared-port
+  host/feeder server, superseded by the built-in terminal editor.
+
+### Changed
+- CLI output drops non-ASCII arrows/glyphs (`→`, `↳`, `⚠`) in favor of plain
+  ASCII, for wider terminal compatibility.
+
 ## [0.12.0] - 2026-07-07
 
 ### Added
@@ -152,7 +174,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/yesitsfebreeze/justdown/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.10.0...v0.11.0

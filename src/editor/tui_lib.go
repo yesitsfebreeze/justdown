@@ -1,4 +1,4 @@
-package main
+package editor
 
 import (
 	"os"
@@ -16,8 +16,9 @@ import (
 // read-only capability rows (local library + already-cached remote / plugin
 // belts) drive @link resolution and completion.
 type library struct {
-	cfg   *config
-	roots []string
+	projectDir string
+	beltRows   func() []justdown.Row // optional: cached remote/plugin capability rows
+	roots      []string
 
 	mu      sync.Mutex
 	files   []string        // absolute paths of editable .jd files
@@ -25,8 +26,8 @@ type library struct {
 	targets map[string]bool // lowercased link targets (key / leaf / name)
 }
 
-func newLibrary(cfg *config, roots []string) *library {
-	return &library{cfg: cfg, roots: roots, targets: map[string]bool{}}
+func newLibrary(projectDir string, beltRows func() []justdown.Row, roots []string) *library {
+	return &library{projectDir: projectDir, beltRows: beltRows, roots: roots, targets: map[string]bool{}}
 }
 
 // reindex rebuilds the file list and row set. Safe to call from a goroutine.
@@ -36,8 +37,11 @@ func (l *library) reindex() {
 	rows := parseRows(files)
 
 	// merge already-cached remote / plugin belt rows (no network) so @links can
-	// resolve to capabilities that live outside the working tree.
-	rows = append(rows, cachedBeltRows(l.cfg)...)
+	// resolve to capabilities that live outside the working tree — optional,
+	// nil when the embedder keeps no belt cache of its own.
+	if l.beltRows != nil {
+		rows = append(rows, l.beltRows()...)
+	}
 
 	targets := map[string]bool{}
 	for i := range rows {
@@ -218,7 +222,7 @@ func (l *library) localPathForRow(r *justdown.Row) (string, bool) {
 		}
 	}
 	// fall back to project-relative join.
-	p := filepath.Join(l.cfg.projectDir(), r.Path)
+	p := filepath.Join(l.projectDir, r.Path)
 	if _, err := os.Stat(p); err == nil {
 		return p, true
 	}

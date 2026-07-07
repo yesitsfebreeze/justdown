@@ -6,6 +6,16 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-07
+
+### Changed
+- The built-in terminal editor's engine moved from `cmd/jd` (unimportable,
+  `package main`) into a new importable `src/editor` package exposing
+  `Run(Options) error` — no file descriptor, raw-mode, or SIGWINCH assumption
+  inside it; the real CLI's `jd` command is now a thin wrapper supplying those.
+  Lets another Go program embed the editor directly (in-process, no
+  subprocess) instead of shelling out to the `jd` binary.
+
 ## [0.13.0] - 2026-07-07
 
 ### Added

@@ -6,6 +6,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-07
+
+### Changed
+- Repo layout: Go sources under `src/` (`github.com/yesitsfebreeze/justdown/src`,
+  binary `./src/cmd/jd`, tests in `src/tests`); the Claude Code plugin and the
+  install scripts moved from the orphan `claude-plugin` branch onto `main`, and
+  that branch is removed.
+
 ## [0.11.0] - 2026-07-07
 
 ### Changed

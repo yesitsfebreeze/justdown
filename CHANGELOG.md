@@ -6,6 +6,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-07-07
+
+### Fixed
+- The global content-search palette is now labeled "grep" everywhere: the
+  status-bar hint (`ctrl+g grep`) and the palette title, matching its actual
+  `ctrl+g` binding.
+
 ## [0.15.0] - 2026-07-07
 
 ### Added
@@ -198,7 +205,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Baseline release prior to this changelog.
 
-[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/yesitsfebreeze/justdown/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/yesitsfebreeze/justdown/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/yesitsfebreeze/justdown/compare/v0.12.0...v0.13.0

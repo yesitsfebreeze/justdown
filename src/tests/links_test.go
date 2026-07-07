@@ -1,30 +1,32 @@
-package justdown
+package tests
 
 import (
+	justdown "github.com/yesitsfebreeze/justdown/src"
+
 	"reflect"
 	"testing"
 )
 
 func TestClassifyDistinguishesTheThreeForms(t *testing.T) {
-	if f, v := ClassifyLink("dir/name"); f != LinkKey || v != "dir/name" {
+	if f, v := justdown.ClassifyLink("dir/name"); f != justdown.LinkKey || v != "dir/name" {
 		t.Fatalf("key: %v %q", f, v)
 	}
-	if f, v := ClassifyLink("glassmorphism"); f != LinkName || v != "glassmorphism" {
+	if f, v := justdown.ClassifyLink("glassmorphism"); f != justdown.LinkName || v != "glassmorphism" {
 		t.Fatalf("name: %v %q", f, v)
 	}
-	if f, v := ClassifyLink("?soft"); f != LinkFuzzy || v != "soft" {
+	if f, v := justdown.ClassifyLink("?soft"); f != justdown.LinkFuzzy || v != "soft" {
 		t.Fatalf("fuzzy: %v %q", f, v)
 	}
 }
 
 func TestLeafIsLastSegment(t *testing.T) {
-	if Leaf("soft-ui/glassmorphism") != "glassmorphism" || Leaf("glassmorphism") != "glassmorphism" {
+	if justdown.Leaf("soft-ui/glassmorphism") != "glassmorphism" || justdown.Leaf("glassmorphism") != "glassmorphism" {
 		t.Fatal("leaf")
 	}
 }
 
 func TestNameResolvesViaKeyNameOrLeaf(t *testing.T) {
-	idx := BuildNameIndex([][2]string{
+	idx := justdown.BuildNameIndex([][2]string{
 		{"soft-ui/glassmorphism", "glass"},
 		{"vcs/gh/release", "gh_release"},
 	})
@@ -44,7 +46,7 @@ func TestNameResolvesViaKeyNameOrLeaf(t *testing.T) {
 }
 
 func TestCollideOnLeafIsAmbiguous(t *testing.T) {
-	idx := BuildNameIndex([][2]string{
+	idx := justdown.BuildNameIndex([][2]string{
 		{"meta/release", "a"},
 		{"gh/release", "b"},
 	})
@@ -64,12 +66,12 @@ func TestCollideOnLeafIsAmbiguous(t *testing.T) {
 }
 
 func TestResolveTermDirectAndFuzzy(t *testing.T) {
-	rows := []Row{
-		{Source: SourceLocal, Key: "soft-ui/glass", Name: "glass", Kind: "tool"},
-		{Source: SourceLocal, Key: "ui/glassmorphism", Name: "glassmorphism", Kind: "tool",
+	rows := []justdown.Row{
+		{Source: justdown.SourceLocal, Key: "soft-ui/glass", Name: "glass", Kind: "tool"},
+		{Source: justdown.SourceLocal, Key: "ui/glassmorphism", Name: "glassmorphism", Kind: "tool",
 			UseWhen: "soft glass ui"},
 	}
-	matches, resolved := ResolveTerm(rows, "glass", false, 10)
+	matches, resolved := justdown.ResolveTerm(rows, "glass", false, 10)
 	if resolved != "soft-ui/glass" {
 		t.Fatalf("resolved: %q", resolved)
 	}
@@ -80,7 +82,7 @@ func TestResolveTermDirectAndFuzzy(t *testing.T) {
 	if !reflect.DeepEqual(keys, []string{"soft-ui/glass", "ui/glassmorphism"}) {
 		t.Fatalf("direct matches: %v", keys)
 	}
-	fmatches, fresolved := ResolveTerm(rows, "soft", true, 10)
+	fmatches, fresolved := justdown.ResolveTerm(rows, "soft", true, 10)
 	if fresolved != "" {
 		t.Fatalf("fuzzy never resolves a canonical key: %q", fresolved)
 	}

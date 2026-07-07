@@ -1,10 +1,14 @@
-package justdown
+package tests
 
-import "testing"
+import (
+	"testing"
 
-func srow(key, name, kind, useWhen, notWhen, purpose string) Row {
-	return Row{
-		Source:      SourceLocal,
+	justdown "github.com/yesitsfebreeze/justdown/src"
+)
+
+func srow(key, name, kind, useWhen, notWhen, purpose string) justdown.Row {
+	return justdown.Row{
+		Source:      justdown.SourceLocal,
 		Key:         key,
 		Name:        name,
 		Kind:        kind,
@@ -17,12 +21,12 @@ func srow(key, name, kind, useWhen, notWhen, purpose string) Row {
 }
 
 func TestResolvePrefixRanksExactThenPrefixThenSubstring(t *testing.T) {
-	rows := []Row{
+	rows := []justdown.Row{
 		srow("soft-ui/glass", "glass", "tool", "", "", ""),
 		srow("ui/glassmorphism", "glassmorphism", "tool", "", "", ""),
 		srow("x/subglass", "subglass", "tool", "", "", ""),
 	}
-	out := ResolvePrefix(rows, "glass")
+	out := justdown.ResolvePrefix(rows, "glass")
 	keys := make([]string, len(out))
 	for i, r := range out {
 		keys[i] = r.Key
@@ -36,11 +40,11 @@ func TestResolvePrefixRanksExactThenPrefixThenSubstring(t *testing.T) {
 }
 
 func TestNameOutscoresPurposeAndNotWhenVetoes(t *testing.T) {
-	rows := []Row{
+	rows := []justdown.Row{
 		srow("search/rg", "search_rg", "tool", "grep the repo", "", "ripgrep search"),
 		srow("web/fetch", "web_fetch", "tool", "download a url", "do not grep", "fetch a web page"),
 	}
-	out := Rank(rows, "grep search", "tool", "")
+	out := justdown.Rank(rows, "grep search", "tool", "")
 	if len(out) != 1 {
 		t.Fatalf("not_when veto drops web_fetch: %d", len(out))
 	}
@@ -50,22 +54,22 @@ func TestNameOutscoresPurposeAndNotWhenVetoes(t *testing.T) {
 }
 
 func TestFuzzyNameSubsequenceMatches(t *testing.T) {
-	terms := SearchTerms("relse")
-	hit, snippet := MatchNameContent("meta/tools/release.jd", "", terms)
+	terms := justdown.SearchTerms("relse")
+	hit, snippet := justdown.MatchNameContent("meta/tools/release.jd", "", terms)
 	if !hit {
 		t.Fatal("subsequence 'relse' must hit 'release'")
 	}
 	if snippet != "" {
 		t.Fatal("a name-only hit carries no snippet")
 	}
-	if miss, _ := MatchNameContent("meta/tools/gate.jd", "", terms); miss {
+	if miss, _ := justdown.MatchNameContent("meta/tools/gate.jd", "", terms); miss {
 		t.Fatal("gate must not match")
 	}
 }
 
 func TestContentSubstringMatchesAndSnippets(t *testing.T) {
 	raw := "---\nname: rg\n---\n\nUse Vim keys to navigate results.\n"
-	hit, snippet := MatchNameContent("search/rg.jd", raw, SearchTerms("VIM"))
+	hit, snippet := justdown.MatchNameContent("search/rg.jd", raw, justdown.SearchTerms("VIM"))
 	if !hit {
 		t.Fatal("content match is case-insensitive")
 	}
@@ -76,21 +80,21 @@ func TestContentSubstringMatchesAndSnippets(t *testing.T) {
 
 func TestEveryTermMustMatchNameOrContent(t *testing.T) {
 	raw := "body mentions vim here"
-	if hit, _ := MatchNameContent("search/rg.jd", raw, SearchTerms("vim rg")); !hit {
+	if hit, _ := justdown.MatchNameContent("search/rg.jd", raw, justdown.SearchTerms("vim rg")); !hit {
 		t.Fatal("'rg' hits name, 'vim' hits content")
 	}
-	miss, snippet := MatchNameContent("search/rg.jd", raw, SearchTerms("vim zzz"))
+	miss, snippet := justdown.MatchNameContent("search/rg.jd", raw, justdown.SearchTerms("vim zzz"))
 	if miss || snippet != "" {
 		t.Fatal("'zzz' hits nothing")
 	}
 }
 
 func TestKindFilterExcludesNonTools(t *testing.T) {
-	rows := []Row{
+	rows := []justdown.Row{
 		srow("x/tool", "a_tool", "tool", "do x", "", "does x"),
 		srow("x/note", "a_note", "knowledge", "do x", "", "about x"),
 	}
-	out := Rank(rows, "x", "tool", "")
+	out := justdown.Rank(rows, "x", "tool", "")
 	if len(out) != 1 || out[0].Row.Kind != "tool" {
 		t.Fatalf("%+v", out)
 	}

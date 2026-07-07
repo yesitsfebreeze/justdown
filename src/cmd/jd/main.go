@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	justdown "github.com/yesitsfebreeze/justdown"
+	justdown "github.com/yesitsfebreeze/justdown/src"
 )
 
 const cliVersion = "0.11.0"

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	justdown "github.com/yesitsfebreeze/justdown"
+	justdown "github.com/yesitsfebreeze/justdown/src"
 )
 
 func buildLocalGraph(cfg *config) bool {

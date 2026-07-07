@@ -13,7 +13,7 @@ run: bump
 # Version bump
 
 One source of truth for the project version: the `cliVersion` constant in
-`cmd/jd/main.go` (Go modules carry no version of their own — the git tag is the
+`src/cmd/jd/main.go` (Go modules carry no version of their own — the git tag is the
 module version). The spec badge in the README (`spec-vX.Y`) is a *separate*
 number — it tracks the `.jd` format, not the release, and is intentionally left
 untouched.
@@ -30,6 +30,6 @@ bump version:
     *) echo "version must be MAJOR.MINOR.PATCH, got '{{version}}'" >&2; exit 1 ;;
   esac
   root="$(git rev-parse --show-toplevel)"
-  sed -i 's/^const cliVersion = .*/const cliVersion = "{{version}}"/' "$root/cmd/jd/main.go"
-  echo "version → {{version}} (cmd/jd/main.go)"
+  sed -i 's/^const cliVersion = .*/const cliVersion = "{{version}}"/' "$root/src/cmd/jd/main.go"
+  echo "version → {{version}} (src/cmd/jd/main.go)"
 ```

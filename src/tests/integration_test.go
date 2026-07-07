@@ -1,4 +1,4 @@
-package main
+package tests
 
 import (
 	"fmt"
@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(dir)
 	jdBin = filepath.Join(dir, "jd")
-	if out, err := exec.Command("go", "build", "-o", jdBin, ".").CombinedOutput(); err != nil {
+	if out, err := exec.Command("go", "build", "-o", jdBin, "../cmd/jd").CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "build jd: %v\n%s", err, out)
 		os.Exit(1)
 	}

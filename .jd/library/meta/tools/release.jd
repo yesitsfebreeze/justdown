@@ -35,7 +35,7 @@ release version:
   esac
   jd get tools_gate    --justfile | just --justfile - gate
   jd get tools_version --justfile | just --justfile - bump {{version}}
-  git add CHANGELOG.md cmd/jd/main.go
+  git add CHANGELOG.md src/cmd/jd/main.go
   git commit -m "chore: release v{{version}}"
   git tag -a "v{{version}}" -m "v{{version}}"
   git push --follow-tags

@@ -1,6 +1,8 @@
-package justdown
+package tests
 
 import (
+	justdown "github.com/yesitsfebreeze/justdown/src"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,9 +25,9 @@ func TestLaterRootOverridesByKey(t *testing.T) {
 	write(t, filepath.Join(dir, "over/cat/tool.jd"), "---\nname: from_over\nkind: tool\n---\nbody\n")
 
 	store := filepath.Join(dir, "graph.db")
-	n, err := BuildIndex(store, []Root{
-		NewRoot(filepath.Join(dir, "base")),
-		NewRoot(filepath.Join(dir, "over")),
+	n, err := justdown.BuildIndex(store, []justdown.Root{
+		justdown.NewRoot(filepath.Join(dir, "base")),
+		justdown.NewRoot(filepath.Join(dir, "over")),
 	}, "test")
 	if err != nil {
 		t.Fatal(err)
@@ -33,12 +35,12 @@ func TestLaterRootOverridesByKey(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("same key collapses to one node, got %d", n)
 	}
-	s, err := OpenStore(store)
+	s, err := justdown.OpenStore(store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	rows, err := s.LoadRows(SourceLocal)
+	rows, err := s.LoadRows(justdown.SourceLocal)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +61,7 @@ func TestFindHomesDiscoversNestedPrunesHeavyAndOrdersDeeperFirst(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	homes := FindJDHomes(root)
+	homes := justdown.FindJDHomes(root)
 	has := func(p string) bool {
 		for _, h := range homes {
 			if h == p {

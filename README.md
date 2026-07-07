@@ -98,15 +98,15 @@ no `npm install`, no node, no model.
 
 ```sh
 # install or update (Linux/macOS) — verifies checksum, drops jd in ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/claude-plugin/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.sh | sh
 ```
 ```powershell
 # install or update (Windows) — verifies checksum, drops jd.exe in ~\.local\bin and adds it to PATH
-irm https://raw.githubusercontent.com/yesitsfebreeze/justdown/claude-plugin/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/yesitsfebreeze/justdown/main/scripts/install.ps1 | iex
 ```
 ```sh
 # …or from source, any platform (Go toolchain)
-go install github.com/yesitsfebreeze/justdown/cmd/jd@latest
+go install github.com/yesitsfebreeze/justdown/src/cmd/jd@latest
 
 # use it
 jd search "cut a release"   # find a tool

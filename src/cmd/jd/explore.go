@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	justdown "github.com/yesitsfebreeze/justdown"
+	justdown "github.com/yesitsfebreeze/justdown/src"
 )
 
 //go:embed editor/index.html editor/app.js editor/style.css

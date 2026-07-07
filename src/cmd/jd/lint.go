@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	justdown "github.com/yesitsfebreeze/justdown"
+	justdown "github.com/yesitsfebreeze/justdown/src"
 )
 
 func cmdLint(cfg *config) int {

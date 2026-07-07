@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	justdown "github.com/yesitsfebreeze/justdown"
+	justdown "github.com/yesitsfebreeze/justdown/src"
 )
 
 func toJSON(v any) string {

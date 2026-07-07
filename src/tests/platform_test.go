@@ -1,13 +1,15 @@
-package justdown
+package tests
 
 import (
+	justdown "github.com/yesitsfebreeze/justdown/src"
+
 	"reflect"
 	"strings"
 	"testing"
 )
 
 func sel(src, plat string) string {
-	return strings.Join(Platsel(Lines(src), plat), "\n")
+	return strings.Join(justdown.Platsel(justdown.Lines(src), plat), "\n")
 }
 
 func TestPicksOneVariantPerHostAndStripsAttrs(t *testing.T) {
@@ -40,7 +42,7 @@ func TestUntaggedAndNonplatformAttrsPassThrough(t *testing.T) {
 	if got := sel(src, "macos"); got != "# desc\nr:\n  body" {
 		t.Fatalf("got %q", got)
 	}
-	if ParsePlatformAttr("[private]") != nil || ParsePlatformAttr("[confirm: \"sure?\"]") != nil {
+	if justdown.ParsePlatformAttr("[private]") != nil || justdown.ParsePlatformAttr("[confirm: \"sure?\"]") != nil {
 		t.Fatal("non-platform attrs must pass")
 	}
 	keep := "[private]\nr:\n  body"
@@ -50,13 +52,13 @@ func TestUntaggedAndNonplatformAttrsPassThrough(t *testing.T) {
 }
 
 func TestParsesTagLists(t *testing.T) {
-	if !reflect.DeepEqual(ParsePlatformAttr("[unix]"), []string{"unix"}) {
+	if !reflect.DeepEqual(justdown.ParsePlatformAttr("[unix]"), []string{"unix"}) {
 		t.Fatal("[unix]")
 	}
-	if !reflect.DeepEqual(ParsePlatformAttr("[ unix , wsl ]"), []string{"unix", "wsl"}) {
+	if !reflect.DeepEqual(justdown.ParsePlatformAttr("[ unix , wsl ]"), []string{"unix", "wsl"}) {
 		t.Fatal("[ unix , wsl ]")
 	}
-	if ParsePlatformAttr("not an attr") != nil || ParsePlatformAttr("[unix, bogus]") != nil {
+	if justdown.ParsePlatformAttr("not an attr") != nil || justdown.ParsePlatformAttr("[unix, bogus]") != nil {
 		t.Fatal("invalid attrs")
 	}
 }
@@ -64,7 +66,7 @@ func TestParsesTagLists(t *testing.T) {
 func TestSelectForHostRespectsJDPlatformOverride(t *testing.T) {
 	t.Setenv("JD_PLATFORM", "macos")
 	src := "[unix]\nopen t:\n  xdg-open {{t}}\n[macos]\nopen t:\n  open {{t}}"
-	if got := SelectForHost(src); got != "open t:\n  open {{t}}" {
+	if got := justdown.SelectForHost(src); got != "open t:\n  open {{t}}" {
 		t.Fatalf("got %q", got)
 	}
 }

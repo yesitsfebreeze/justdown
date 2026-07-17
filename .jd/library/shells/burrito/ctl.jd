@@ -1,0 +1,76 @@
+---
+name: burrito_ctl
+description: One-shot remote control for a running burrito instance — fire-and-forget control frames via `burrito ctl <verb> [args]`. Routes to the session-keyed RC socket (or `$BURRITO_RC` when inside a pane).
+kind: tool
+tags: [burrito, ctl, remote-control, rc, ascend, descend, crossout, enter, detach, view, layout, reset]
+use_when: [burrito remote control, burrito ctl, send command to burrito programmatically, burrito ascend, burrito descend, burrito crossout, burrito enter, burrito view, burrito layout, burrito reset, burrito detach, drive burrito from script]
+danger: medium
+side_effects: [process]
+requires: [burrito]
+run: default
+provides: [ascend, reset, crossout, enter, detach, descend, view, layout, default]
+---
+
+# burrito ctl — remote control
+
+`burrito ctl <verb> [args]` sends one control frame to a running burrito
+instance and exits (0 on success, 1+ on no-live-instance/connect failure). From
+inside a burrito pane, `$BURRITO_RC` points at the host (session or headed)
+instance's RC socket; from outside you target the session with `--session <key>`
+or let it resolve from cwd.
+
+All slot/region arguments are **1-indexed**. Directions are named (`up`, `down`,
+`left`, `right`) or a byte `0..3`.
+
+## Verbs
+
+| Verb | Args | Effect |
+|------|------|--------|
+| `ascend` | — | open the picker |
+| `reset` | — | reset layout + restore stash |
+| `crossout` | `dir` | focus-nav one step out of the current view in `dir` |
+| `enter` | `dir` | focus-land one step into the view from `dir` |
+| `detach` | — | raise the detach prompt (or detach a client) |
+| `descend` | `descent target tl br` | descend one level (4 args, 1-indexed slots) |
+| `view` | `A:B` | set the view region (e.g. `1:5`) |
+
+Additional flag: `--session <key>` targets a specific session instead of the
+cwd-resolved or `$BURRITO_RC` one.
+
+```just
+# default (list verbs)
+default:
+  burrito ctl
+
+# ascend — open the picker
+ascend:
+  burrito ctl ascend
+
+# reset layout
+reset:
+  burrito ctl reset
+
+# focus-nav one step left
+crossout dir="left":
+  burrito ctl crossout {{dir}}
+
+# focus-land down
+enter dir="down":
+  burrito ctl enter {{dir}}
+
+# detach client
+detach:
+  burrito ctl detach
+
+# descend one level: through tile 2, activate tile 5, view 1-9
+descend descent="2" target="5" tl="1" br="9":
+  burrito ctl descend {{descent}} {{target}} {{tl}} {{br}}
+
+# set view region to slots 1-5
+view region="1:5":
+  burrito ctl view {{quote(region)}}
+
+# target a specific named session
+ascend-session session="work":
+  burrito ctl ascend --session {{quote(session)}}
+```
